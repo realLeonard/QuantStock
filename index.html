@@ -1,0 +1,1322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>股海罗盘 · 后台管理</title>
+  <!-- Bootstrap Icons CDN 已移除，全部改用内联 SVG，彻底消除外部依赖 -->
+  <!-- Supabase JS SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <style>
+    .ico { display:inline-block; vertical-align:middle; flex-shrink:0; }
+  </style>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: #f1f5f9; color: #1e293b; }
+
+    /* ===== 登录页 ===== */
+    #page-login {
+      height: 100%;
+      overflow-y: auto;
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+      display: flex; align-items: center; justify-content: center;
+      position: relative; overflow: hidden;
+    }
+    #page-login::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 30% 20%, rgba(59,130,246,0.15) 0%, transparent 60%),
+                  radial-gradient(ellipse at 70% 80%, rgba(139,92,246,0.1) 0%, transparent 60%);
+    }
+    .login-card {
+      background: #fff;
+      border-radius: 20px;
+      padding: 48px 44px;
+      width: 420px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.05);
+      position: relative; z-index: 1;
+    }
+    .login-logo {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+    }
+    .login-logo-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 22px;
+    }
+    .login-logo-name { font-size: 20px; font-weight: 700; color: #0f172a; }
+    .login-subtitle { color: #64748b; font-size: 13.5px; margin-bottom: 36px; }
+    .login-label { font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; display: block; }
+    .login-input-wrap { position: relative; margin-bottom: 18px; }
+    .login-input-icon {
+      position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+      color: #94a3b8; font-size: 16px; pointer-events: none;
+    }
+    .login-input {
+      width: 100%; padding: 11px 14px 11px 42px;
+      border: 1.5px solid #e2e8f0; border-radius: 10px;
+      font-size: 14px; color: #1e293b; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .login-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.12); }
+    .login-btn {
+      width: 100%; padding: 12px;
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      color: white; border: none; border-radius: 10px;
+      font-size: 15px; font-weight: 600; cursor: pointer;
+      margin-top: 8px; transition: opacity 0.2s, transform 0.1s;
+      letter-spacing: 0.3px;
+    }
+    .login-btn:hover { opacity: 0.92; }
+    .login-btn:active { transform: scale(0.99); }
+    .login-hint {
+      margin-top: 20px; padding: 12px 14px;
+      background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;
+      font-size: 12.5px; color: #64748b; text-align: center;
+    }
+    .login-hint b { color: #3b82f6; }
+    .login-error {
+      color: #ef4444; font-size: 13px; margin-top: 10px; text-align: center;
+      min-height: 20px;
+    }
+
+    /* ===== 后台布局 ===== */
+    #page-admin { display: none; height: 100%; }
+
+    /* 侧边栏 */
+    .sidebar {
+      position: fixed; top: 0; left: 0; bottom: 0; width: 220px;
+      background: #0f172a;
+      display: flex; flex-direction: column;
+      z-index: 100;
+    }
+    .sidebar-brand {
+      padding: 20px 20px 16px;
+      display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .sidebar-brand-icon {
+      width: 36px; height: 36px; border-radius: 9px;
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 18px; flex-shrink: 0;
+    }
+    .sidebar-brand-text { color: #f1f5f9; font-size: 15px; font-weight: 700; letter-spacing: 0.2px; }
+    .sidebar-brand-sub { color: #64748b; font-size: 11px; margin-top: 1px; }
+
+    .sidebar-section-title {
+      padding: 20px 20px 6px;
+      font-size: 10.5px; font-weight: 600; color: #475569;
+      text-transform: uppercase; letter-spacing: 0.8px;
+    }
+    .sidebar-nav { flex: 1; padding: 4px 10px; overflow-y: auto; }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 8px; cursor: pointer;
+      color: #94a3b8; font-size: 14px; font-weight: 500;
+      transition: all 0.15s; margin-bottom: 2px; position: relative;
+      user-select: none;
+    }
+    .nav-item:hover { background: rgba(255,255,255,0.06); color: #e2e8f0; }
+    .nav-item.active {
+      background: rgba(59,130,246,0.15); color: #93c5fd;
+    }
+    .nav-item.active::before {
+      content: ''; position: absolute; left: 0; top: 6px; bottom: 6px;
+      width: 3px; border-radius: 0 2px 2px 0;
+      background: #3b82f6;
+    }
+    .nav-item i { font-size: 16px; width: 20px; text-align: center; }
+    .nav-badge {
+      margin-left: auto; background: #3b82f6; color: white;
+      font-size: 11px; font-weight: 600; padding: 1px 7px;
+      border-radius: 10px; line-height: 18px;
+    }
+
+    .sidebar-footer {
+      padding: 14px 16px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .sidebar-avatar {
+      width: 34px; height: 34px; border-radius: 50%;
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 14px; font-weight: 600; flex-shrink: 0;
+    }
+    .sidebar-user-name { color: #e2e8f0; font-size: 13px; font-weight: 600; }
+    .sidebar-user-role { color: #475569; font-size: 11.5px; }
+    .sidebar-logout-btn {
+      margin-left: auto; display: flex; align-items: center; gap: 5px;
+      color: #64748b; cursor: pointer; font-size: 12px; font-weight: 500;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px; padding: 5px 9px; transition: all 0.15s;
+    }
+    .sidebar-logout-btn:hover { color: #fca5a5; background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.3); }
+
+    /* 主区域 */
+    .main-wrap { margin-left: 220px; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+    .topbar {
+      height: 60px; background: #fff;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex; align-items: center; padding: 0 24px;
+      flex-shrink: 0;
+      gap: 12px;
+    }
+    .topbar-breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 13.5px; color: #64748b; }
+    .topbar-breadcrumb .sep { color: #cbd5e1; }
+    .topbar-breadcrumb .current { color: #1e293b; font-weight: 600; }
+    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+    .topbar-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 13px; font-weight: 600;
+    }
+    .topbar-username { font-size: 13.5px; font-weight: 600; color: #374151; }
+
+    .main-content { flex: 1; padding: 28px 28px 48px; overflow-y: auto; min-height: 0; }
+
+    /* ===== Dashboard ===== */
+    .page-title { font-size: 20px; font-weight: 700; color: #0f172a; margin-bottom: 4px; }
+    .page-desc { font-size: 13.5px; color: #64748b; margin-bottom: 24px; }
+
+    /* 统计卡片 */
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+    .stat-card {
+      background: #fff; border-radius: 14px; padding: 20px 22px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
+      display: flex; align-items: flex-start; gap: 14px;
+      border: 1px solid #f1f5f9;
+    }
+    .stat-icon {
+      width: 46px; height: 46px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; flex-shrink: 0;
+    }
+    .stat-icon.blue { background: rgba(59,130,246,0.1); color: #3b82f6; }
+    .stat-icon.green { background: rgba(16,185,129,0.1); color: #10b981; }
+    .stat-icon.red { background: rgba(239,68,68,0.1); color: #ef4444; }
+    .stat-icon.amber { background: rgba(245,158,11,0.1); color: #f59e0b; }
+    .stat-label { font-size: 12.5px; color: #64748b; margin-bottom: 4px; }
+    .stat-value { font-size: 28px; font-weight: 700; color: #0f172a; line-height: 1; }
+    .stat-sub { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+
+    /* 主题卡片网格 */
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+    }
+    .section-title { font-size: 16px; font-weight: 700; color: #0f172a; }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      color: white; border: none; border-radius: 8px;
+      padding: 8px 16px; font-size: 13.5px; font-weight: 600; cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-primary:active { transform: scale(0.98); }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: #fff; color: #374151;
+      border: 1.5px solid #e2e8f0; border-radius: 8px;
+      padding: 7px 14px; font-size: 13px; font-weight: 500; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-secondary:hover { background: #f8fafc; border-color: #cbd5e1; }
+    .btn-danger {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: #fff; color: #ef4444;
+      border: 1.5px solid #fee2e2; border-radius: 7px;
+      padding: 5px 11px; font-size: 12.5px; font-weight: 500; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-danger:hover { background: #fef2f2; border-color: #fca5a5; }
+
+    .themes-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .theme-card-new {
+      background: #fff; border-radius: 14px;
+      border: 1px solid #f1f5f9;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+      padding: 20px 22px; transition: box-shadow 0.2s;
+    }
+    .theme-card-new:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .theme-card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
+    .theme-name { font-size: 16px; font-weight: 700; color: #0f172a; }
+    .theme-count-badge {
+      background: #eff6ff; color: #3b82f6; font-size: 12px; font-weight: 600;
+      padding: 2px 10px; border-radius: 20px; white-space: nowrap;
+    }
+    .theme-overview {
+      font-size: 13px; color: #64748b; line-height: 1.6; margin-bottom: 14px;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .theme-stocks-preview { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+    .mini-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: #f8fafc; border: 1px solid #e2e8f0;
+      border-radius: 6px; padding: 3px 8px; font-size: 12px; color: #374151;
+    }
+    .mini-badge .stars-mini { color: #f59e0b; font-size: 10px; }
+    .theme-card-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      padding-top: 14px; border-top: 1px solid #f1f5f9;
+    }
+    .theme-meta { font-size: 12px; color: #94a3b8; }
+    .theme-actions { display: flex; gap: 8px; }
+    .btn-icon {
+      width: 30px; height: 30px; border-radius: 7px; border: 1.5px solid #e2e8f0;
+      background: #fff; color: #64748b; cursor: pointer; font-size: 14px;
+      display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+    }
+    .btn-icon:hover { background: #f8fafc; color: #374151; }
+    .btn-icon.danger:hover { background: #fef2f2; border-color: #fca5a5; color: #ef4444; }
+
+    /* 空状态 */
+    .empty-state {
+      text-align: center; padding: 64px 24px; color: #94a3b8;
+    }
+    .empty-state i { font-size: 48px; display: block; margin-bottom: 12px; }
+    .empty-state p { font-size: 14px; }
+
+    /* ===== 股票池页面 ===== */
+    #view-stocks-inner { display: none; }
+    .stocks-toolbar {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
+    }
+    .stocks-back { display: flex; align-items: center; gap: 6px; color: #64748b; cursor: pointer; font-size: 13.5px; }
+    .stocks-back:hover { color: #3b82f6; }
+    .stocks-title { font-size: 18px; font-weight: 700; color: #0f172a; }
+
+    /* 表格 */
+    .table-wrap { background: #fff; border-radius: 14px; overflow: hidden; border: 1px solid #f1f5f9; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
+    #stock-table { border-collapse: collapse; width: 100%; }
+    #stock-table th {
+      background: #1e293b; color: #94a3b8;
+      text-align: center; padding: 12px 14px;
+      font-weight: 600; font-size: 12.5px; letter-spacing: 0.3px;
+      border-bottom: 1px solid #334155;
+    }
+    #stock-table td {
+      border: 1px solid #f1f5f9; padding: 10px 14px; vertical-align: middle; font-size: 13.5px;
+    }
+    #stock-table .td-cat {
+      text-align: center; font-weight: 600; background: #f8fafc;
+      white-space: nowrap; color: #475569; font-size: 12.5px;
+    }
+    #stock-table .td-stock { text-align: center; white-space: nowrap; min-width: 90px; }
+    #stock-table .td-stock .stock-name { font-weight: 700; font-size: 14px; color: #0f172a; }
+    #stock-table .td-stock .stock-code { color: #94a3b8; font-size: 11.5px; margin-top: 1px; }
+    #stock-table .td-stock .stock-stars { color: #f59e0b; font-size: 11px; margin-top: 2px; }
+    #stock-table .td-relation { color: #475569; line-height: 1.65; min-width: 180px; font-size: 13px; }
+    #stock-table .td-actions { text-align: center; white-space: nowrap; width: 88px; }
+    #stock-table tbody tr:hover td { background: #f8fbff; }
+    .hl-red { color: #ef4444 !important; }
+    .hl-orange { color: #f59e0b !important; }
+
+    /* ===== 模态框 ===== */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(15,23,42,0.5);
+      backdrop-filter: blur(2px);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    .modal-overlay.show { opacity: 1; pointer-events: all; }
+    .modal-box {
+      background: #fff; border-radius: 16px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.25);
+      width: 500px; max-width: 96vw; max-height: 90vh; overflow-y: auto;
+      transform: scale(0.95) translateY(8px); transition: transform 0.2s;
+    }
+    .modal-overlay.show .modal-box { transform: scale(1) translateY(0); }
+    .modal-box.wide { width: 640px; }
+    .modal-header {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid #f1f5f9;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .modal-title { font-size: 16px; font-weight: 700; color: #0f172a; }
+    .modal-close {
+      width: 30px; height: 30px; border-radius: 8px; border: none;
+      background: #f1f5f9; color: #64748b; cursor: pointer; font-size: 16px;
+      display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+    }
+    .modal-close:hover { background: #e2e8f0; color: #374151; }
+    .modal-body { padding: 20px 24px; }
+    .modal-footer {
+      padding: 14px 24px 20px;
+      border-top: 1px solid #f1f5f9;
+      display: flex; justify-content: flex-end; gap: 10px;
+    }
+
+    /* 表单 */
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+    .form-label .opt { font-weight: 400; color: #94a3b8; }
+    .form-control {
+      width: 100%; padding: 9px 12px;
+      border: 1.5px solid #e2e8f0; border-radius: 8px;
+      font-size: 13.5px; color: #1e293b; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .form-control:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+    .form-row { display: grid; gap: 12px; }
+    .form-row.cols-2 { grid-template-columns: 1fr 1fr; }
+    .form-row.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+    .char-count { font-size: 12px; color: #94a3b8; text-align: right; margin-top: 4px; }
+
+    /* 星级输入 */
+    .star-picker { display: flex; gap: 4px; }
+    .star-picker i {
+      font-size: 22px; cursor: pointer; color: #e2e8f0; transition: color 0.1s;
+      font-style: normal; line-height: 1; user-select: none;
+    }
+    .star-picker i.lit { color: #f59e0b; }
+
+    /* 高亮选择 */
+    .hl-group { display: flex; gap: 8px; margin-top: 4px; }
+    .hl-opt {
+      padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600;
+      border: 2px solid transparent; transition: all 0.15s;
+    }
+    .hl-opt[data-hl=""] { background: #f1f5f9; color: #64748b; border-color: #f1f5f9; }
+    .hl-opt[data-hl=""]:hover, .hl-opt[data-hl=""].active { border-color: #94a3b8; background: #e2e8f0; }
+    .hl-opt[data-hl="red"] { background: #fef2f2; color: #ef4444; border-color: #fee2e2; }
+    .hl-opt[data-hl="red"].active { border-color: #ef4444; }
+    .hl-opt[data-hl="orange"] { background: #fffbeb; color: #f59e0b; border-color: #fde68a; }
+    .hl-opt[data-hl="orange"].active { border-color: #f59e0b; }
+
+    /* 工具提示 / Toast */
+    #toast {
+      position: fixed; bottom: 28px; right: 28px; z-index: 999;
+      background: #1e293b; color: #f1f5f9;
+      padding: 12px 20px; border-radius: 10px;
+      font-size: 13.5px; font-weight: 500;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+      transform: translateY(20px); opacity: 0;
+      transition: all 0.3s; pointer-events: none;
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+
+    /* ===== Loading 遮罩 ===== */
+    #loading-overlay {
+      position: fixed; inset: 0; background: rgba(15,23,42,0.35);
+      display: none; align-items: center; justify-content: center;
+      z-index: 500;
+    }
+    .loading-spinner {
+      width: 40px; height: 40px; border-radius: 50%;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-top-color: #3b82f6;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<!-- ==================== 登录页 ==================== -->
+<div id="page-login">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="10" width="4" height="12" rx="1"/><rect x="9" y="6" width="4" height="16" rx="1"/><rect x="16" y="2" width="4" height="20" rx="1"/></svg>
+      </div>
+      <div>
+        <div class="login-logo-name">股海罗盘</div>
+      </div>
+    </div>
+    <div class="login-subtitle">专业股票主题管理后台 · 登录您的账户</div>
+
+    <form onsubmit="doLogin(); return false;" autocomplete="on">
+    <label class="login-label">账号</label>
+    <div class="login-input-wrap">
+      <svg class="login-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <input class="login-input" id="input-username" type="text" placeholder="请输入账号" autocomplete="username">
+    </div>
+
+    <label class="login-label">密码</label>
+    <div class="login-input-wrap">
+      <svg class="login-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <input class="login-input" id="input-password" type="password" placeholder="请输入密码" autocomplete="current-password">
+    </div>
+
+    <div class="login-error" id="login-error"></div>
+    <button type="submit" class="login-btn">登 录</button>
+    </form>
+
+    <div class="login-hint">演示账号：<b>admin</b> &nbsp;/&nbsp; 密码：<b>123456</b></div>
+  </div>
+</div>
+
+<!-- ==================== 后台布局 ==================== -->
+<div id="page-admin">
+
+  <!-- 侧边栏 -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="10" width="4" height="12" rx="1"/><rect x="9" y="6" width="4" height="16" rx="1"/><rect x="16" y="2" width="4" height="20" rx="1"/></svg>
+      </div>
+      <div>
+        <div class="sidebar-brand-text">股海罗盘</div>
+        <div class="sidebar-brand-sub">Stock Management</div>
+      </div>
+    </div>
+
+    <div class="sidebar-nav">
+      <div class="sidebar-section-title">主菜单</div>
+      <div class="nav-item active" data-nav="dashboard" onclick="navigate('dashboard')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><rect x="2" y="2" width="9" height="9" rx="1.5"/><rect x="13" y="2" width="9" height="9" rx="1.5"/><rect x="2" y="13" width="9" height="9" rx="1.5"/><rect x="13" y="13" width="9" height="9" rx="1.5"/></svg> 仪表盘
+      </div>
+      <div class="nav-item" data-nav="themes" onclick="navigate('themes')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg> 主题管理
+        <span class="nav-badge" id="nav-theme-count">0</span>
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-avatar">A</div>
+      <div>
+        <div class="sidebar-user-name">Admin</div>
+        <div class="sidebar-user-role">超级管理员</div>
+      </div>
+      <button class="sidebar-logout-btn" title="退出登录" onclick="doLogout()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        退出
+      </button>
+    </div>
+  </aside>
+
+  <!-- 主区域 -->
+  <div class="main-wrap">
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="topbar-breadcrumb" id="topbar-breadcrumb">
+        <span>股海罗盘</span>
+        <span class="sep">/</span>
+        <span class="current" id="topbar-current">仪表盘</span>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-avatar">A</div>
+        <span class="topbar-username">Admin</span>
+      </div>
+    </div>
+
+    <!-- 主内容 -->
+    <div class="main-content">
+
+      <!-- === 仪表盘视图 === -->
+      <div id="view-dashboard">
+        <div class="page-title">仪表盘</div>
+        <div class="page-desc">欢迎回来，Admin！以下是您的股票池概览。</div>
+
+        <!-- 统计卡片 -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon blue"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></div>
+            <div>
+              <div class="stat-label">主题总数</div>
+              <div class="stat-value" id="stat-themes">0</div>
+              <div class="stat-sub">个投资主题</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></div>
+            <div>
+              <div class="stat-label">股票总数</div>
+              <div class="stat-value" id="stat-stocks">0</div>
+              <div class="stat-sub">条记录（含重复）</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon red"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg></div>
+            <div>
+              <div class="stat-label">重点标记</div>
+              <div class="stat-value" id="stat-red">0</div>
+              <div class="stat-sub">红/橙高亮股票</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon amber"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+            <div>
+              <div class="stat-label">平均星级</div>
+              <div class="stat-value" id="stat-stars">—</div>
+              <div class="stat-sub">综合重要性评分</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 主题列表 -->
+        <div class="section-header">
+          <div class="section-title">投资主题</div>
+          <button class="btn-primary" onclick="openThemeModal()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="vertical-align:middle;margin-right:4px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>新增主题
+          </button>
+        </div>
+        <div class="themes-grid" id="themes-grid"></div>
+        <div id="themes-empty" class="empty-state" style="display:none">
+          <span style="font-size:48px;display:block;margin-bottom:12px">📭</span>
+          <p>暂无主题，点击「新增主题」开始</p>
+        </div>
+      </div>
+
+      <!-- === 主题管理视图（含股票池） === -->
+      <div id="view-themes" style="display:none">
+        <!-- 主题列表子视图 -->
+        <div id="view-themes-list">
+          <div class="section-header">
+            <div>
+              <div class="page-title">主题管理</div>
+              <div class="page-desc" style="margin-bottom:0">管理您的所有投资主题及关联股票池</div>
+            </div>
+            <button class="btn-primary" onclick="openThemeModal()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="vertical-align:middle;margin-right:4px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>新增主题
+            </button>
+          </div>
+          <div class="themes-grid" id="themes-grid-2"></div>
+          <div id="themes-empty-2" class="empty-state" style="display:none">
+            <span style="font-size:48px;display:block;margin-bottom:12px">📭</span>
+            <p>暂无主题，点击「新增主题」开始</p>
+          </div>
+        </div>
+
+        <!-- 股票池子视图 -->
+        <div id="view-stocks-inner" style="display:none">
+          <div class="stocks-toolbar">
+            <span class="stocks-back" onclick="backToThemeList()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>返回主题
+            </span>
+            <span style="color:#e2e8f0;margin:0 4px">|</span>
+            <span class="stocks-title" id="stocks-view-title"></span>
+            <div style="margin-left:auto">
+              <button class="btn-primary" onclick="openStockModal()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="vertical-align:middle;margin-right:4px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>添加股票
+              </button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="stock-table">
+              <thead>
+                <tr>
+                  <th style="width:72px">大类</th>
+                  <th style="width:72px">子类</th>
+                  <th style="width:72px">细分</th>
+                  <th style="width:100px">个股</th>
+                  <th>相关性</th>
+                  <th style="width:88px">操作</th>
+                </tr>
+              </thead>
+              <tbody id="stock-tbody"></tbody>
+            </table>
+            <div id="stock-empty" class="empty-state" style="display:none">
+              <span style="font-size:48px;display:block;margin-bottom:12px">📈</span>
+              <p>暂无股票，点击「添加股票」</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /main-content -->
+  </div><!-- /main-wrap -->
+</div><!-- /page-admin -->
+
+<!-- ==================== 模态框：主题 ==================== -->
+<div class="modal-overlay" id="modal-theme">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-theme-title">新增主题</span>
+      <button class="modal-close" onclick="closeModal('modal-theme')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">主题名称 <span style="color:#ef4444">*</span></label>
+        <input class="form-control" id="input-theme-name" placeholder="如：AI算力、光通信/CPO">
+      </div>
+      <div class="form-group">
+        <label class="form-label">概述 <span class="opt">（可选）</span></label>
+        <textarea class="form-control" id="input-theme-overview" rows="3"
+          placeholder="描述该主题的投资逻辑、行业背景、核心驱动力..." style="resize:vertical"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-theme')">取消</button>
+      <button class="btn-primary" onclick="saveTheme()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><polyline points="20 6 9 17 4 12"/></svg>保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 模态框：股票 ==================== -->
+<div class="modal-overlay" id="modal-stock">
+  <div class="modal-box wide">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-stock-title">添加股票</span>
+      <button class="modal-close" onclick="closeModal('modal-stock')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row cols-2" style="margin-bottom:16px">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">股票代码 <span style="color:#ef4444">*</span></label>
+          <input class="form-control" id="input-stock-code" placeholder="如：600519">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">股票名称 <span style="color:#ef4444">*</span></label>
+          <input class="form-control" id="input-stock-name" placeholder="如：贵州茅台">
+        </div>
+      </div>
+      <div class="form-row cols-3" style="margin-bottom:16px">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">大类 <span class="opt">（可选）</span></label>
+          <input class="form-control" id="input-cat1" placeholder="如：上游材料">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">子类 <span class="opt">（可选）</span></label>
+          <input class="form-control" id="input-cat2" placeholder="如：光芯片">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">细分 <span class="opt">（可选）</span></label>
+          <input class="form-control" id="input-cat3" placeholder="如：CPO">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">相关性说明 <span class="opt">（可选，200字内）</span></label>
+        <textarea class="form-control" id="input-stock-relation" rows="3" maxlength="200"
+          style="resize:vertical" placeholder="说明该股票与本主题的关联逻辑..."></textarea>
+        <div class="char-count"><span id="relation-count">0</span>/200</div>
+      </div>
+      <div class="form-row cols-2">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">重要性</label>
+          <div class="star-picker" id="star-picker">
+            <i data-v="1">★</i>
+            <i data-v="2">★</i>
+            <i data-v="3">★</i>
+            <i data-v="4">★</i>
+            <i data-v="5">★</i>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">高亮标记</label>
+          <div class="hl-group" id="hl-group">
+            <span class="hl-opt" data-hl="">无</span>
+            <span class="hl-opt" data-hl="red">红色</span>
+            <span class="hl-opt" data-hl="orange">橙色</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-stock')">取消</button>
+      <button class="btn-primary" onclick="saveStock()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><polyline points="20 6 9 17 4 12"/></svg>保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Loading 遮罩 -->
+<div id="loading-overlay"><div class="loading-spinner"></div></div>
+
+<script>
+// ===== Supabase 初始化 =====
+// 替换为你的 Supabase 项目 URL 和 anon key（均为公开值，可安全写入前端）
+const SUPABASE_URL = 'https://wtogbmrbcgpmbtybkvle.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_uZ_vO2W3YB0hD3OUVcX76w_XN9NoDn2';
+const { createClient } = window.supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ===== 内联 SVG 图标（不依赖外部CDN，确保始终可见） =====
+const ICONS = {
+  pencil: `<svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
+  trash:  `<svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+  logout: `<svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
+  check:  `<svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
+  plus:   `<svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+  arrow:  `<svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>`,
+  close:  `<svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+  back:   `<svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>`,
+};
+
+// ===== 全局状态缓存（替代每次 DB.load() 的重复请求） =====
+let appState = { themes: [] };
+
+// ===== 数据层（Supabase async） =====
+const DB = {
+  // 加载全量数据（含嵌套 stocks），缓存到 appState
+  async load() {
+    const { data, error } = await sb
+      .from('themeConcept')
+      .select('*, themeStocks(*)')
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    // 将 Supabase 行格式转换为应用内格式（createdAt 字段兼容）
+    appState.themes = (data || []).map(t => ({
+      ...t,
+      createdAt: t.created_at,
+      stocks: t.themeStocks || []
+    }));
+    return appState.themes;
+  },
+
+  // 新增或更新主题
+  async saveTheme(theme, isNew) {
+    const row = {
+      id: theme.id,
+      name: theme.name,
+      overview: theme.overview || '',
+      created_at: theme.createdAt
+    };
+    const { error } = isNew
+      ? await sb.from('themeConcept').insert(row)
+      : await sb.from('themeConcept').update({ name: theme.name, overview: theme.overview || '' }).eq('id', theme.id);
+    if (error) throw error;
+  },
+
+  // 删除主题（级联删除 stocks，需数据库外键 ON DELETE CASCADE）
+  async deleteTheme(themeId) {
+    const { error } = await sb.from('themeConcept').delete().eq('id', themeId);
+    if (error) throw error;
+  },
+
+  // 新增或更新股票
+  async saveStock(themeId, stock, isNew) {
+    const row = {
+      id: stock.id,
+      theme_id: themeId,
+      code: stock.code,
+      name: stock.name,
+      cat1: stock.cat1 || '',
+      cat2: stock.cat2 || '',
+      cat3: stock.cat3 || '',
+      relation: stock.relation || '',
+      stars: stock.stars,
+      highlight: stock.highlight || ''
+    };
+    const { error } = isNew
+      ? await sb.from('themeStocks').insert(row)
+      : await sb.from('themeStocks').update({
+          code: stock.code, name: stock.name,
+          cat1: stock.cat1 || '', cat2: stock.cat2 || '', cat3: stock.cat3 || '',
+          relation: stock.relation || '', stars: stock.stars, highlight: stock.highlight || ''
+        }).eq('id', stock.id);
+    if (error) throw error;
+  },
+
+  // 删除股票
+  async deleteStock(stockId) {
+    const { error } = await sb.from('themeStocks').delete().eq('id', stockId);
+    if (error) throw error;
+  }
+};
+
+// ===== Loading 状态 =====
+function setLoading(show) {
+  document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
+}
+
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtDate(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// ===== 状态 =====
+let editingThemeId = null;
+let editingStockId = null;
+let currentThemeId = null;
+let starValue = 3;
+let hlValue = '';
+let currentNav = 'dashboard';
+
+// ===== Toast =====
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// ===== 登录 =====
+function doLogin() {
+  const u = document.getElementById('input-username').value.trim();
+  const p = document.getElementById('input-password').value;
+  const err = document.getElementById('login-error');
+  if (u === 'admin' && p === '123456') {
+    sessionStorage.setItem('admin_logged_in', '1');
+    document.getElementById('page-login').style.display = 'none';
+    document.getElementById('page-admin').style.display = 'block';
+    init();
+  } else {
+    err.textContent = '账号或密码错误，请重试';
+    document.getElementById('input-password').value = '';
+  }
+}
+
+// 回车登录由 <form onsubmit> 统一处理，Tab 键可在账号/密码间切换
+
+function doLogout() {
+  if (!confirm('确认退出登录？')) return;
+  sessionStorage.removeItem('admin_logged_in');
+  document.getElementById('page-admin').style.display = 'none';
+  document.getElementById('page-login').style.display = 'flex';
+  document.getElementById('input-username').value = '';
+  document.getElementById('input-password').value = '';
+  document.getElementById('login-error').textContent = '';
+}
+
+// ===== 路由 =====
+async function navigate(nav) {
+  currentNav = nav;
+  // 侧边栏激活
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.nav === nav);
+  });
+  // 视图切换
+  document.getElementById('view-dashboard').style.display = nav === 'dashboard' ? 'block' : 'none';
+  document.getElementById('view-themes').style.display = nav === 'themes' ? 'block' : 'none';
+  // Breadcrumb
+  const names = { dashboard: '仪表盘', themes: '主题管理' };
+  document.getElementById('topbar-current').textContent = names[nav] || nav;
+
+  if (nav === 'dashboard') await renderDashboard();
+  if (nav === 'themes') {
+    showThemesList();
+    await renderThemesList();
+  }
+  updateNavBadge();
+}
+
+function updateNavBadge() {
+  document.getElementById('nav-theme-count').textContent = appState.themes.length;
+}
+
+// ===== Dashboard =====
+async function renderDashboard() {
+  setLoading(true);
+  try {
+    await DB.load();
+  } catch (e) {
+    toast('❌ 加载数据失败：' + e.message);
+    setLoading(false);
+    return;
+  }
+  setLoading(false);
+
+  const themes = appState.themes;
+  const allStocks = themes.flatMap(t => t.stocks || []);
+  const redCount = allStocks.filter(s => s.highlight === 'red' || s.highlight === 'orange').length;
+  const avgStars = allStocks.length ? (allStocks.reduce((s, x) => s + (x.stars || 0), 0) / allStocks.length).toFixed(1) : '—';
+
+  document.getElementById('stat-themes').textContent = themes.length;
+  document.getElementById('stat-stocks').textContent = allStocks.length;
+  document.getElementById('stat-red').textContent = redCount;
+  document.getElementById('stat-stars').textContent = avgStars;
+
+  renderThemeCards('themes-grid', 'themes-empty');
+  updateNavBadge();
+}
+
+function renderThemeCards(gridId, emptyId) {
+  const themes = appState.themes;
+  const grid = document.getElementById(gridId);
+  const empty = document.getElementById(emptyId);
+
+  if (themes.length === 0) {
+    grid.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  grid.innerHTML = themes.map(theme => {
+    const stocks = theme.stocks || [];
+    const top3 = [...stocks].sort((a,b) => b.stars - a.stars).slice(0, 3);
+    const moreCount = stocks.length > 3 ? stocks.length - 3 : 0;
+    const badgesHtml = top3.map(s => `
+      <span class="mini-badge">
+        <span class="stars-mini">${'★'.repeat(s.stars)}</span>
+        <span style="font-weight:600">${esc(s.code)}</span>
+        <span style="color:#64748b">${esc(s.name)}</span>
+      </span>`).join('') + (moreCount > 0 ? `<span class="mini-badge" style="color:#94a3b8">+${moreCount}</span>` : '');
+
+    return `
+    <div class="theme-card-new">
+      <div class="theme-card-header">
+        <div class="theme-name">${esc(theme.name)}</div>
+        <span class="theme-count-badge">${stocks.length} 支</span>
+      </div>
+      ${theme.overview ? `<div class="theme-overview">${esc(theme.overview)}</div>` : '<div style="height:8px"></div>'}
+      <div class="theme-stocks-preview">
+        ${top3.length > 0 ? badgesHtml : '<span style="font-size:12px;color:#94a3b8">暂无股票</span>'}
+      </div>
+      <div class="theme-card-footer">
+        <div class="theme-meta">📅 ${fmtDate(theme.createdAt)}</div>
+        <div class="theme-actions">
+          <button class="btn-icon" onclick="openThemeModal('${theme.id}')" title="编辑主题">${ICONS.pencil}</button>
+          <button class="btn-icon danger" onclick="deleteTheme('${theme.id}')" title="删除主题">${ICONS.trash}</button>
+          <button class="btn-primary" style="padding:5px 12px;font-size:12.5px" onclick="showStocksView('${theme.id}')">
+            管理 ${ICONS.arrow}
+          </button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ===== 主题管理视图 =====
+async function renderThemesList() {
+  setLoading(true);
+  try {
+    await DB.load();
+  } catch (e) {
+    toast('❌ 加载数据失败：' + e.message);
+    setLoading(false);
+    return;
+  }
+  setLoading(false);
+  renderThemeCards('themes-grid-2', 'themes-empty-2');
+}
+
+function showThemesList() {
+  document.getElementById('view-themes-list').style.display = 'block';
+  document.getElementById('view-stocks-inner').style.display = 'none';
+  document.getElementById('topbar-current').textContent = '主题管理';
+}
+
+async function backToThemeList() {
+  currentThemeId = null;
+  showThemesList();
+  await renderThemesList();
+}
+
+// ===== 主题 CRUD =====
+function openThemeModal(themeId = null) {
+  editingThemeId = themeId;
+  document.getElementById('modal-theme-title').textContent = themeId ? '编辑主题' : '新增主题';
+  if (themeId) {
+    const t = appState.themes.find(t => t.id === themeId);
+    document.getElementById('input-theme-name').value = t.name;
+    document.getElementById('input-theme-overview').value = t.overview || '';
+  } else {
+    document.getElementById('input-theme-name').value = '';
+    document.getElementById('input-theme-overview').value = '';
+  }
+  openModal('modal-theme');
+}
+
+async function saveTheme() {
+  const name = document.getElementById('input-theme-name').value.trim();
+  if (!name) { toast('⚠️ 请输入主题名称'); return; }
+  const overview = document.getElementById('input-theme-overview').value.trim();
+  setLoading(true);
+  try {
+    if (editingThemeId) {
+      await DB.saveTheme({ id: editingThemeId, name, overview }, false);
+    } else {
+      await DB.saveTheme({ id: uid(), name, overview, createdAt: Date.now() }, true);
+    }
+  } catch (e) {
+    toast('❌ 保存失败：' + e.message);
+    setLoading(false);
+    return;
+  }
+  setLoading(false);
+  closeModal('modal-theme');
+  toast(editingThemeId ? '✅ 主题已更新' : '✅ 主题已创建');
+  if (currentNav === 'dashboard') await renderDashboard();
+  else await renderThemesList();
+  updateNavBadge();
+}
+
+async function deleteTheme(themeId) {
+  const t = appState.themes.find(t => t.id === themeId);
+  if (!confirm(`确认删除主题「${t.name}」？\n主题下的股票池数据也将一并删除。`)) return;
+  setLoading(true);
+  try {
+    await DB.deleteTheme(themeId);
+  } catch (e) {
+    toast('❌ 删除失败：' + e.message);
+    setLoading(false);
+    return;
+  }
+  setLoading(false);
+  toast('🗑️ 主题已删除');
+  if (currentNav === 'dashboard') await renderDashboard();
+  else await renderThemesList();
+  updateNavBadge();
+}
+
+// ===== 股票池视图 =====
+function showStocksView(themeId) {
+  const theme = appState.themes.find(t => t.id === themeId);
+  if (!theme) return;
+  currentThemeId = themeId;
+
+  // 手动切换导航状态（避免 navigate 触发不必要的 DB.load）
+  currentNav = 'themes';
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.nav === 'themes');
+  });
+  document.getElementById('view-dashboard').style.display = 'none';
+  document.getElementById('view-themes').style.display = 'block';
+  document.getElementById('view-themes-list').style.display = 'none';
+  document.getElementById('view-stocks-inner').style.display = 'block';
+  document.getElementById('stocks-view-title').textContent = `${theme.name} · 股票池`;
+  document.getElementById('topbar-current').textContent = `${theme.name} · 股票池`;
+
+  renderStocks();
+}
+
+// ===== 渲染股票表格 =====
+function renderStocks() {
+  const theme = appState.themes.find(t => t.id === currentThemeId);
+  const stocks = theme ? [...(theme.stocks || [])] : [];
+  const tbody = document.getElementById('stock-tbody');
+  const emptyEl = document.getElementById('stock-empty');
+
+  if (stocks.length === 0) {
+    tbody.innerHTML = '';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+
+  stocks.forEach(s => {
+    if (s.cat1 === undefined) s.cat1 = s.category || '';
+    s._c1 = s.cat1 || '';
+    s._c2 = s.cat2 || '';
+    s._c3 = s.cat3 || '';
+  });
+
+  stocks.sort((a, b) => {
+    const noA = !a._c1, noB = !b._c1;
+    if (noA !== noB) return noA ? 1 : -1;
+    const r1 = a._c1.localeCompare(b._c1, 'zh');
+    if (r1 !== 0) return r1;
+    const r2 = a._c2.localeCompare(b._c2, 'zh');
+    if (r2 !== 0) return r2;
+    const r3 = a._c3.localeCompare(b._c3, 'zh');
+    if (r3 !== 0) return r3;
+    return b.stars - a.stars;
+  });
+
+  function spanAt(arr, idx, keys) {
+    let span = 0;
+    const ref = keys.map(k => arr[idx][k]);
+    for (let j = idx; j < arr.length; j++) {
+      if (keys.every((k, i) => arr[j][k] === ref[i])) span++;
+      else break;
+    }
+    return span;
+  }
+  function isFirst(arr, idx, keys) {
+    if (idx === 0) return true;
+    return keys.some(k => arr[idx][k] !== arr[idx-1][k]);
+  }
+
+  tbody.innerHTML = stocks.map((s, i) => {
+    const hlClass = s.highlight === 'red' ? 'hl-red' : s.highlight === 'orange' ? 'hl-orange' : '';
+    const c1First = isFirst(stocks, i, ['_c1']);
+    const c2First = isFirst(stocks, i, ['_c1', '_c2']);
+    const c3First = isFirst(stocks, i, ['_c1', '_c2', '_c3']);
+    const c1Cell = c1First ? `<td class="td-cat" rowspan="${spanAt(stocks,i,['_c1'])}">${esc(s._c1)||'—'}</td>` : '';
+    const c2Cell = c2First ? `<td class="td-cat" rowspan="${spanAt(stocks,i,['_c1','_c2'])}">${esc(s._c2)||'—'}</td>` : '';
+    const c3Cell = c3First ? `<td class="td-cat" rowspan="${spanAt(stocks,i,['_c1','_c2','_c3'])}">${esc(s._c3)||'—'}</td>` : '';
+    return `
+    <tr>
+      ${c1Cell}${c2Cell}${c3Cell}
+      <td class="td-stock">
+        <div class="stock-name ${hlClass}">${esc(s.name)}</div>
+        <div class="stock-code">${esc(s.code)}</div>
+        <div class="stock-stars">${'★'.repeat(s.stars)}${'☆'.repeat(5-s.stars)}</div>
+      </td>
+      <td class="td-relation">${s.relation ? esc(s.relation) : '<span style="color:#94a3b8">—</span>'}</td>
+      <td class="td-actions">
+        <button class="btn-icon" onclick="openStockModal('${s.id}')" title="编辑">${ICONS.pencil}</button>
+        <button class="btn-icon danger" onclick="deleteStock('${s.id}')" title="删除">${ICONS.trash}</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ===== 股票 CRUD =====
+function openStockModal(stockId = null) {
+  editingStockId = stockId;
+  document.getElementById('modal-stock-title').textContent = stockId ? '编辑股票' : '添加股票';
+  if (stockId) {
+    const theme = appState.themes.find(t => t.id === currentThemeId);
+    const s = theme.stocks.find(s => s.id === stockId);
+    document.getElementById('input-stock-code').value = s.code;
+    document.getElementById('input-stock-name').value = s.name;
+    document.getElementById('input-cat1').value = s.cat1 !== undefined ? s.cat1 : (s.category || '');
+    document.getElementById('input-cat2').value = s.cat2 || '';
+    document.getElementById('input-cat3').value = s.cat3 || '';
+    document.getElementById('input-stock-relation').value = s.relation || '';
+    initStarPicker(s.stars);
+    initHlGroup(s.highlight || '');
+  } else {
+    document.getElementById('input-stock-code').value = '';
+    document.getElementById('input-stock-name').value = '';
+    document.getElementById('input-cat1').value = '';
+    document.getElementById('input-cat2').value = '';
+    document.getElementById('input-cat3').value = '';
+    document.getElementById('input-stock-relation').value = '';
+    initStarPicker(3);
+    initHlGroup('');
+  }
+  updateRelationCount();
+  openModal('modal-stock');
+}
+
+async function saveStock() {
+  const code = document.getElementById('input-stock-code').value.trim();
+  const name = document.getElementById('input-stock-name').value.trim();
+  if (!code || !name) { toast('⚠️ 请填写股票代码和名称'); return; }
+  const cat1 = document.getElementById('input-cat1').value.trim();
+  const cat2 = document.getElementById('input-cat2').value.trim();
+  const cat3 = document.getElementById('input-cat3').value.trim();
+  const relation = document.getElementById('input-stock-relation').value.trim();
+  const stockData = { code, name, cat1, cat2, cat3, relation, stars: starValue, highlight: hlValue };
+
+  setLoading(true);
+  try {
+    if (editingStockId) {
+      await DB.saveStock(currentThemeId, { id: editingStockId, ...stockData }, false);
+    } else {
+      await DB.saveStock(currentThemeId, { id: uid(), ...stockData }, true);
+    }
+  } catch (e) {
+    toast('❌ 保存失败：' + e.message);
+    setLoading(false);
+    return;
+  }
+  setLoading(false);
+  closeModal('modal-stock');
+  toast(editingStockId ? '✅ 股票已更新' : '✅ 股票已添加');
+  // 重新加载数据后渲染股票表格
+  await DB.load();
+  renderStocks();
+}
+
+async function deleteStock(stockId) {
+  if (!confirm('确认删除该股票？')) return;
+  setLoading(true);
+  try {
+    await DB.deleteStock(stockId);
+  } catch (e) {
+    toast('❌ 删除失败：' + e.message);
+    setLoading(false);
+    return;
+  }
+  setLoading(false);
+  toast('🗑️ 股票已删除');
+  await DB.load();
+  renderStocks();
+}
+
+// ===== 星级 =====
+function initStarPicker(value = 3) {
+  starValue = value;
+  refreshStarPicker();
+  document.querySelectorAll('#star-picker i').forEach(star => {
+    star.onclick = () => { starValue = parseInt(star.dataset.v); refreshStarPicker(); };
+    star.onmouseover = () => {
+      const v = parseInt(star.dataset.v);
+      document.querySelectorAll('#star-picker i').forEach(s => s.classList.toggle('lit', parseInt(s.dataset.v) <= v));
+    };
+    star.onmouseout = refreshStarPicker;
+  });
+}
+function refreshStarPicker() {
+  document.querySelectorAll('#star-picker i').forEach(s => s.classList.toggle('lit', parseInt(s.dataset.v) <= starValue));
+}
+
+// ===== 高亮 =====
+function initHlGroup(value = '') {
+  hlValue = value;
+  document.querySelectorAll('#hl-group .hl-opt').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.hl === hlValue);
+    btn.onclick = () => { hlValue = btn.dataset.hl; initHlGroup(hlValue); };
+  });
+}
+
+// ===== 字数计数 =====
+function updateRelationCount() {
+  const el = document.getElementById('input-stock-relation');
+  document.getElementById('relation-count').textContent = el ? el.value.length : 0;
+}
+document.getElementById('input-stock-relation').addEventListener('input', updateRelationCount);
+
+// ===== 模态框控制 =====
+function openModal(id) {
+  document.getElementById(id).classList.add('show');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('show');
+}
+// 点击遮罩关闭
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.remove('show');
+  });
+});
+
+// ===== 一次性数据迁移（localStorage → Supabase） =====
+async function migrateFromLocalStorage() {
+  const local = JSON.parse(localStorage.getItem('stock_themes') || '[]');
+  if (local.length === 0) return;
+  // 若云端已有数据则跳过，避免重复写入
+  if (appState.themes.length > 0) return;
+  toast('⏳ 正在迁移本地数据到云端...');
+  try {
+    for (const theme of local) {
+      await DB.saveTheme(
+        { id: theme.id, name: theme.name, overview: theme.overview || '', createdAt: theme.createdAt },
+        true
+      );
+      for (const stock of (theme.stocks || [])) {
+        await DB.saveStock(theme.id, stock, true);
+      }
+    }
+    localStorage.removeItem('stock_themes');
+    toast('✅ 本地数据已迁移至云端');
+  } catch (e) {
+    toast('⚠️ 迁移部分失败：' + e.message);
+  }
+}
+
+// ===== 初始化 =====
+async function init() {
+  setLoading(true);
+  try {
+    await DB.load();
+  } catch (e) {
+    setLoading(false);
+    toast('❌ 连接数据库失败，请检查 Supabase 配置');
+    return;
+  }
+  setLoading(false);
+  // 检测并迁移旧版 localStorage 数据
+  await migrateFromLocalStorage();
+  await navigate('dashboard');
+}
+
+// 页面加载时，若已登录则自动进入后台
+(function autoLogin() {
+  if (sessionStorage.getItem('admin_logged_in') === '1') {
+    document.getElementById('page-login').style.display = 'none';
+    document.getElementById('page-admin').style.display = 'block';
+    init();
+  }
+})();
+</script>
+</body>
+</html>

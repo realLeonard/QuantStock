@@ -1,0 +1,14 @@
+# 环境变量（如果未来迁移到构建工具）
+.env
+.env.local
+.env.*.local
+
+# macOS
+.DS_Store
+
+# 编辑器
+.vscode/
+.idea/
+
+# 依赖（如果未来添加构建步骤）
+node_modules/
