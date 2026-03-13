@@ -13,6 +13,7 @@ export interface Stock {
   relation: string;
   stars: number;        // 1-5
   highlight: StockHighlight;
+  sort_order: number | null; // 爬虫导入时赋值，保持图片显示顺序；手动创建时为 null
 }
 
 // ===== 创建/更新股票的输入类型（不含 id 和 theme_id） =====
@@ -24,6 +25,7 @@ export interface Theme {
   name: string;
   overview: string;
   created_at: number;   // Unix 时间戳（毫秒）
+  updated_at: number;   // 最后更新时间（毫秒），爬虫导入时同步 created_at，手动创建时为当前时间
   stocks: Stock[];      // 嵌套股票，来自 themeStocks 表
 }
 
@@ -39,6 +41,7 @@ export interface ThemeRow {
   name: string;
   overview: string;
   created_at: number;
+  updated_at: number;
   themeStocks?: StockRow[];
 }
 
@@ -53,6 +56,7 @@ export interface StockRow {
   relation: string;
   stars: number;
   highlight: StockHighlight;
+  sort_order: number | null;
 }
 
 // ===== API 统一响应结构 =====

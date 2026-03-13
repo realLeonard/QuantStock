@@ -11,6 +11,7 @@ export default function ThemesView() {
   const { themes, currentThemeId, setCurrentThemeId, deleteTheme } = useAppStore();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTheme, setEditingTheme] = useState<Theme | null>(null);
+  const [searchKeyword, setSearchKeyword] = useState('');
 
   // 如果有 currentThemeId，显示股票池子视图
   if (currentThemeId) {
@@ -39,6 +40,25 @@ export default function ThemesView() {
           <div className="page-title">主题管理</div>
           <div className="page-desc" style={{ marginBottom: 0 }}>管理您的所有投资主题及关联股票池</div>
         </div>
+        <div className="search-bar">
+          <svg className="search-bar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            className="search-bar-input"
+            type="text"
+            placeholder="搜索主题名称…"
+            value={searchKeyword}
+            onChange={e => setSearchKeyword(e.target.value)}
+          />
+          {searchKeyword && (
+            <button className="search-bar-clear" onClick={() => setSearchKeyword('')} title="清除">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          )}
+        </div>
         <button className="btn-primary" onClick={openCreate}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -52,9 +72,19 @@ export default function ThemesView() {
           <span style={{ fontSize: 48, display: 'block', marginBottom: 12 }}>📭</span>
           <p>暂无主题，点击「新增主题」开始</p>
         </div>
-      ) : (
+      ) : (() => {
+        const filtered = (searchKeyword.trim()
+          ? themes.filter(t => t.name.includes(searchKeyword.trim()))
+          : themes
+        ).slice().sort((a, b) => (b.updated_at ?? 0) - (a.updated_at ?? 0));
+        return filtered.length === 0 ? (
+          <div className="empty-state">
+            <span style={{ fontSize: 48, display: 'block', marginBottom: 12 }}>🔍</span>
+            <p>未找到匹配「{searchKeyword.trim()}」的主题</p>
+          </div>
+        ) : (
         <div className="themes-grid">
-          {themes.map(theme => {
+          {filtered.map(theme => {
             const stocks = theme.stocks || [];
             const top3 = [...stocks].sort((a, b) => b.stars - a.stars).slice(0, 3);
             const moreCount = stocks.length > 3 ? stocks.length - 3 : 0;
@@ -116,7 +146,8 @@ export default function ThemesView() {
             );
           })}
         </div>
-      )}
+        );
+      })()}
 
       {modalOpen && (
         <ThemeModal

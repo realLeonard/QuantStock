@@ -37,6 +37,7 @@ export default function StockModal({ stock, themeId, onClose }: Props) {
       relation: relation.trim(),
       stars,
       highlight,
+      sort_order: null,
     };
     if (stock) {
       await updateStock(stock.id, input);

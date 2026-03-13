@@ -21,6 +21,7 @@ function mapThemeRow(row: ThemeRow): Theme {
       relation: s.relation || '',
       stars: s.stars,
       highlight: s.highlight || '',
+      sort_order: s.sort_order ?? null,
     })),
   };
 }
@@ -45,11 +46,13 @@ export class QuantStockApiClient {
 
   // 新增主题
   async createTheme(id: string, name: string, overview: string, createdAt: number): Promise<void> {
+    const now = Date.now();
     const { error } = await this.sb.from('themeConcept').insert({
       id,
       name,
       overview,
       created_at: createdAt,
+      updated_at: now,
     });
     if (error) throw new Error(error.message);
   }
@@ -58,7 +61,7 @@ export class QuantStockApiClient {
   async updateTheme(id: string, name: string, overview: string): Promise<void> {
     const { error } = await this.sb
       .from('themeConcept')
-      .update({ name, overview })
+      .update({ name, overview, updated_at: Date.now() })
       .eq('id', id);
     if (error) throw new Error(error.message);
   }

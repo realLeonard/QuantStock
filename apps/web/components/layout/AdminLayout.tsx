@@ -99,6 +99,45 @@ export default function AdminLayout({ children }: Props) {
 
       <Toast />
       <LoadingOverlay />
+      <FloatingActions />
+    </div>
+  );
+}
+
+function FloatingActions() {
+  const { currentNav, currentThemeId, setCurrentNav, setCurrentThemeId } = useAppStore();
+
+  function scrollToTop() {
+    document.querySelector('.main-content')?.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // 返回上一步：股票池 → 主题列表 → 仪表盘
+  function goBack() {
+    if (currentThemeId) {
+      setCurrentThemeId(null);
+    } else if (currentNav === 'themes') {
+      setCurrentNav('dashboard');
+    }
+  }
+
+  const canGoBack = !!currentThemeId || currentNav === 'themes';
+
+  return (
+    <div className="floating-actions">
+      <button className="floating-btn" onClick={scrollToTop} title="回到顶部">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="12" y1="19" x2="12" y2="5"/>
+          <polyline points="5 12 12 5 19 12"/>
+        </svg>
+      </button>
+      {canGoBack && (
+        <button className="floating-btn" onClick={goBack} title="返回上一页">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"/>
+            <polyline points="12 19 5 12 12 5"/>
+          </svg>
+        </button>
+      )}
     </div>
   );
 }
