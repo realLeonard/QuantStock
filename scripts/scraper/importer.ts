@@ -1,7 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
 
-const sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
+// 懒初始化：首次调用时才创建客户端，确保 dotenv 已加载完毕
+let _sb: ReturnType<typeof createClient> | null = null;
+function getDb() {
+  if (!_sb) _sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
+  return _sb;
+}
 
 export interface StockEntry {
   name: string;
@@ -23,14 +28,14 @@ export interface ProcessedTheme {
 
 // 从 DB 拉取所有已有主题 ID，用于增量比对
 export async function fetchExistingIds(): Promise<Set<string>> {
-  const { data, error } = await sb.from('themeConcept').select('id');
+  const { data, error } = await getDb().from('themeConcept').select('id');
   if (error) throw new Error('查询已有主题失败: ' + error.message);
   return new Set((data ?? []).map((r: { id: string }) => r.id));
 }
 
 export async function importTheme(theme: ProcessedTheme): Promise<void> {
   // 插入主题
-  const { error: te } = await sb.from('themeConcept').insert({
+  const { error: te } = await getDb().from('themeConcept').insert({
     id: theme.id,
     name: theme.name,
     overview: theme.overview,
@@ -55,6 +60,6 @@ export async function importTheme(theme: ProcessedTheme): Promise<void> {
     highlight: s.highlight,
     sort_order: idx,
   }));
-  const { error: se } = await sb.from('themeStocks').insert(rows);
+  const { error: se } = await getDb().from('themeStocks').insert(rows);
   if (se) throw new Error('股票批量插入失败: ' + se.message);
 }
