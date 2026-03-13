@@ -1,0 +1,24 @@
+{
+  "name": "@quantstock/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "@quantstock/api-client": "*",
+    "@quantstock/types": "*",
+    "@quantstock/validators": "*",
+    "@supabase/supabase-js": "^2.47.10",
+    "hono": "^4.6.14",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "*"
+  }
+}

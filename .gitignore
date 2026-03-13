@@ -1,4 +1,4 @@
-# 环境变量（如果未来迁移到构建工具）
+# 环境变量
 .env
 .env.local
 .env.*.local
@@ -10,5 +10,10 @@
 .vscode/
 .idea/
 
-# 依赖（如果未来添加构建步骤）
+# 依赖
 node_modules/
+
+# 构建产物
+.next/
+dist/
+.turbo/
