@@ -29,11 +29,10 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
           ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+          JY_TOKEN: ${{ secrets.JY_TOKEN }}
         run: |
-          echo "SUPABASE_URL 长度: ${#SUPABASE_URL}"
-          echo "ANTHROPIC_AUTH_TOKEN 长度: ${#ANTHROPIC_AUTH_TOKEN}"
           set +e
-          OUTPUT=$(SUPABASE_URL="$SUPABASE_URL" SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" ANTHROPIC_AUTH_TOKEN="$ANTHROPIC_AUTH_TOKEN" ANTHROPIC_BASE_URL="$ANTHROPIC_BASE_URL" npx tsx index.ts 2>&1)
+          OUTPUT=$(npx tsx index.ts 2>&1)
           EXIT_CODE=$?
           set -e
 
