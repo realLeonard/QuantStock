@@ -5,13 +5,6 @@ on:
     - cron: '0 1,13 * * *'   # 北京时间 09:00 和 21:00（UTC+8）
   workflow_dispatch:           # 支持手动触发
 
-env:
-  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-  ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
-  ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
-  BARK_KEY: ${{ secrets.BARK_KEY }}
-
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -29,11 +22,12 @@ jobs:
         run: npm install
         working-directory: scripts/scraper
 
-      - name: 验证环境变量
+      - name: 写入 .env 文件
         run: |
-          [ -z "$SUPABASE_URL" ]      && echo "❌ SUPABASE_URL 未设置"      || echo "✅ SUPABASE_URL 已设置 (${#SUPABASE_URL} 字符)"
-          [ -z "$SUPABASE_ANON_KEY" ] && echo "❌ SUPABASE_ANON_KEY 未设置" || echo "✅ SUPABASE_ANON_KEY 已设置"
-          [ -z "$ANTHROPIC_AUTH_TOKEN" ] && echo "❌ ANTHROPIC_AUTH_TOKEN 未设置" || echo "✅ ANTHROPIC_AUTH_TOKEN 已设置"
+          printf 'SUPABASE_URL=%s\n' '${{ secrets.SUPABASE_URL }}' > scripts/scraper/.env
+          printf 'SUPABASE_ANON_KEY=%s\n' '${{ secrets.SUPABASE_ANON_KEY }}' >> scripts/scraper/.env
+          printf 'ANTHROPIC_AUTH_TOKEN=%s\n' '${{ secrets.ANTHROPIC_AUTH_TOKEN }}' >> scripts/scraper/.env
+          printf 'ANTHROPIC_BASE_URL=%s\n' '${{ secrets.ANTHROPIC_BASE_URL }}' >> scripts/scraper/.env
 
       - name: 执行同步
         id: sync
@@ -45,13 +39,11 @@ jobs:
 
           echo "$OUTPUT"
 
-          # 写入 GitHub Actions Summary
           echo "## 同步结果" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "$OUTPUT" | tail -30 >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-          # 提取关键数字
           NEW_COUNT=$(echo "$OUTPUT" | grep -oE "待处理 [0-9]+" | grep -oE "[0-9]+" | tail -1)
           FAIL_COUNT=$(echo "$OUTPUT" | grep -oE "最终失败 [0-9]+" | grep -oE "[0-9]+" | tail -1)
 
@@ -62,6 +54,8 @@ jobs:
 
       - name: Bark 推送通知
         if: always()
+        env:
+          BARK_KEY: ${{ secrets.BARK_KEY }}
         run: |
           NEW_COUNT="${{ steps.sync.outputs.new_count }}"
           FAIL_COUNT="${{ steps.sync.outputs.fail_count }}"
