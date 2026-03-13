@@ -1,0 +1,88 @@
+name: 韭研公社每日同步
+
+on:
+  schedule:
+    - cron: '0 1,13 * * *'   # 北京时间 09:00 和 21:00（UTC+8）
+  workflow_dispatch:           # 支持手动触发
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scripts/scraper
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: scripts/scraper/package-lock.json
+
+      - name: 安装依赖
+        run: npm install
+
+      - name: 执行同步
+        id: sync
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+        run: |
+          # 运行同步并捕获输出
+          set +e
+          OUTPUT=$(npm run sync 2>&1)
+          EXIT_CODE=$?
+          set -e
+
+          echo "$OUTPUT"
+
+          # 写入 GitHub Actions Summary
+          echo "## 同步结果" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$OUTPUT" | tail -30 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          # 提取关键数字用于 Bark 通知
+          SUMMARY_LINE=$(echo "$OUTPUT" | grep -E "^完成！" | tail -1)
+          NEW_COUNT=$(echo "$OUTPUT" | grep -oE "待处理 [0-9]+" | grep -oE "[0-9]+" | tail -1)
+          FAIL_COUNT=$(echo "$OUTPUT" | grep -oE "最终失败 [0-9]+" | grep -oE "[0-9]+" | tail -1)
+
+          echo "summary_line=${SUMMARY_LINE}" >> $GITHUB_OUTPUT
+          echo "new_count=${NEW_COUNT:-0}" >> $GITHUB_OUTPUT
+          echo "fail_count=${FAIL_COUNT:-0}" >> $GITHUB_OUTPUT
+          echo "exit_code=${EXIT_CODE}" >> $GITHUB_OUTPUT
+
+      - name: Bark 推送通知
+        if: always()
+        env:
+          BARK_KEY: ${{ secrets.BARK_KEY }}
+        run: |
+          NEW_COUNT="${{ steps.sync.outputs.new_count }}"
+          FAIL_COUNT="${{ steps.sync.outputs.fail_count }}"
+          EXIT_CODE="${{ steps.sync.outputs.exit_code }}"
+
+          if [ "$EXIT_CODE" != "0" ]; then
+            TITLE="❌ 同步异常"
+            BODY="脚本运行出错，请检查 Actions 日志"
+            ICON="cross"
+          elif [ "$NEW_COUNT" = "0" ]; then
+            TITLE="✅ 无新主题"
+            BODY="韭研公社暂无新增主题"
+            ICON="checkmark"
+          elif [ "$FAIL_COUNT" = "0" ]; then
+            TITLE="✅ 同步完成"
+            BODY="新增 ${NEW_COUNT} 个主题，全部成功"
+            ICON="checkmark"
+          else
+            TITLE="⚠️ 同步完成（有失败）"
+            BODY="新增 ${NEW_COUNT} 个主题，失败 ${FAIL_COUNT} 个"
+            ICON="exclamationmark"
+          fi
+
+          curl -s "https://api.day.app/${BARK_KEY}/$(python3 -c "import urllib.parse; print(urllib.parse.quote('${TITLE}'))")/$(python3 -c "import urllib.parse; print(urllib.parse.quote('${BODY}'))")?group=QuantStock&icon=${ICON}" || true
