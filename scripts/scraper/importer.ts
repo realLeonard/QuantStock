@@ -26,11 +26,43 @@ export interface ProcessedTheme {
   stocks: StockEntry[];
 }
 
-// 从 DB 拉取所有已有主题 ID，用于增量比对
-export async function fetchExistingIds(): Promise<Set<string>> {
-  const { data, error } = await getDb().from('themeConcept').select('id');
+// 从 DB 拉取所有已有主题，返回 Map<id, updated_at毫秒>，用于增量比对（含更新检测）
+export async function fetchExistingThemes(): Promise<Map<string, number>> {
+  const { data, error } = await getDb().from('themeConcept').select('id, updated_at');
   if (error) throw new Error('查询已有主题失败: ' + error.message);
-  return new Set((data ?? []).map((r: { id: string }) => r.id));
+  return new Map((data ?? []).map((r: { id: string; updated_at: number }) => [r.id, r.updated_at]));
+}
+
+// 更新已存在主题的股票池（保留 name/overview/created_at，只重建股票并刷新 updated_at）
+export async function updateThemeStocks(theme: ProcessedTheme): Promise<void> {
+  // 1. 删除该主题所有旧股票
+  const { error: de } = await getDb().from('themeStocks').delete().eq('theme_id', theme.id);
+  if (de) throw new Error('删除旧股票失败: ' + de.message);
+
+  // 2. 更新主题 updated_at（保留 name/overview/created_at 不变）
+  const { error: ue } = await getDb()
+    .from('themeConcept')
+    .update({ updated_at: theme.updatedAt })
+    .eq('id', theme.id);
+  if (ue) throw new Error('更新主题时间失败: ' + ue.message);
+
+  // 3. 重新插入股票
+  if (theme.stocks.length === 0) return;
+  const rows = theme.stocks.map((s, idx) => ({
+    id: randomUUID(),
+    theme_id: theme.id,
+    code: '',
+    name: s.name,
+    cat1: s.cat1,
+    cat2: s.cat2,
+    cat3: s.cat3 || '',
+    relation: s.relation || '',
+    stars: 3,
+    highlight: s.highlight,
+    sort_order: idx,
+  }));
+  const { error: se } = await getDb().from('themeStocks').insert(rows);
+  if (se) throw new Error('股票重新插入失败: ' + se.message);
 }
 
 export async function importTheme(theme: ProcessedTheme): Promise<void> {

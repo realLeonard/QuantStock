@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { fetchList, type ThemeItem } from './fetcher.js';
 import { parseTableImage, type StockRow } from './vision.js';
-import { fetchExistingIds, importTheme } from './importer.js';
+import { fetchExistingThemes, importTheme, updateThemeStocks } from './importer.js';
 
 const isTest = process.argv.includes('--test');
 
@@ -9,32 +9,50 @@ async function main() {
   console.log(`[韭研公社爬虫] ${isTest ? '测试模式（只处理 1 条新主题）' : '全量同步模式'}`);
   console.log('---');
 
-  const [existingIds, allItems] = await Promise.all([
-    fetchExistingIds(),
+  const [existingThemes, allItems] = await Promise.all([
+    fetchExistingThemes(),
     fetchAllItems(),
   ]);
 
-  const filtered = allItems.filter(i => !existingIds.has(i.industry_id));
-  const newItems = isTest ? filtered.slice(0, 1) : filtered;
+  // 新增：id 不在 DB
+  const filteredNew = allItems.filter(i => !existingThemes.has(i.industry_id));
+  const newItems = isTest ? filteredNew.slice(0, 1) : filteredNew;
 
-  console.log(`线上 ${allItems.length} 个主题，DB 已有 ${existingIds.size} 个，待处理 ${newItems.length} 个`);
+  // 更新：id 存在但线上 update_time > DB updated_at
+  const filteredUpdated = allItems.filter(i => {
+    if (!existingThemes.has(i.industry_id)) return false;
+    if (!i.update_time) return false;
+    const onlineUpdatedAt = new Date(i.update_time).getTime();
+    const dbUpdatedAt = existingThemes.get(i.industry_id)!;
+    return onlineUpdatedAt > dbUpdatedAt;
+  });
+  const updatedItems = isTest ? [] : filteredUpdated;
 
-  if (newItems.length === 0) {
+  console.log(
+    `线上 ${allItems.length} 个主题，DB 已有 ${existingThemes.size} 个，` +
+    `新增 ${newItems.length} 个，内容更新 ${updatedItems.length} 个`
+  );
+
+  if (newItems.length === 0 && updatedItems.length === 0) {
     console.log('无新主题，退出。');
     return;
   }
 
-  // 第一轮：处理所有新主题，失败的记录下来
-  const failed: Array<{ item: ThemeItem; reason: string }> = [];
+  // 第一轮：处理所有待处理主题，失败的记录下来
+  const failed: Array<{ item: ThemeItem; mode: 'insert' | 'update'; reason: string }> = [];
   let imported = 0;
 
   for (const item of newItems) {
-    const ok = await processItem(item);
-    if (ok) {
-      imported++;
-    } else {
-      failed.push({ item, reason: '第一次处理失败' });
-    }
+    const ok = await processItem(item, 'insert');
+    if (ok) imported++;
+    else failed.push({ item, mode: 'insert', reason: '第一次处理失败' });
+    await sleep(1200);
+  }
+
+  for (const item of updatedItems) {
+    const ok = await processItem(item, 'update');
+    if (ok) imported++;
+    else failed.push({ item, mode: 'update', reason: '第一次处理失败' });
     await sleep(1200);
   }
 
@@ -45,12 +63,12 @@ async function main() {
     await sleep(3000);
 
     const stillFailed: typeof failed = [];
-    for (const { item } of failed) {
-      const ok = await processItem(item);
+    for (const { item, mode } of failed) {
+      const ok = await processItem(item, mode);
       if (ok) {
         imported++;
       } else {
-        stillFailed.push({ item, reason: '重试仍失败' });
+        stillFailed.push({ item, mode, reason: '重试仍失败' });
       }
       await sleep(2400);
     }
@@ -68,8 +86,9 @@ async function main() {
   console.log(`完成！成功 ${imported} 个，最终失败 ${finalFailed} 个`);
 }
 
-async function processItem(item: ThemeItem): Promise<boolean> {
-  console.log(`\n[${item.title}]`);
+async function processItem(item: ThemeItem, mode: 'insert' | 'update'): Promise<boolean> {
+  const modeLabel = mode === 'update' ? '[更新]' : '[新增]';
+  console.log(`\n${modeLabel} [${item.title}]`);
   try {
     let imgUrls: string[] = [];
     try {
@@ -107,15 +126,24 @@ async function processItem(item: ThemeItem): Promise<boolean> {
       }))
     );
 
-    await importTheme({
+    const processedTheme = {
       id: item.industry_id,
       name: cleanTitle,
       overview: item.content || '',
       createdAt: item.create_time ? new Date(item.create_time).getTime() : Date.now(),
-      updatedAt: item.create_time ? new Date(item.create_time).getTime() : Date.now(),
+      updatedAt: item.update_time
+        ? new Date(item.update_time).getTime()
+        : (item.create_time ? new Date(item.create_time).getTime() : Date.now()),
       stocks,
-    });
-    console.log(`  ✅ 导入成功，共 ${stocks.length} 支股票`);
+    };
+
+    if (mode === 'update') {
+      await updateThemeStocks(processedTheme);
+      console.log(`  ✅ 更新成功，共 ${stocks.length} 支股票`);
+    } else {
+      await importTheme(processedTheme);
+      console.log(`  ✅ 导入成功，共 ${stocks.length} 支股票`);
+    }
     return true;
   } catch (e) {
     console.error(`  ❌ 失败: ${(e as Error).message}`);

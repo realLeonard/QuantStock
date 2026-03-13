@@ -7,17 +7,24 @@ export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const { setLoggedIn, loadThemes } = useAppStore();
+  const [loading, setLoading] = useState(false);
+  const { login, loadThemes } = useAppStore();
 
-  function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    if (username.trim() === 'admin' && password === '123456') {
-      sessionStorage.setItem('admin_logged_in', '1');
-      setLoggedIn(true);
-      loadThemes();
-    } else {
-      setError('账号或密码错误，请重试');
-      setPassword('');
+    if (!username.trim() || !password) return;
+    setLoading(true);
+    setError('');
+    try {
+      const ok = await login(username.trim(), password);
+      if (ok) {
+        loadThemes();
+      } else {
+        setError('账号或密码错误，请重试');
+        setPassword('');
+      }
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -49,6 +56,7 @@ export default function LoginPage() {
               placeholder="请输入账号"
               value={username}
               onChange={e => { setUsername(e.target.value); setError(''); }}
+              disabled={loading}
             />
           </div>
 
@@ -65,16 +73,16 @@ export default function LoginPage() {
               placeholder="请输入密码"
               value={password}
               onChange={e => { setPassword(e.target.value); setError(''); }}
+              disabled={loading}
             />
           </div>
 
-          <button className="login-btn" type="submit">登录</button>
+          <button className="login-btn" type="submit" disabled={loading}>
+            {loading ? '登录中…' : '登录'}
+          </button>
         </form>
 
         <p className="login-error">{error}</p>
-        <div className="login-hint">
-          演示账号：<b>admin</b> &nbsp;/&nbsp; 密码：<b>123456</b>
-        </div>
       </div>
     </div>
   );

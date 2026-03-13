@@ -18,6 +18,7 @@ export interface ThemeItem {
   content: string;
   imgs: string;        // JSON 字符串，如 '["https://...png"]'
   create_time: string;
+  update_time: string; // 最后修改时间，内容更新后变化
 }
 
 interface ListData {

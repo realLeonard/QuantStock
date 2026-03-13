@@ -6,6 +6,9 @@ import LoginPage from '@/components/layout/LoginPage';
 import AdminLayout from '@/components/layout/AdminLayout';
 import Dashboard from '@/components/dashboard/Dashboard';
 import ThemesView from '@/components/themes/ThemesView';
+import UsersView from '@/components/users/UsersView';
+import RolesView from '@/components/roles/RolesView';
+import type { SessionUser } from '@quantstock/types';
 
 export default function Home() {
   const { isLoggedIn, currentNav } = useAppStore();
@@ -13,10 +16,16 @@ export default function Home() {
   // 页面刷新时从 sessionStorage 恢复登录状态
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const logged = sessionStorage.getItem('admin_logged_in') === '1';
-      if (logged) {
-        useAppStore.getState().setLoggedIn(true);
-        useAppStore.getState().loadThemes();
+      const raw = sessionStorage.getItem('session_user');
+      if (raw) {
+        try {
+          const session = JSON.parse(raw) as SessionUser;
+          useAppStore.getState().setLoggedIn(true);
+          useAppStore.getState().setCurrentUser(session);
+          useAppStore.getState().loadThemes();
+        } catch {
+          sessionStorage.removeItem('session_user');
+        }
       }
     }
   }, []);
@@ -29,6 +38,8 @@ export default function Home() {
     <AdminLayout>
       {currentNav === 'dashboard' && <Dashboard />}
       {currentNav === 'themes' && <ThemesView />}
+      {currentNav === 'users' && <UsersView />}
+      {currentNav === 'roles' && <RolesView />}
     </AdminLayout>
   );
 }

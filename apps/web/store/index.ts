@@ -1,12 +1,17 @@
 'use client';
 
 import { create } from 'zustand';
-import type { Theme } from '@quantstock/types';
+import type { Theme, AdminUser, SessionUser, UserRole } from '@quantstock/types';
 import { apiClient } from '@/lib/supabase';
+import { hashPassword, verifyPassword } from '@/lib/crypto';
+import { uid } from '@/lib/utils';
+
+type NavItem = 'dashboard' | 'themes' | 'users' | 'roles';
 
 interface AppState {
   // 数据
   themes: Theme[];
+  users: Omit<AdminUser, 'password_hash'>[];
   // 当前聚焦的主题 ID（股票池视图使用）
   currentThemeId: string | null;
   // UI 状态
@@ -14,15 +19,24 @@ interface AppState {
   toastMsg: string;
   // 登录状态
   isLoggedIn: boolean;
+  currentUser: SessionUser | null;
   // 当前导航
-  currentNav: 'dashboard' | 'themes';
+  currentNav: NavItem;
+  // 侧边栏系统管理菜单是否展开
+  systemMenuOpen: boolean;
 
   // Actions
   setLoading: (v: boolean) => void;
   showToast: (msg: string) => void;
   setLoggedIn: (v: boolean) => void;
-  setCurrentNav: (nav: 'dashboard' | 'themes') => void;
+  setCurrentUser: (user: SessionUser | null) => void;
+  setCurrentNav: (nav: NavItem) => void;
   setCurrentThemeId: (id: string | null) => void;
+  toggleSystemMenu: () => void;
+
+  // 登录 Action
+  login: (username: string, password: string) => Promise<boolean>;
+  logout: () => void;
 
   // 数据 Actions（async）
   loadThemes: () => Promise<void>;
@@ -32,31 +46,65 @@ interface AppState {
   createStock: (themeId: string, input: Omit<import('@quantstock/types').Stock, 'id' | 'theme_id'>) => Promise<void>;
   updateStock: (stockId: string, input: Omit<import('@quantstock/types').Stock, 'id' | 'theme_id'>) => Promise<void>;
   deleteStock: (stockId: string) => Promise<void>;
-}
 
-import { uid } from '@/lib/utils';
+  // 用户管理 Actions（仅 admin）
+  loadUsers: () => Promise<void>;
+  createUser: (username: string, password: string, role: UserRole) => Promise<void>;
+  updateUserRole: (userId: string, role: UserRole) => Promise<void>;
+  resetUserPassword: (userId: string, newPassword: string) => Promise<void>;
+  deleteUser: (userId: string) => Promise<void>;
+}
 
 export const useAppStore = create<AppState>((set, get) => ({
   themes: [],
+  users: [],
   currentThemeId: null,
   isLoading: false,
   toastMsg: '',
   isLoggedIn: false,
+  currentUser: null,
   currentNav: 'dashboard',
+  systemMenuOpen: false,
 
   setLoading: (v) => set({ isLoading: v }),
 
   showToast: (msg) => {
     set({ toastMsg: msg });
-    // 2.2 秒后清除
     setTimeout(() => set({ toastMsg: '' }), 2200);
   },
 
   setLoggedIn: (v) => set({ isLoggedIn: v }),
 
+  setCurrentUser: (user) => set({ currentUser: user }),
+
   setCurrentNav: (nav) => set({ currentNav: nav }),
 
   setCurrentThemeId: (id) => set({ currentThemeId: id }),
+
+  toggleSystemMenu: () => set((s) => ({ systemMenuOpen: !s.systemMenuOpen })),
+
+  // ===== 登录 =====
+  login: async (username, password) => {
+    set({ isLoading: true });
+    try {
+      const user = await apiClient.findUserByUsername(username);
+      if (!user) return false;
+      const ok = await verifyPassword(password, user.password_hash);
+      if (!ok) return false;
+      const session: SessionUser = { username: user.username, role: user.role };
+      sessionStorage.setItem('session_user', JSON.stringify(session));
+      set({ isLoggedIn: true, currentUser: session });
+      return true;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ===== 退出登录 =====
+  logout: () => {
+    sessionStorage.removeItem('session_user');
+    set({ isLoggedIn: false, currentUser: null, themes: [], users: [], currentNav: 'dashboard' });
+  },
 
   // ===== 加载全量主题 =====
   loadThemes: async () => {
@@ -149,6 +197,81 @@ export const useAppStore = create<AppState>((set, get) => ({
       await apiClient.deleteStock(stockId);
       await get().loadThemes();
       get().showToast('🗑️ 股票已删除');
+    } catch (e) {
+      get().showToast('❌ 删除失败：' + (e as Error).message);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ===== 加载用户列表 =====
+  loadUsers: async () => {
+    set({ isLoading: true });
+    try {
+      const users = await apiClient.listUsers();
+      set({ users: users as Omit<AdminUser, 'password_hash'>[] });
+    } catch (e) {
+      get().showToast('❌ 加载用户失败：' + (e as Error).message);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ===== 新增用户 =====
+  createUser: async (username, password, role) => {
+    set({ isLoading: true });
+    try {
+      const passwordHash = await hashPassword(password);
+      await apiClient.createUser(uid(), username, passwordHash, role);
+      await get().loadUsers();
+      get().showToast('✅ 用户已创建');
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (msg.includes('duplicate') || msg.includes('unique')) {
+        get().showToast('❌ 用户名已存在');
+      } else {
+        get().showToast('❌ 创建失败：' + msg);
+      }
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ===== 修改用户角色 =====
+  updateUserRole: async (userId, role) => {
+    set({ isLoading: true });
+    try {
+      await apiClient.updateUserRole(userId, role);
+      await get().loadUsers();
+      get().showToast('✅ 角色已更新');
+    } catch (e) {
+      get().showToast('❌ 更新失败：' + (e as Error).message);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ===== 重置密码 =====
+  resetUserPassword: async (userId, newPassword) => {
+    set({ isLoading: true });
+    try {
+      const passwordHash = await hashPassword(newPassword);
+      await apiClient.resetUserPassword(userId, passwordHash);
+      get().showToast('✅ 密码已重置');
+    } catch (e) {
+      get().showToast('❌ 重置失败：' + (e as Error).message);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ===== 删除用户 =====
+  deleteUser: async (userId) => {
+    set({ isLoading: true });
+    try {
+      await apiClient.deleteUser(userId);
+      await get().loadUsers();
+      get().showToast('🗑️ 用户已删除');
     } catch (e) {
       get().showToast('❌ 删除失败：' + (e as Error).message);
     } finally {

@@ -8,22 +8,38 @@ interface Props {
   children: React.ReactNode;
 }
 
-export default function AdminLayout({ children }: Props) {
-  const { themes, currentNav, setCurrentNav, setLoggedIn, setCurrentThemeId } = useAppStore();
+// 角色中文名映射
+const ROLE_LABEL: Record<string, string> = {
+  admin: '管理员',
+  editor: '编辑者',
+  viewer: '观察者',
+};
 
-  function handleNav(nav: 'dashboard' | 'themes') {
+export default function AdminLayout({ children }: Props) {
+  const {
+    themes, currentNav, setCurrentNav, logout,
+    setCurrentThemeId, currentUser, systemMenuOpen, toggleSystemMenu,
+  } = useAppStore();
+
+  function handleNav(nav: 'dashboard' | 'themes' | 'users' | 'roles') {
     setCurrentThemeId(null);
     setCurrentNav(nav);
     if (nav === 'dashboard') {
       useAppStore.getState().loadThemes();
     }
+    if (nav === 'users') {
+      useAppStore.getState().loadUsers();
+    }
   }
 
   function handleLogout() {
     if (!confirm('确认退出登录？')) return;
-    sessionStorage.removeItem('admin_logged_in');
-    setLoggedIn(false);
+    logout();
   }
+
+  const isAdmin = currentUser?.role === 'admin';
+  const avatarLetter = currentUser?.username?.charAt(0).toUpperCase() ?? 'U';
+  const roleLabel = ROLE_LABEL[currentUser?.role ?? ''] ?? currentUser?.role ?? '';
 
   return (
     <div className="admin-layout">
@@ -43,7 +59,7 @@ export default function AdminLayout({ children }: Props) {
         </div>
 
         <div className="sidebar-section-title">导航</div>
-        <nav className="sidebar-nav">
+        <nav className="sidebar-nav" style={{ flex: 'none' }}>
           <div
             className={`nav-item${currentNav === 'dashboard' ? ' active' : ''}`}
             onClick={() => handleNav('dashboard')}
@@ -72,11 +88,72 @@ export default function AdminLayout({ children }: Props) {
           </div>
         </nav>
 
+        {/* 弹性间距，把系统管理顶到底部 */}
+        <div style={{ flex: 1 }} />
+
+        {/* 系统管理（仅 admin 可见，固定在底部） */}
+        {isAdmin && (
+          <>
+            <div className="sidebar-section-title">系统管理</div>
+            <nav className="sidebar-nav" style={{ flex: 'none' }}>
+              {/* 可折叠父菜单 */}
+              <div className="nav-item nav-group-toggle" onClick={toggleSystemMenu}>
+                <span className="nav-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                  </svg>
+                </span>
+                用户与角色
+                <span className="nav-arrow" style={{ marginLeft: 'auto', transition: 'transform .2s', transform: systemMenuOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </span>
+              </div>
+
+              {systemMenuOpen && (
+                <>
+                  <div
+                    className={`nav-item nav-sub-item${currentNav === 'users' ? ' active' : ''}`}
+                    onClick={() => handleNav('users')}
+                  >
+                    <span className="nav-icon">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                      </svg>
+                    </span>
+                    用户管理
+                  </div>
+                  <div
+                    className={`nav-item nav-sub-item${currentNav === 'roles' ? ' active' : ''}`}
+                    onClick={() => handleNav('roles')}
+                  >
+                    <span className="nav-icon">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                      </svg>
+                    </span>
+                    角色管理
+                  </div>
+                </>
+              )}
+            </nav>
+          </>
+        )}
+
         <div className="sidebar-footer">
-          <div className="sidebar-avatar">A</div>
+          <div className="sidebar-avatar">{avatarLetter}</div>
           <div>
-            <div className="sidebar-user-name">Admin</div>
-            <div className="sidebar-user-role">管理员</div>
+            <div className="sidebar-user-name">{currentUser?.username ?? '用户'}</div>
+            <div className="sidebar-user-role">
+              <span className={`role-badge role-badge-${currentUser?.role ?? 'viewer'}`}>
+                {roleLabel}
+              </span>
+            </div>
           </div>
           <button className="sidebar-logout-btn" onClick={handleLogout}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -111,7 +188,6 @@ function FloatingActions() {
     document.querySelector('.main-content')?.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  // 返回上一步：股票池 → 主题列表 → 仪表盘
   function goBack() {
     if (currentThemeId) {
       setCurrentThemeId(null);
@@ -142,18 +218,23 @@ function FloatingActions() {
   );
 }
 
-function Topbar() {
-  const { currentNav, currentThemeId, themes } = useAppStore();
+const NAV_LABEL: Record<string, string> = {
+  dashboard: '仪表盘',
+  themes: '主题管理',
+  users: '用户管理',
+  roles: '角色管理',
+};
 
-  let breadcrumb = '仪表盘';
-  if (currentNav === 'themes') {
-    if (currentThemeId) {
-      const t = themes.find(t => t.id === currentThemeId);
-      breadcrumb = `${t?.name ?? '主题'} · 股票池`;
-    } else {
-      breadcrumb = '主题管理';
-    }
+function Topbar() {
+  const { currentNav, currentThemeId, themes, currentUser } = useAppStore();
+
+  let breadcrumb = NAV_LABEL[currentNav] ?? currentNav;
+  if (currentNav === 'themes' && currentThemeId) {
+    const t = themes.find(t => t.id === currentThemeId);
+    breadcrumb = `${t?.name ?? '主题'} · 股票池`;
   }
+
+  const avatarLetter = currentUser?.username?.charAt(0).toUpperCase() ?? 'U';
 
   return (
     <header className="topbar">
@@ -163,8 +244,8 @@ function Topbar() {
         <span className="current">{breadcrumb}</span>
       </div>
       <div className="topbar-right">
-        <div className="topbar-avatar">A</div>
-        <span className="topbar-username">Admin</span>
+        <div className="topbar-avatar">{avatarLetter}</div>
+        <span className="topbar-username">{currentUser?.username ?? '用户'}</span>
       </div>
     </header>
   );

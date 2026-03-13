@@ -7,9 +7,10 @@ import { useState } from 'react';
 import type { Theme } from '@quantstock/types';
 
 export default function Dashboard() {
-  const { themes, setCurrentThemeId, setCurrentNav } = useAppStore();
+  const { themes, setCurrentThemeId, setCurrentNav, currentUser } = useAppStore();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTheme, setEditingTheme] = useState<Theme | null>(null);
+  const canEdit = currentUser?.role === 'admin' || currentUser?.role === 'editor';
 
   const allStocks = themes.flatMap(t => t.stocks || []);
   const highlightCount = allStocks.filter(s => s.highlight === 'red' || s.highlight === 'orange').length;
@@ -35,7 +36,7 @@ export default function Dashboard() {
   return (
     <>
       <div className="page-title">仪表盘</div>
-      <div className="page-desc">欢迎回来，Admin！以下是您的股票池概览。</div>
+      <div className="page-desc">欢迎回来，{currentUser?.username}！以下是您的股票池概览。</div>
 
       {/* 统计卡片 */}
       <div className="stats-grid">
@@ -95,12 +96,14 @@ export default function Dashboard() {
       {/* 主题列表 */}
       <div className="section-header">
         <div className="section-title">投资主题</div>
-        <button className="btn-primary" onClick={openCreate}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-          新增主题
-        </button>
+        {canEdit && (
+          <button className="btn-primary" onClick={openCreate}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            新增主题
+          </button>
+        )}
       </div>
 
       {themes.length === 0 ? (
@@ -136,7 +139,8 @@ function ThemeCard({ theme, onEdit, onManage }: {
   onEdit: () => void;
   onManage: () => void;
 }) {
-  const { deleteTheme } = useAppStore();
+  const { deleteTheme, currentUser } = useAppStore();
+  const canEdit = currentUser?.role === 'admin' || currentUser?.role === 'editor';
   const stocks = theme.stocks || [];
   const top3 = [...stocks].sort((a, b) => b.stars - a.stars).slice(0, 3);
   const moreCount = stocks.length > 3 ? stocks.length - 3 : 0;
@@ -178,18 +182,22 @@ function ThemeCard({ theme, onEdit, onManage }: {
       <div className="theme-card-footer">
         <div className="theme-meta">📅 {fmtDate(theme.created_at)}</div>
         <div className="theme-actions">
-          <button className="btn-icon" onClick={onEdit} title="编辑主题">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-            </svg>
-          </button>
-          <button className="btn-icon danger" onClick={handleDelete} title="删除主题">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-            </svg>
-          </button>
+          {canEdit && (
+            <button className="btn-icon" onClick={onEdit} title="编辑主题">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </button>
+          )}
+          {canEdit && (
+            <button className="btn-icon danger" onClick={handleDelete} title="删除主题">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+            </button>
+          )}
           <button
             className="btn-primary"
             style={{ padding: '5px 12px', fontSize: '12.5px' }}

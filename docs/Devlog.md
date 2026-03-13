@@ -29,12 +29,12 @@
 
 ## 2026-03-14
 
-### 功能开发：多用户登录 + 角色权限系统（v1.1.0）
+### 多用户登录 + 角色权限系统（v1.1.0）
 
-**背景**：系统原来使用硬编码账号（admin/123456）+ sessionStorage 登录态，无法支持多人协作。
+**背景**：系统原使用硬编码账号（admin/123456）+ sessionStorage，无法支持多人协作，密码明文比对存在安全隐患。
 
 **核心改动**：
-1. **数据库**：新增 `adminUsers` 表（id, username, password_hash, role, created_at），初始账号 `admin/admin123`，RLS 已开启
+1. **数据库**：新增 `adminUsers` 表（id, username, password_hash, role, created_at），RLS 已开启，初始账号 `admin / admin123`
 2. **密码安全**：引入 `bcryptjs`（cost=10），彻底替代明文比对
 3. **三角色体系**：viewer（只读）/ editor（增删改）/ admin（全权 + 用户管理）
 4. **新增文件**：
@@ -43,12 +43,12 @@
    - `apps/web/components/users/UserModal.tsx` — 新增用户 / 重置密码弹窗
    - `apps/web/components/roles/RolesView.tsx` — 角色权限说明（只读）
    - `scripts/init-admin-users.sql` — Supabase 建表 + 初始数据脚本
-   - `docs/requirements-auth.md` — 本次需求文档
+   - `docs/requirements-auth.md` — 需求文档
 5. **修改文件**：types / api-client / store / LoginPage / AdminLayout / page.tsx / Dashboard / ThemesView / StocksView
 
-**待操作**：
-- 在 Supabase SQL Editor 中执行 `scripts/init-admin-users.sql`
-- 首次用 `admin / admin123` 登录后立即重置密码
+**部署**：Supabase SQL 已执行，`adminUsers` 表创建成功，bcrypt 验证通过
+
+**UI 微调**：「系统管理」菜单通过 flex 间距固定在侧边栏底部，不随导航条目数量浮动
 
 ---
 

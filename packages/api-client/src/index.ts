@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { Theme, Stock, StockInput, ThemeRow, StockRow } from '@quantstock/types';
+import type { Theme, Stock, StockInput, ThemeRow, StockRow, AdminUser, UserRole } from '@quantstock/types';
 
 // ===== Supabase 客户端工厂 =====
 export function createSupabaseClient(url: string, anonKey: string): SupabaseClient {
@@ -96,6 +96,65 @@ export class QuantStockApiClient {
     const { error } = await this.sb.from('themeStocks').delete().eq('id', stockId);
     if (error) throw new Error(error.message);
   }
+
+  // ===== 用户管理 =====
+
+  // 验证登录：查找用户名，返回用户记录（含 password_hash，由调用方验证密码）
+  async findUserByUsername(username: string): Promise<AdminUser | null> {
+    const { data, error } = await this.sb
+      .from('adminUsers')
+      .select('*')
+      .eq('username', username)
+      .single();
+    if (error) return null;
+    return data as AdminUser;
+  }
+
+  // 获取全量用户列表
+  async listUsers(): Promise<AdminUser[]> {
+    const { data, error } = await this.sb
+      .from('adminUsers')
+      .select('id, username, role, created_at')
+      .order('created_at', { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data || []) as AdminUser[];
+  }
+
+  // 新增用户
+  async createUser(id: string, username: string, passwordHash: string, role: UserRole): Promise<void> {
+    const { error } = await this.sb.from('adminUsers').insert({
+      id,
+      username,
+      password_hash: passwordHash,
+      role,
+      created_at: Date.now(),
+    });
+    if (error) throw new Error(error.message);
+  }
+
+  // 更新用户角色
+  async updateUserRole(userId: string, role: UserRole): Promise<void> {
+    const { error } = await this.sb
+      .from('adminUsers')
+      .update({ role })
+      .eq('id', userId);
+    if (error) throw new Error(error.message);
+  }
+
+  // 重置密码
+  async resetUserPassword(userId: string, passwordHash: string): Promise<void> {
+    const { error } = await this.sb
+      .from('adminUsers')
+      .update({ password_hash: passwordHash })
+      .eq('id', userId);
+    if (error) throw new Error(error.message);
+  }
+
+  // 删除用户
+  async deleteUser(userId: string): Promise<void> {
+    const { error } = await this.sb.from('adminUsers').delete().eq('id', userId);
+    if (error) throw new Error(error.message);
+  }
 }
 
-export type { Theme, Stock, StockInput };
+export type { Theme, Stock, StockInput, AdminUser, UserRole };

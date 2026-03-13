@@ -1,3 +1,21 @@
+// ===== 用户角色 =====
+export type UserRole = 'viewer' | 'editor' | 'admin';
+
+// ===== 后台用户 =====
+export interface AdminUser {
+  id: string;
+  username: string;
+  password_hash: string;
+  role: UserRole;
+  created_at: number; // Unix 时间戳（毫秒）
+}
+
+// ===== 登录会话（存 sessionStorage）=====
+export interface SessionUser {
+  username: string;
+  role: UserRole;
+}
+
 // ===== 股票高亮类型 =====
 export type StockHighlight = '' | 'red' | 'orange';
 
