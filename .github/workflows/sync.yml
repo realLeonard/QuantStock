@@ -29,11 +29,17 @@ jobs:
         run: npm install
         working-directory: scripts/scraper
 
+      - name: 验证环境变量
+        run: |
+          [ -z "$SUPABASE_URL" ]      && echo "❌ SUPABASE_URL 未设置"      || echo "✅ SUPABASE_URL 已设置 (${#SUPABASE_URL} 字符)"
+          [ -z "$SUPABASE_ANON_KEY" ] && echo "❌ SUPABASE_ANON_KEY 未设置" || echo "✅ SUPABASE_ANON_KEY 已设置"
+          [ -z "$ANTHROPIC_AUTH_TOKEN" ] && echo "❌ ANTHROPIC_AUTH_TOKEN 未设置" || echo "✅ ANTHROPIC_AUTH_TOKEN 已设置"
+
       - name: 执行同步
         id: sync
         run: |
           set +e
-          OUTPUT=$(npm run sync 2>&1)
+          OUTPUT=$(npx tsx index.ts 2>&1)
           EXIT_CODE=$?
           set -e
 
