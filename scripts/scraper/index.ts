@@ -29,13 +29,13 @@ async function main() {
   const filteredNew = allItems.filter(i => !existingThemes.has(i.industry_id));
   const newItems = isTest ? filteredNew.slice(0, 1) : filteredNew;
 
-  // 更新：id 存在但线上 update_time > DB updated_at
+  // 更新：id 存在但线上日期 > DB 日期（只比对日期，忽略时分秒，避免平台当天多次刷时间戳误判）
   const filteredUpdated = allItems.filter(i => {
     if (!existingThemes.has(i.industry_id)) return false;
     if (!i.update_time) return false;
-    const onlineUpdatedAt = parseBeijingTime(i.update_time);
-    const dbUpdatedAt = existingThemes.get(i.industry_id)!;
-    return onlineUpdatedAt > dbUpdatedAt;
+    const onlineDate = i.update_time.slice(0, 10); // "YYYY-MM-DD"（北京时间日期）
+    const dbDate = toBeijingDate(existingThemes.get(i.industry_id)!);
+    return onlineDate > dbDate;
   });
   const updatedItems = isTest ? [] : filteredUpdated.slice(0, MAX_UPDATES_PER_RUN);
   if (filteredUpdated.length > MAX_UPDATES_PER_RUN) {
@@ -194,6 +194,11 @@ function sanitizeCat(value: string, themeTitle: string): string {
 // 必须显式加 +08:00，否则在 GitHub Actions（UTC 环境）会被当作 UTC 解析，导致差 8 小时
 function parseBeijingTime(str: string): number {
   return new Date(str.replace(' ', 'T') + '+08:00').getTime();
+}
+
+// 将 UTC 毫秒转为北京日期字符串（YYYY-MM-DD），用于日期级别比对
+function toBeijingDate(utcMs: number): string {
+  return new Date(utcMs + 8 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
 function sleep(ms: number): Promise<void> {
