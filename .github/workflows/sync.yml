@@ -65,17 +65,17 @@ jobs:
           EXIT_CODE="${{ steps.sync.outputs.exit_code }}"
 
           if [ "$EXIT_CODE" != "0" ]; then
-            TITLE="❌ 同步异常"
+            TITLE="❌ 概念主题同步异常"
             BODY="脚本运行出错，请检查 Actions 日志"
           elif [ "$NEW_COUNT" = "0" ] && [ "$UPDATE_COUNT" = "0" ]; then
-            TITLE="✅ 无变化"
-            BODY="韭研公社暂无新增或更新主题"
+            TITLE="✅ 概念主题同步无变化"
+            BODY="主题数据源暂无新增或更新的主题"
           elif [ "$FAIL_COUNT" = "0" ]; then
-            TITLE="✅ 同步完成"
-            BODY="新增 ${NEW_COUNT} 个，更新 ${UPDATE_COUNT} 个，全部成功"
+            TITLE="✅ 概念主题同步完成"
+            BODY="为你新增 ${NEW_COUNT} 个主题，更新 ${UPDATE_COUNT} 个，全部成功"
           else
-            TITLE="⚠️ 同步完成（有失败）"
-            BODY="新增 ${NEW_COUNT} 个，更新 ${UPDATE_COUNT} 个，失败 ${FAIL_COUNT} 个"
+            TITLE="⚠️ 概念主题同步完成"
+            BODY="为你新增 ${NEW_COUNT} 个主题，更新 ${UPDATE_COUNT} 个，${FAIL_COUNT} 个失败"
           fi
 
           TITLE_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$TITLE")
