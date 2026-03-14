@@ -171,8 +171,10 @@ async function fetchAllItems(): Promise<ThemeItem[]> {
   const limit = 50;
   while (true) {
     const data = await fetchList(start, limit);
-    all.push(...data.result);
-    console.log(`  拉取列表 start=${start}，已获取 ${all.length}/${data.totalCount}`);
+    // 过滤用户贡献主题（author 非 null 且非空字符串），只保留官方内容
+    const official = data.result.filter((i: ThemeItem) => i.author === null || i.author === '');
+    all.push(...official);
+    console.log(`  拉取列表 start=${start}，本页 ${data.result.length} 条，官方 ${official.length} 条，已获取 ${all.length}`);
     if (!data.hasNext || data.result.length === 0) break;
     start = data.nextPage;
     await sleep(500);

@@ -57,7 +57,7 @@ export async function updateThemeStocks(theme: ProcessedTheme): Promise<void> {
     cat2: s.cat2,
     cat3: s.cat3 || '',
     relation: s.relation || '',
-    stars: 3,
+    stars: s.highlight === 'red' ? 5 : s.highlight === 'orange' ? 4 : 3,
     highlight: s.highlight,
     sort_order: idx,
   }));
@@ -88,7 +88,7 @@ export async function importTheme(theme: ProcessedTheme): Promise<void> {
     cat2: s.cat2,
     cat3: s.cat3 || '',
     relation: s.relation || '',
-    stars: 3,
+    stars: s.highlight === 'red' ? 5 : s.highlight === 'orange' ? 4 : 3,
     highlight: s.highlight,
     sort_order: idx,
   }));
