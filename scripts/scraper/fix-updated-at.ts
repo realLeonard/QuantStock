@@ -1,5 +1,7 @@
 /**
- * 一次性修复脚本：将 DB 中 updated_at 与 API update_time 不一致的主题批量纠正。
+ * 一次性修复脚本：将 DB 中 created_at / updated_at 与 API 时间不一致的主题批量纠正。
+ * 背景：原始导入在 GitHub Actions（UTC 环境）执行，北京时间字符串被误解析为 UTC，
+ *       导致所有时间戳偏差 +8 小时。本脚本用 parseBeijingTime 重新计算正确的 UTC 毫秒值写回 DB。
  * 只更新时间戳，不动股票数据。修复完成后此脚本不再需要运行。
  *
  * 用法：
@@ -32,10 +34,12 @@ async function fetchAllItems(): Promise<ThemeItem[]> {
   return all;
 }
 
-async function fetchDbThemes(): Promise<Map<string, number>> {
-  const { data, error } = await getDb().from('themeConcept').select('id, updated_at');
+interface DbTheme { id: string; created_at: number; updated_at: number }
+
+async function fetchDbThemes(): Promise<Map<string, DbTheme>> {
+  const { data, error } = await getDb().from('themeConcept').select('id, created_at, updated_at');
   if (error) throw new Error('查询 DB 失败: ' + error.message);
-  return new Map((data ?? []).map((r: { id: string; updated_at: number }) => [r.id, r.updated_at]));
+  return new Map((data ?? []).map((r: DbTheme) => [r.id, r]));
 }
 
 async function main() {
@@ -46,33 +50,50 @@ async function main() {
   const apiItems = await fetchAllItems();
   console.log(`   共 ${apiItems.length} 个主题`);
 
-  console.log('2. 读取 DB 现有 updated_at...');
+  console.log('2. 读取 DB 现有 created_at / updated_at...');
   const dbThemes = await fetchDbThemes();
   console.log(`   DB 共 ${dbThemes.size} 个主题`);
 
   console.log('3. 比对差异...');
-  const toFix: Array<{ id: string; title: string; dbVal: number; apiVal: number }> = [];
+  const toFix: Array<{
+    id: string; title: string;
+    fix: { created_at?: number; updated_at?: number };
+    before: { created_at: number; updated_at: number };
+  }> = [];
 
   for (const item of apiItems) {
-    if (!item.update_time) continue;
-    const dbVal = dbThemes.get(item.industry_id);
-    if (dbVal === undefined) continue; // 新增主题，不在 DB，跳过
-    const apiVal = parseBeijingTime(item.update_time);
-    if (apiVal !== dbVal) {
-      toFix.push({ id: item.industry_id, title: item.title, dbVal, apiVal });
+    const db = dbThemes.get(item.industry_id);
+    if (!db) continue; // 新增主题，不在 DB，跳过
+
+    const fix: { created_at?: number; updated_at?: number } = {};
+
+    if (item.create_time) {
+      const apiCreatedAt = parseBeijingTime(item.create_time);
+      if (apiCreatedAt !== db.created_at) fix.created_at = apiCreatedAt;
+    }
+    if (item.update_time) {
+      const apiUpdatedAt = parseBeijingTime(item.update_time);
+      if (apiUpdatedAt !== db.updated_at) fix.updated_at = apiUpdatedAt;
+    }
+
+    if (Object.keys(fix).length > 0) {
+      toFix.push({ id: item.industry_id, title: item.title, fix, before: db });
     }
   }
 
   if (toFix.length === 0) {
-    console.log('   ✅ 无需修复，所有 updated_at 已正确');
+    console.log('   ✅ 无需修复，所有时间戳已正确');
     return;
   }
 
-  console.log(`   发现 ${toFix.length} 个 updated_at 不一致：`);
-  for (const { title, dbVal, apiVal } of toFix) {
-    const dbDate = dbVal ? new Date(dbVal).toISOString() : '(null/0)';
-    const apiDate = new Date(apiVal).toISOString();
-    console.log(`   - ${title.slice(0, 20).padEnd(20)} DB: ${dbDate}  →  API: ${apiDate}`);
+  console.log(`   发现 ${toFix.length} 个主题需要修复：`);
+  for (const { title, before, fix } of toFix) {
+    const lines: string[] = [];
+    if (fix.created_at !== undefined)
+      lines.push(`created_at: ${new Date(before.created_at).toISOString()} → ${new Date(fix.created_at).toISOString()}`);
+    if (fix.updated_at !== undefined)
+      lines.push(`updated_at: ${new Date(before.updated_at).toISOString()} → ${new Date(fix.updated_at).toISOString()}`);
+    console.log(`   - ${title.slice(0, 18).padEnd(18)} ${lines.join(' | ')}`);
   }
 
   if (isDryRun) {
@@ -83,10 +104,10 @@ async function main() {
   console.log('\n4. 开始写入...');
   let fixed = 0;
   let failed = 0;
-  for (const { id, title, apiVal } of toFix) {
+  for (const { id, title, fix } of toFix) {
     const { error } = await getDb()
       .from('themeConcept')
-      .update({ updated_at: apiVal })
+      .update(fix)
       .eq('id', id);
     if (error) {
       console.error(`   ❌ [${title.slice(0, 15)}] 失败: ${error.message}`);
