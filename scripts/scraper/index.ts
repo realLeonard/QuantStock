@@ -4,6 +4,8 @@ import { parseTableImage, type StockRow } from './vision.js';
 import { fetchExistingThemes, importTheme, updateThemeStocks } from './importer.js';
 
 const isTest = process.argv.includes('--test');
+// 每次最多处理 N 个更新，防止历史积压或异常导致单次运行超时
+const MAX_UPDATES_PER_RUN = 20;
 
 async function main() {
   console.log(`[韭研公社爬虫] ${isTest ? '测试模式（只处理 1 条新主题）' : '全量同步模式'}`);
@@ -31,11 +33,14 @@ async function main() {
   const filteredUpdated = allItems.filter(i => {
     if (!existingThemes.has(i.industry_id)) return false;
     if (!i.update_time) return false;
-    const onlineUpdatedAt = new Date(i.update_time).getTime();
+    const onlineUpdatedAt = parseBeijingTime(i.update_time);
     const dbUpdatedAt = existingThemes.get(i.industry_id)!;
     return onlineUpdatedAt > dbUpdatedAt;
   });
-  const updatedItems = isTest ? [] : filteredUpdated;
+  const updatedItems = isTest ? [] : filteredUpdated.slice(0, MAX_UPDATES_PER_RUN);
+  if (filteredUpdated.length > MAX_UPDATES_PER_RUN) {
+    console.log(`  ⚠️  更新主题共 ${filteredUpdated.length} 个，本次限额处理 ${MAX_UPDATES_PER_RUN} 个，剩余下次继续`);
+  }
 
   console.log(
     `线上 ${allItems.length} 个主题，DB 已有 ${existingThemes.size} 个，` +
@@ -139,10 +144,10 @@ async function processItem(item: ThemeItem, mode: 'insert' | 'update'): Promise<
       id: item.industry_id,
       name: cleanTitle,
       overview: item.content || '',
-      createdAt: item.create_time ? new Date(item.create_time).getTime() : Date.now(),
+      createdAt: item.create_time ? parseBeijingTime(item.create_time) : Date.now(),
       updatedAt: item.update_time
-        ? new Date(item.update_time).getTime()
-        : (item.create_time ? new Date(item.create_time).getTime() : Date.now()),
+        ? parseBeijingTime(item.update_time)
+        : (item.create_time ? parseBeijingTime(item.create_time) : Date.now()),
       stocks,
     };
 
@@ -183,6 +188,12 @@ function sanitizeCat(value: string, themeTitle: string): string {
   // 超过 20 字认为是误识别（分类名通常很短）
   if (value.length > 20) return '';
   return value.trim();
+}
+
+// API 返回的时间字符串是北京时间（UTC+8），无时区标识
+// 必须显式加 +08:00，否则在 GitHub Actions（UTC 环境）会被当作 UTC 解析，导致差 8 小时
+function parseBeijingTime(str: string): number {
+  return new Date(str.replace(' ', 'T') + '+08:00').getTime();
 }
 
 function sleep(ms: number): Promise<void> {
