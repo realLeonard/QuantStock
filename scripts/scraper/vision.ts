@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import sharp from 'sharp';
 
 // 自动读取环境变量：ANTHROPIC_AUTH_TOKEN + ANTHROPIC_BASE_URL（与 Claude Code 共用同一代理配置）
-const claude = new Anthropic();
+const claude = new Anthropic({ timeout: 60_000 });
 
 export interface StockRow {
   cat1: string;
@@ -65,7 +65,10 @@ function extractRowsByRegex(text: string): StockRow[] {
 
 export async function parseTableImage(imgUrl: string): Promise<StockRow[]> {
   // 下载图片转 base64
-  const response = await fetch(imgUrl);
+  const response = await fetch(imgUrl, { signal: AbortSignal.timeout(20_000) }).catch(e => {
+    if ((e as Error).name === 'TimeoutError') throw new Error(`图片下载超时（20s）: ${imgUrl}`);
+    throw e;
+  });
   if (!response.ok) throw new Error(`图片下载失败 HTTP ${response.status}: ${imgUrl}`);
   let imgBuffer = Buffer.from(await response.arrayBuffer());
 

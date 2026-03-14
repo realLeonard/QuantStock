@@ -9,6 +9,15 @@ async function main() {
   console.log(`[韭研公社爬虫] ${isTest ? '测试模式（只处理 1 条新主题）' : '全量同步模式'}`);
   console.log('---');
 
+  // 启动时检查环境变量，快速定位配置缺失问题
+  console.log('环境检查:');
+  console.log(`  SUPABASE_URL        : ${process.env.SUPABASE_URL ? '✅' : '❌ 未设置'}`);
+  console.log(`  SUPABASE_ANON_KEY   : ${process.env.SUPABASE_ANON_KEY ? '✅' : '❌ 未设置'}`);
+  console.log(`  ANTHROPIC_BASE_URL  : ${process.env.ANTHROPIC_BASE_URL ?? '（未设置，使用官方默认）'}`);
+  console.log(`  ANTHROPIC_AUTH_TOKEN: ${process.env.ANTHROPIC_AUTH_TOKEN ? '✅' : '❌ 未设置'}`);
+  console.log(`  JY_TOKEN            : ${process.env.JY_TOKEN ? '✅' : '❌ 未设置'}`);
+  console.log('---');
+
   const [existingThemes, allItems] = await Promise.all([
     fetchExistingThemes(),
     fetchAllItems(),

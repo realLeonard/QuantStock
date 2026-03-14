@@ -8,6 +8,7 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -32,11 +33,11 @@ jobs:
           JY_TOKEN: ${{ secrets.JY_TOKEN }}
         run: |
           set +e
-          OUTPUT=$(npx tsx index.ts 2>&1)
-          EXIT_CODE=$?
+          npx tsx index.ts 2>&1 | tee /tmp/sync-output.txt
+          EXIT_CODE=${PIPESTATUS[0]}
           set -e
 
-          echo "$OUTPUT"
+          OUTPUT=$(cat /tmp/sync-output.txt)
 
           echo "## 同步结果" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY

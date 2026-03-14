@@ -34,6 +34,10 @@ export async function fetchList(start: number, limit = 50): Promise<ListData> {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify({ keyword: '', start, limit }),
+    signal: AbortSignal.timeout(15_000),
+  }).catch(e => {
+    if ((e as Error).name === 'TimeoutError') throw new Error('韭研公社 API 请求超时（15s），网络或服务异常');
+    throw e;
   });
   if (!res.ok) throw new Error(`fetchList HTTP ${res.status}`);
   const json = await res.json() as { data: ListData; errCode: string; msg: string };
