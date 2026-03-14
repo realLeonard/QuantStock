@@ -1,4 +1,4 @@
-name: 韭研公社每日同步
+name: 概念主题每日同步
 
 on:
   schedule:
