@@ -35,6 +35,12 @@ export async function fetchExistingThemes(): Promise<Map<string, number>> {
 
 // 更新已存在主题的股票池（保留 name/overview/created_at，只重建股票并刷新 updated_at）
 export async function updateThemeStocks(theme: ProcessedTheme): Promise<void> {
+  // 安全守卫：stocks 为 0 时拒绝执行，防止 Vision 解析失败时误删旧股票数据
+  // 调用方应在 hasImages && stocks.length === 0 时跳过本函数而非传入空数组
+  if (theme.stocks.length === 0) {
+    throw new Error('stocks 为空，拒绝更新以保留旧数据（Vision 解析失败或图片无股票表格）');
+  }
+
   // 1. 删除该主题所有旧股票
   const { error: de } = await getDb().from('themeStocks').delete().eq('theme_id', theme.id);
   if (de) throw new Error('删除旧股票失败: ' + de.message);

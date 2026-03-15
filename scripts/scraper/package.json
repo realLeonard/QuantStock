@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "sync": "tsx index.ts",
-    "test": "tsx index.ts --test"
+    "test": "tsx index.ts --test",
+    "repair": "tsx repair-empty-stocks.ts",
+    "repair:test": "tsx repair-empty-stocks.ts --test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
