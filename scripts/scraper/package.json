@@ -6,7 +6,10 @@
     "sync": "tsx index.ts",
     "test": "tsx index.ts --test",
     "repair": "tsx repair-empty-stocks.ts",
-    "repair:test": "tsx repair-empty-stocks.ts --test"
+    "repair:test": "tsx repair-empty-stocks.ts --test",
+    "init": "tsx full-init.ts --start",
+    "init:status": "tsx full-init.ts --status",
+    "init:run": "tsx full-init.ts --run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
