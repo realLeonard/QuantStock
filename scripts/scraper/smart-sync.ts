@@ -290,15 +290,30 @@ async function processItem(item: ThemeItem): Promise<ItemRecord> {
 // ─── DB / API 查询 ────────────────────────────────────────────────────────────
 
 // 返回 Map<theme_id, stockCount>
+// 注意：Supabase 默认限制 1000 行，必须分页拉取，否则大量主题被误判为 0 股票
 async function fetchDbState(): Promise<Map<string, number>> {
+  // 拉取所有主题 id（主题数量有限，单次足够）
   const { data: themes, error: te } = await db.from('themeConcept').select('id');
   if (te) throw new Error('查询主题失败: ' + te.message);
-  const { data: stocks, error: se } = await db.from('themeStocks').select('theme_id');
-  if (se) throw new Error('查询股票失败: ' + se.message);
 
   const map = new Map<string, number>();
   for (const t of themes ?? []) map.set(t.id, 0);
-  for (const s of stocks ?? []) map.set(s.theme_id, (map.get(s.theme_id) ?? 0) + 1);
+
+  // 分页拉取所有股票 theme_id（每页 1000 条）
+  let from = 0;
+  const PAGE = 1000;
+  while (true) {
+    const { data: stocks, error: se } = await db
+      .from('themeStocks')
+      .select('theme_id')
+      .range(from, from + PAGE - 1);
+    if (se) throw new Error('查询股票失败: ' + se.message);
+    for (const s of stocks ?? []) {
+      map.set(s.theme_id, (map.get(s.theme_id) ?? 0) + 1);
+    }
+    if (!stocks || stocks.length < PAGE) break;
+    from += PAGE;
+  }
   return map;
 }
 
