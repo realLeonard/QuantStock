@@ -72,15 +72,19 @@ export async function updateThemeStocks(theme: ProcessedTheme): Promise<void> {
 }
 
 export async function importTheme(theme: ProcessedTheme): Promise<void> {
-  // upsert：主题已存在时跳过（onConflict ignore），避免重试时重复插入报错
+  // upsert 主题：已存在则更新 updated_at，不存在则插入（幂等，重试安全）
   const { error: te } = await getDb().from('themeConcept').upsert({
     id: theme.id,
     name: theme.name,
     overview: theme.overview,
     created_at: theme.createdAt,
     updated_at: theme.updatedAt,
-  }, { onConflict: 'id', ignoreDuplicates: true });
+  }, { onConflict: 'id' });
   if (te) throw new Error('主题插入失败: ' + te.message);
+
+  // 先删旧股票再插入新股票，保证幂等（重试时不产生重复数据）
+  const { error: de } = await getDb().from('themeStocks').delete().eq('theme_id', theme.id);
+  if (de) throw new Error('删除旧股票失败: ' + de.message);
 
   if (theme.stocks.length === 0) return;
 
