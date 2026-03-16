@@ -9,7 +9,9 @@
     "repair:test": "tsx repair-empty-stocks.ts --test",
     "init": "tsx full-init.ts --start",
     "init:status": "tsx full-init.ts --status",
-    "init:run": "tsx full-init.ts --run"
+    "init:run": "tsx full-init.ts --run",
+    "smart-sync": "tsx smart-sync.ts",
+    "smart-sync:status": "tsx smart-sync.ts --status"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
