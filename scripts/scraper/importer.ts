@@ -72,14 +72,14 @@ export async function updateThemeStocks(theme: ProcessedTheme): Promise<void> {
 }
 
 export async function importTheme(theme: ProcessedTheme): Promise<void> {
-  // 插入主题
-  const { error: te } = await getDb().from('themeConcept').insert({
+  // upsert：主题已存在时跳过（onConflict ignore），避免重试时重复插入报错
+  const { error: te } = await getDb().from('themeConcept').upsert({
     id: theme.id,
     name: theme.name,
     overview: theme.overview,
     created_at: theme.createdAt,
     updated_at: theme.updatedAt,
-  });
+  }, { onConflict: 'id', ignoreDuplicates: true });
   if (te) throw new Error('主题插入失败: ' + te.message);
 
   if (theme.stocks.length === 0) return;

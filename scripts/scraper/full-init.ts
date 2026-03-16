@@ -140,13 +140,16 @@ async function main() {
   if (opts.cmd === 'retry') {
     const plan = loadPlan();
     console.log(`重跑批次：${opts.batchIds.join(', ')}`);
-    // 重置目标批次状态
+    // 只重置需要重试的主题结果，保留已成功的
     for (const batchId of opts.batchIds) {
       const batch = plan.batches.find(b => b.batchId === batchId);
       if (!batch) { console.warn(`  ⚠️  批次 ${batchId} 不存在`); continue; }
+      // 保留上次成功的结果，只清除 skipped_empty 和 failed
+      const kept = batch.results.filter(r => r.status === 'success' || r.status === 'success_no_img');
+      const toRetry = batch.results.filter(r => r.status === 'skipped_empty' || r.status === 'failed');
+      console.log(`  批次 ${batchId}：保留 ${kept.length} 个已成功，重跑 ${toRetry.length} 个`);
+      batch.results = kept;
       batch.status = 'pending';
-      batch.results = [];
-      batch.startedAt = undefined;
       batch.finishedAt = undefined;
       batch.summary = undefined;
     }
@@ -227,20 +230,27 @@ async function runBatch(
 
   batch.status = 'running';
   batch.startedAt = new Date().toISOString();
-  batch.results = [];
+  // 注意：batch.results 在 retry 模式下已保留了上次成功的记录，不清空
   savePlan(plan);
 
+  // 已成功的主题 id 集合，跳过不重复处理
+  const doneIds = new Set(
+    batch.results.filter(r => r.status === 'success' || r.status === 'success_no_img').map(r => r.id)
+  );
+
   for (const themeId of batch.themeIds) {
+    if (doneIds.has(themeId)) continue; // 已成功，跳过
+
     const item = itemMap.get(themeId);
     if (!item) {
       batch.results.push({ id: themeId, name: themeId, status: 'failed', stockCount: 0, reason: 'API 列表中未找到该主题', processedAt: new Date().toISOString() });
-      savePlan(plan); // 每个主题完成立即保存，防止中断丢失进度
+      savePlan(plan);
       continue;
     }
 
     const result = await processItem(item);
     batch.results.push(result);
-    savePlan(plan); // 每个主题完成立即保存
+    savePlan(plan); // 每个主题完成立即保存，防止中断丢失进度
     await sleep(1200);
   }
 
