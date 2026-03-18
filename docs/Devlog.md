@@ -2,6 +2,35 @@
 
 ---
 
+## 2026-03-18
+
+### 增量同步优化：支持 sort_order/title_color 字段 + SKIP_IDS 永久排除
+
+**背景**：韭研公社 API 返回的前15条主题带有 `title_red`（标红）和 `sort_no`（排序）字段，之前未同步到 DB。同时发现 `index.ts` 的 `MAX_UPDATES_PER_RUN` 限额逻辑不够精细，需要区分"重抓图片"和"只刷元数据"两种场景。
+
+**主要改动**：
+
+1. **新字段同步**（`fetcher.ts`）：`ThemeItem` 接口新增 `title_red`、`sort_no` 字段
+2. **importer.ts 扩展**：
+   - `fetchExistingThemes` 返回完整元数据（含 `sortOrder`/`titleColor`），用于变更对比
+   - 新增 `updateThemeMeta()`：仅更新 sort_order/title_color/overview，不触碰股票数据
+   - 新增 `clearStaleTopFields()`：每次同步后清空不再位于前15条的主题的排序/标色字段
+3. **index.ts 增量逻辑重构**：
+   - 更新检测范围收窄至**前15条**（非前15的主题排位变化不影响展示，无需同步）
+   - 区分两类更新：`fullUpdateItems`（update_time 日期推进 → 重抓 Vision）/ `metaOnlyItems`（日期不变但排位/标色变化 → 只刷元数据）
+   - 移除 `MAX_UPDATES_PER_RUN` 限额，前15条全部处理
+   - 新增 `SKIP_IDS` 永久跳过列表（北交所 `7df6369f...`），`fetchAllItems` 过滤后返回
+4. **smart-sync.ts**：同步加入 `SKIP_IDS` + `posMap`，支持写入 `sort_order`/`title_color`
+5. **vision.ts**：Claude API timeout 从 60s 调整为 120s，`maxRetries` 设为 0，补充 `fetch failed` 网络错误识别
+6. **sync.yml**：workflow timeout 从 15 分钟调整为 60 分钟，摘要适配新统计格式（前15更新/前15元数据变更）
+7. **package.json**：新增 `"type": "module"`
+
+**DB 清理**：
+- 删除 API 已下架主题 `PCB`（`fa126a3d...`）
+- 删除永久跳过主题 `北交所`（`7df6369f...`），DB 最终 707 个主题，与 API 官方数对齐
+
+---
+
 ## 2026-03-15
 
 ### 韭研公社全量数据同步完成
