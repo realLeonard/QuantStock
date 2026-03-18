@@ -80,10 +80,11 @@ export default function ThemesView() {
           ? themes.filter(t => t.name.includes(searchKeyword.trim()))
           : themes
         ).slice().sort((a, b) => {
-          // sort_order 正序优先（null 排后面），其余按 updated_at 倒序
-          if (a.sort_order !== null && b.sort_order !== null) return a.sort_order - b.sort_order;
-          if (a.sort_order !== null) return -1;
-          if (b.sort_order !== null) return 1;
+          const aHas = a.sort_order != null;
+          const bHas = b.sort_order != null;
+          if (aHas && bHas) return a.sort_order! - b.sort_order!;
+          if (aHas) return -1;
+          if (bHas) return 1;
           return (b.updated_at ?? 0) - (a.updated_at ?? 0);
         });
         return filtered.length === 0 ? (
