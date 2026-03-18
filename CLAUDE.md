@@ -6,6 +6,11 @@
 - 错误提示使用中文
 - 文档使用中文Markdown格式
 
+## 模型使用原则
+- 默认必须使用Sonnet 4.6
+- Sonnet解决不了的问题切换到Opus 4.6尝试解决
+- 任何情况不使用Haiku
+
 ## 代码规范
 - 使用ESLint + Prettier
 - 缩进使用2个空格

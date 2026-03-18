@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import sharp from 'sharp';
 
 // 自动读取环境变量：ANTHROPIC_AUTH_TOKEN + ANTHROPIC_BASE_URL（与 Claude Code 共用同一代理配置）
-const claude = new Anthropic({ timeout: 60_000 });
+const claude = new Anthropic({ timeout: 120_000, maxRetries: 0 });
 
 export interface StockRow {
   cat1: string;
@@ -32,6 +32,7 @@ function isRetryableDownloadError(err: Error): boolean {
     msg.includes('etimedout') ||
     msg.includes('network') ||
     msg.includes('socket') ||
+    msg.includes('fetch failed') || // Node.js 通用网络层错误
     msg.includes('http 5') // 5xx 服务端错误
   );
 }

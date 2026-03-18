@@ -41,6 +41,8 @@ export interface ThemeItem {
   create_time: string;
   update_time: string; // 最后修改时间，内容更新后变化
   author: string | null; // null 或空字符串为官方内容，非空为用户贡献
+  title_red: number;      // 1 = 主题名称标红
+  sort_no: number | null; // 主题列表排序序号
 }
 
 interface ListData {

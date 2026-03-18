@@ -27,6 +27,11 @@ const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY
 const STATE_FILE = new URL('./sync-state.json', import.meta.url).pathname;
 const BATCH_SIZE = 50;
 
+// 永久跳过的主题 ID（不处理、不写入 DB）
+const SKIP_IDS = new Set([
+  '7df6369f82f34e15ae1f7f6d6342efa3', // 北交所(251029)：股票过多，手动排除
+]);
+
 // ─── 数据结构 ────────────────────────────────────────────────────────────────
 
 type ItemStatus = 'success' | 'success_no_img' | 'skipped_empty' | 'failed';
@@ -173,6 +178,8 @@ async function main() {
 
 async function runBatches(state: SyncState, apiItems: ThemeItem[], onlyIds?: number[]) {
   const itemMap = new Map(apiItems.map(i => [i.industry_id, i]));
+  // 位置映射：第几条（1-indexed），用于 sort_order 和 title_color
+  const posMap = new Map(apiItems.map((i, idx) => [i.industry_id, idx + 1]));
   const toRun = state.batches.filter(b =>
     (b.status === 'pending' || b.status === 'running') &&
     (onlyIds ? onlyIds.includes(b.batchId) : true)
@@ -181,14 +188,14 @@ async function runBatches(state: SyncState, apiItems: ThemeItem[], onlyIds?: num
   console.log(`待处理批次: ${toRun.length}`);
 
   for (const batch of toRun) {
-    await runBatch(batch, itemMap, state);
+    await runBatch(batch, itemMap, posMap, state);
   }
 
   console.log('\n' + '='.repeat(50));
   printStatus(loadState());
 }
 
-async function runBatch(batch: BatchRecord, itemMap: Map<string, ThemeItem>, state: SyncState) {
+async function runBatch(batch: BatchRecord, itemMap: Map<string, ThemeItem>, posMap: Map<string, number>, state: SyncState) {
   console.log(`\n${'─'.repeat(50)}`);
   console.log(`批次 ${batch.batchId}/${state.batches.length}（${batch.itemIds.length} 个主题）`);
 
@@ -212,7 +219,8 @@ async function runBatch(batch: BatchRecord, itemMap: Map<string, ThemeItem>, sta
 
     // 判断是 insert 还是 update（从 state 的 itemIds 中无法直接判断，靠 DB 状态）
     // 实际上 importTheme 已经是幂等的（upsert + 删旧股票 + 插新股票），insert/update 逻辑一致
-    const result = await processItem(item);
+    const globalPos = posMap.get(themeId) ?? 9999;
+    const result = await processItem(item, globalPos);
     batch.results.push(result);
     saveState(state);
     await sleep(1200);
@@ -231,7 +239,7 @@ async function runBatch(batch: BatchRecord, itemMap: Map<string, ThemeItem>, sta
 
 // ─── 处理单个主题 ─────────────────────────────────────────────────────────────
 
-async function processItem(item: ThemeItem): Promise<ItemRecord> {
+async function processItem(item: ThemeItem, globalPos: number): Promise<ItemRecord> {
   console.log(`\n  [${item.title}]`);
 
   let imgUrls: string[] = [];
@@ -276,6 +284,10 @@ async function processItem(item: ThemeItem): Promise<ItemRecord> {
       createdAt: item.create_time ? parseBeijingTime(item.create_time) : Date.now(),
       updatedAt: item.update_time ? parseBeijingTime(item.update_time) : (item.create_time ? parseBeijingTime(item.create_time) : Date.now()),
       stocks,
+      // 前15条写入 sort_order（优先用 API 的 sort_no，否则用全局位置）
+      sortOrder: globalPos <= 15 ? (item.sort_no ?? globalPos) : undefined,
+      // 主题名称颜色（red 或 null 均写入，保持与 API 同步）
+      titleColor: item.title_red === 1 ? 'red' : null,
     });
     const status: ItemStatus = stocks.length > 0 ? 'success' : 'success_no_img';
     console.log(`    ✅ 成功，${stocks.length} 支股票`);
@@ -330,8 +342,13 @@ async function fetchApiItems(): Promise<ThemeItem[]> {
     start = data.nextPage;
     await sleep(500);
   }
-  console.log(`✅ 共 ${all.length} 个官方主题\n`);
-  return all;
+  // 过滤永久跳过的主题
+  const filtered = all.filter(i => !SKIP_IDS.has(i.industry_id));
+  if (filtered.length < all.length) {
+    console.log(`  跳过 ${all.length - filtered.length} 个永久排除主题（SKIP_IDS）`);
+  }
+  console.log(`✅ 共 ${filtered.length} 个官方主题\n`);
+  return filtered;
 }
 
 // ─── 状态展示 ────────────────────────────────────────────────────────────────

@@ -8,7 +8,7 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
@@ -45,11 +45,13 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
 
           NEW_COUNT=$(echo "$OUTPUT" | grep -oE "新增 [0-9]+ 个" | grep -oE "[0-9]+" | tail -1)
-          UPDATE_COUNT=$(echo "$OUTPUT" | grep -oE "内容更新 [0-9]+ 个" | grep -oE "[0-9]+" | tail -1)
+          UPDATE_COUNT=$(echo "$OUTPUT" | grep -oE "前15更新\(重抓\) [0-9]+ 个" | grep -oE "[0-9]+" | tail -1)
+          META_COUNT=$(echo "$OUTPUT" | grep -oE "前15元数据变更 [0-9]+ 个" | grep -oE "[0-9]+" | tail -1)
           FAIL_COUNT=$(echo "$OUTPUT" | grep -oE "最终失败 [0-9]+" | grep -oE "[0-9]+" | tail -1)
 
           echo "new_count=${NEW_COUNT:-0}" >> $GITHUB_OUTPUT
           echo "update_count=${UPDATE_COUNT:-0}" >> $GITHUB_OUTPUT
+          echo "meta_count=${META_COUNT:-0}" >> $GITHUB_OUTPUT
           echo "fail_count=${FAIL_COUNT:-0}" >> $GITHUB_OUTPUT
           echo "exit_code=${EXIT_CODE}" >> $GITHUB_OUTPUT
         working-directory: scripts/scraper
@@ -61,21 +63,22 @@ jobs:
         run: |
           NEW_COUNT="${{ steps.sync.outputs.new_count }}"
           UPDATE_COUNT="${{ steps.sync.outputs.update_count }}"
+          META_COUNT="${{ steps.sync.outputs.meta_count }}"
           FAIL_COUNT="${{ steps.sync.outputs.fail_count }}"
           EXIT_CODE="${{ steps.sync.outputs.exit_code }}"
 
           if [ "$EXIT_CODE" != "0" ]; then
             TITLE="❌ 概念主题同步异常"
             BODY="脚本运行出错，请检查 Actions 日志"
-          elif [ "$NEW_COUNT" = "0" ] && [ "$UPDATE_COUNT" = "0" ]; then
+          elif [ "$NEW_COUNT" = "0" ] && [ "$UPDATE_COUNT" = "0" ] && [ "$META_COUNT" = "0" ]; then
             TITLE="✅ 概念主题同步无变化"
             BODY="主题数据源暂无新增或更新的主题"
           elif [ "$FAIL_COUNT" = "0" ]; then
             TITLE="✅ 概念主题同步完成"
-            BODY="为你新增 ${NEW_COUNT} 个主题，更新 ${UPDATE_COUNT} 个，全部成功"
+            BODY="新增 ${NEW_COUNT} 个，重抓 ${UPDATE_COUNT} 个，元数据 ${META_COUNT} 个，全部成功"
           else
             TITLE="⚠️ 概念主题同步完成"
-            BODY="为你新增 ${NEW_COUNT} 个主题，更新 ${UPDATE_COUNT} 个，${FAIL_COUNT} 个失败"
+            BODY="新增 ${NEW_COUNT} 个，重抓 ${UPDATE_COUNT} 个，元数据 ${META_COUNT} 个，${FAIL_COUNT} 个失败"
           fi
 
           TITLE_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$TITLE")

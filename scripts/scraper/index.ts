@@ -1,11 +1,14 @@
 import 'dotenv/config';
 import { fetchList, type ThemeItem } from './fetcher.js';
 import { parseTableImage, type StockRow } from './vision.js';
-import { fetchExistingThemes, importTheme, updateThemeStocks } from './importer.js';
+import { fetchExistingThemes, importTheme, updateThemeStocks, updateThemeMeta, clearStaleTopFields } from './importer.js';
 
 const isTest = process.argv.includes('--test');
-// 每次最多处理 N 个更新，防止历史积压或异常导致单次运行超时
-const MAX_UPDATES_PER_RUN = 20;
+
+// 永久跳过的主题 ID（与 smart-sync.ts 保持一致）
+const SKIP_IDS = new Set([
+  '7df6369f82f34e15ae1f7f6d6342efa3', // 北交所(251029)：股票过多，手动排除
+]);
 
 // ─── 结果类型 ────────────────────────────────────────────────────────────────
 
@@ -44,71 +47,123 @@ async function main() {
     fetchAllItems(),
   ]);
 
-  // 新增：id 不在 DB
+  // API 顺序前15条 + 位置映射（1-indexed）
+  const top15 = allItems.slice(0, 15);
+  const posMap = new Map(allItems.map((i, idx) => [i.industry_id, idx + 1]));
+
+  // 新增：id 不在 DB（全量扫描，不限前15）
   const filteredNew = allItems.filter(i => !existingThemes.has(i.industry_id));
   const newItems = isTest ? filteredNew.slice(0, 1) : filteredNew;
 
-  // 更新：id 存在但线上日期 > DB 日期（只比对日期，忽略时分秒，避免平台当天多次刷时间戳误判）
-  const filteredUpdated = allItems.filter(i => {
-    if (!existingThemes.has(i.industry_id)) return false;
-    if (!i.update_time) return false;
-    const onlineDate = i.update_time.slice(0, 10); // "YYYY-MM-DD"（北京时间日期）
-    const dbDate = toBeijingDate(existingThemes.get(i.industry_id)!);
-    return onlineDate > dbDate;
-  });
-  const updatedItems = isTest ? [] : filteredUpdated.slice(0, MAX_UPDATES_PER_RUN);
-  if (filteredUpdated.length > MAX_UPDATES_PER_RUN) {
-    console.log(`  ⚠️  更新主题共 ${filteredUpdated.length} 个，本次限额处理 ${MAX_UPDATES_PER_RUN} 个，剩余下次继续`);
-  }
+  // 更新检测：只在前15条中进行
+  // - fullUpdateItems：update_time 日期推进 → 重新抓取图片 + 同步元数据
+  // - metaOnlyItems  ：update_time 未变但 sort_order/title_color 与当前 API 不符 → 只刷元数据
+  const fullUpdateItems: ThemeItem[] = [];
+  const metaOnlyItems: ThemeItem[] = [];
+  for (const item of top15) {
+    const existing = existingThemes.get(item.industry_id);
+    if (!existing) continue; // 新主题，走 newItems 路径
 
-  console.log(
-    `线上 ${allItems.length} 个主题，DB 已有 ${existingThemes.size} 个，` +
-    `新增 ${newItems.length} 个，内容更新 ${updatedItems.length} 个`
-  );
+    if (item.update_time) {
+      const onlineDate = item.update_time.slice(0, 10); // "YYYY-MM-DD"（北京时间日期）
+      const dbDate = toBeijingDate(existing.updatedAt);
+      if (onlineDate > dbDate) {
+        fullUpdateItems.push(item);
+        continue;
+      }
+    }
 
-  if (newItems.length === 0 && updatedItems.length === 0) {
-    console.log('无新主题，退出。');
-    return;
-  }
-
-  const results: ItemResult[] = [];
-
-  // 第一轮：依次处理所有待处理主题
-  for (const item of newItems) {
-    results.push(await processItem(item, 'insert'));
-    await sleep(1200);
-  }
-  for (const item of updatedItems) {
-    results.push(await processItem(item, 'update'));
-    await sleep(1200);
-  }
-
-  // 第二轮：重试真正失败的（排除 skipped_empty，它们依靠下次运行自然重试）
-  const toRetry = results.filter(r => r.status === 'failed');
-  if (toRetry.length > 0) {
-    console.log(`\n${'─'.repeat(40)}`);
-    console.log(`重试 ${toRetry.length} 个失败主题...`);
-    await sleep(5_000); // 失败后等待更长时间再重试，避免持续压 API
-
-    // 找回对应的 ThemeItem
-    const itemMap = new Map([...newItems, ...updatedItems].map(i => [i.industry_id, i]));
-    for (const r of toRetry) {
-      const item = itemMap.get(r.id);
-      if (!item) continue;
-      const retryResult = await processItem(item, r.mode);
-      // 用重试结果覆盖原记录
-      const idx = results.findIndex(x => x.id === r.id);
-      if (idx !== -1) results[idx] = retryResult;
-      await sleep(2400);
+    // update_time 未推进：检查排位或标色是否变化
+    const pos = posMap.get(item.industry_id)!;
+    const currentSortOrder = item.sort_no ?? pos;
+    const currentTitleColor: 'red' | null = item.title_red === 1 ? 'red' : null;
+    if (existing.sortOrder !== currentSortOrder || existing.titleColor !== currentTitleColor) {
+      metaOnlyItems.push(item);
     }
   }
 
-  printSummary(results);
+  const fullUpdateItemsToProcess = isTest ? [] : fullUpdateItems;
+  const metaOnlyToProcess = isTest ? [] : metaOnlyItems;
+
+  console.log(
+    `线上 ${allItems.length} 个主题，DB 已有 ${existingThemes.size} 个，` +
+    `新增 ${newItems.length} 个，` +
+    `前15更新(重抓) ${fullUpdateItemsToProcess.length} 个，` +
+    `前15元数据变更 ${metaOnlyToProcess.length} 个`
+  );
+
+  if (newItems.length === 0 && fullUpdateItemsToProcess.length === 0 && metaOnlyToProcess.length === 0) {
+    console.log('无待处理主题，退出。');
+  } else {
+    const results: ItemResult[] = [];
+
+    // 元数据变更（排位/标色变化，无需 Vision）
+    if (metaOnlyToProcess.length > 0) {
+      console.log(`\n处理 ${metaOnlyToProcess.length} 个元数据变更...`);
+      for (const item of metaOnlyToProcess) {
+        const pos = posMap.get(item.industry_id)!;
+        try {
+          await updateThemeMeta(
+            item.industry_id,
+            item.content || '',
+            item.sort_no ?? pos,
+            item.title_red === 1 ? 'red' : null,
+          );
+          console.log(`  [元数据] ${item.title}`);
+        } catch (e) {
+          console.error(`  [元数据失败] ${item.title}: ${(e as Error).message}`);
+        }
+        await sleep(200);
+      }
+    }
+
+    // 第一轮：依次处理需要 Vision 的主题（新增 + 前15重抓）
+    for (const item of newItems) {
+      const pos = posMap.get(item.industry_id) ?? 9999;
+      results.push(await processItem(item, 'insert', pos));
+      await sleep(1200);
+    }
+    for (const item of fullUpdateItemsToProcess) {
+      const pos = posMap.get(item.industry_id)!;
+      results.push(await processItem(item, 'update', pos));
+      await sleep(1200);
+    }
+
+    // 第二轮：重试真正失败的（排除 skipped_empty，它们依靠下次运行自然重试）
+    const toRetry = results.filter(r => r.status === 'failed');
+    if (toRetry.length > 0) {
+      console.log(`\n${'─'.repeat(40)}`);
+      console.log(`重试 ${toRetry.length} 个失败主题...`);
+      await sleep(5_000);
+
+      const itemMap = new Map([...newItems, ...fullUpdateItemsToProcess].map(i => [i.industry_id, i]));
+      for (const r of toRetry) {
+        const item = itemMap.get(r.id);
+        if (!item) continue;
+        const pos = posMap.get(r.id) ?? 9999;
+        const retryResult = await processItem(item, r.mode, pos);
+        const idx = results.findIndex(x => x.id === r.id);
+        if (idx !== -1) results[idx] = retryResult;
+        await sleep(2400);
+      }
+    }
+
+    printSummary(results);
+  }
+
+  // 每次运行结束都清空不在前15的 sort_order/title_color（前15顺序随时可能变化）
+  const top15Ids = top15.map(i => i.industry_id);
+  try {
+    const cleared = await clearStaleTopFields(top15Ids);
+    if (cleared > 0) console.log(`\n已清空 ${cleared} 个主题的历史排序/标识字段`);
+  } catch (e) {
+    console.error(`清空历史字段失败: ${(e as Error).message}`);
+  }
 }
 
 // ─── 处理单个主题 ─────────────────────────────────────────────────────────────
 
-async function processItem(item: ThemeItem, mode: 'insert' | 'update'): Promise<ItemResult> {
+async function processItem(item: ThemeItem, mode: 'insert' | 'update', globalPos: number): Promise<ItemResult> {
   const modeLabel = mode === 'update' ? '[更新]' : '[新增]';
   console.log(`\n${modeLabel} [${item.title}]`);
 
@@ -172,6 +227,11 @@ async function processItem(item: ThemeItem, mode: 'insert' | 'update'): Promise<
       ? parseBeijingTime(item.update_time)
       : (item.create_time ? parseBeijingTime(item.create_time) : Date.now()),
     stocks,
+    // 前15条写入 sort_order/title_color（update 必在前15；insert 按实际位置判断）
+    ...(globalPos <= 15 ? {
+      sortOrder: item.sort_no ?? globalPos,
+      titleColor: (item.title_red === 1 ? 'red' : null) as 'red' | null,
+    } : {}),
   };
 
   try {
@@ -266,7 +326,11 @@ async function fetchAllItems(): Promise<ThemeItem[]> {
     start = data.nextPage;
     await sleep(500);
   }
-  return all;
+  const filtered = all.filter(i => !SKIP_IDS.has(i.industry_id));
+  if (filtered.length < all.length) {
+    console.log(`  跳过 ${all.length - filtered.length} 个永久排除主题（SKIP_IDS）`);
+  }
+  return filtered;
 }
 
 // 分类名校验：防止 Vision 把主题标题或长文本误填入 cat 字段

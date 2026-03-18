@@ -2,6 +2,7 @@
   "name": "@quantstock/scraper",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "sync": "tsx index.ts",
     "test": "tsx index.ts --test",
