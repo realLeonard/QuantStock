@@ -42,9 +42,11 @@ export interface Theme {
   id: string;
   name: string;
   overview: string;
-  created_at: number;   // Unix 时间戳（毫秒）
-  updated_at: number;   // 最后更新时间（毫秒），爬虫导入时同步 created_at，手动创建时为当前时间
-  stocks: Stock[];      // 嵌套股票，来自 themeStocks 表
+  created_at: number;          // Unix 时间戳（毫秒）
+  updated_at: number;          // 最后更新时间（毫秒），爬虫导入时同步 created_at，手动创建时为当前时间
+  sort_order: number | null;   // 前15条主题的排序序号，其余为 null
+  title_color: string | null;  // 主题名称颜色（'red' 或 null）
+  stocks: Stock[];             // 嵌套股票，来自 themeStocks 表
 }
 
 // ===== 创建/更新主题的输入类型 =====
@@ -60,6 +62,8 @@ export interface ThemeRow {
   overview: string;
   created_at: number;
   updated_at: number;
+  sort_order: number | null;
+  title_color: string | null;
   themeStocks?: StockRow[];
 }
 

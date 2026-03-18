@@ -79,7 +79,13 @@ export default function ThemesView() {
         const filtered = (searchKeyword.trim()
           ? themes.filter(t => t.name.includes(searchKeyword.trim()))
           : themes
-        ).slice().sort((a, b) => (b.updated_at ?? 0) - (a.updated_at ?? 0));
+        ).slice().sort((a, b) => {
+          // sort_order 正序优先（null 排后面），其余按 updated_at 倒序
+          if (a.sort_order !== null && b.sort_order !== null) return a.sort_order - b.sort_order;
+          if (a.sort_order !== null) return -1;
+          if (b.sort_order !== null) return 1;
+          return (b.updated_at ?? 0) - (a.updated_at ?? 0);
+        });
         return filtered.length === 0 ? (
           <div className="empty-state">
             <span style={{ fontSize: 48, display: 'block', marginBottom: 12 }}>🔍</span>
@@ -95,7 +101,10 @@ export default function ThemesView() {
             return (
               <div key={theme.id} className="theme-card">
                 <div className="theme-card-header">
-                  <div className="theme-name">{theme.name}</div>
+                  <div
+                    className="theme-name"
+                    style={theme.title_color === 'red' ? { color: '#ef4444' } : undefined}
+                  >{theme.name}</div>
                   <span className="theme-count-badge">{stocks.length} 支</span>
                 </div>
                 {theme.overview ? (

@@ -10,6 +10,8 @@ export function createSupabaseClient(url: string, anonKey: string): SupabaseClie
 function mapThemeRow(row: ThemeRow): Theme {
   return {
     ...row,
+    sort_order: row.sort_order ?? null,
+    title_color: row.title_color ?? null,
     stocks: (row.themeStocks || []).map((s: StockRow) => ({
       id: s.id,
       theme_id: s.theme_id,
@@ -35,11 +37,13 @@ export class QuantStockApiClient {
   }
 
   // 加载全量数据（含嵌套股票）
+  // 排序：sort_order 正序优先（nulls last，前15条在前），其余按 updated_at 倒序
   async loadThemes(): Promise<Theme[]> {
     const { data, error } = await this.sb
       .from('themeConcept')
       .select('*, themeStocks(*)')
-      .order('created_at', { ascending: true });
+      .order('sort_order', { ascending: true, nullsFirst: false })
+      .order('updated_at', { ascending: false });
     if (error) throw new Error(error.message);
     return (data || []).map(mapThemeRow);
   }
