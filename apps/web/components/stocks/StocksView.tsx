@@ -48,6 +48,11 @@ export default function StocksView() {
     return b.stars - a.stars;
   });
 
+  // 列显隐：所有行该字段均为空则隐藏整列
+  const showCol1 = sorted.some(s => s._c1 !== '');
+  const showCol2 = sorted.some(s => s._c2 !== '');
+  const showCol3 = sorted.some(s => s._c3 !== '');
+
   type SortedStock = typeof sorted[number];
   type RowCat = { c1: string; c2: string; c3: string };
   type SingleRow = { type: 'single'; stock: SortedStock };
@@ -134,9 +139,9 @@ export default function StocksView() {
           <table className="stock-table">
             <thead>
               <tr>
-                <th style={{ width: 100 }}>大类</th>
-                <th style={{ width: 100 }}>子类</th>
-                <th style={{ width: 72 }}>细分</th>
+                {showCol1 && <th style={{ width: 100 }}>大类</th>}
+                {showCol2 && <th style={{ width: 100 }}>子类</th>}
+                {showCol3 && <th style={{ width: 72 }}>细分</th>}
                 <th style={{ width: 100 }}>个股</th>
                 <th>相关性</th>
                 <th style={{ width: 88 }}>操作</th>
@@ -157,9 +162,9 @@ export default function StocksView() {
                   const c3First = isFirstRow(rowCats, i, ['c1', 'c2', 'c3']);
                   const catCells = (
                     <>
-                      {c1First && <td className="td-cat" rowSpan={spanRows(rowCats, i, ['c1'])}>{cats.c1 || '—'}</td>}
-                      {c2First && <td className="td-cat" rowSpan={spanRows(rowCats, i, ['c1', 'c2'])}>{cats.c2 || '—'}</td>}
-                      {c3First && <td className="td-cat" rowSpan={spanRows(rowCats, i, ['c1', 'c2', 'c3'])}>{cats.c3 || '—'}</td>}
+                      {showCol1 && c1First && <td className="td-cat" rowSpan={spanRows(rowCats, i, ['c1'])}>{cats.c1}</td>}
+                      {showCol2 && c2First && <td className="td-cat" rowSpan={spanRows(rowCats, i, ['c1', 'c2'])}>{cats.c2}</td>}
+                      {showCol3 && c3First && <td className="td-cat" rowSpan={spanRows(rowCats, i, ['c1', 'c2', 'c3'])}>{cats.c3}</td>}
                     </>
                   );
 

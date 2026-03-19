@@ -75,7 +75,7 @@ async function main() {
 
     // update_time 未推进：检查排位或标色是否变化
     const pos = posMap.get(item.industry_id)!;
-    const currentSortOrder = item.sort_no ?? pos;
+    const currentSortOrder = pos;
     const currentTitleColor: 'red' | null = item.title_red === 1 ? 'red' : null;
     if (existing.sortOrder !== currentSortOrder || existing.titleColor !== currentTitleColor) {
       metaOnlyItems.push(item);
@@ -106,7 +106,7 @@ async function main() {
           await updateThemeMeta(
             item.industry_id,
             item.content || '',
-            item.sort_no ?? pos,
+            pos,
             item.title_red === 1 ? 'red' : null,
           );
           console.log(`  [元数据] ${item.title}`);
@@ -229,7 +229,7 @@ async function processItem(item: ThemeItem, mode: 'insert' | 'update', globalPos
     stocks,
     // 前15条写入 sort_order/title_color（update 必在前15；insert 按实际位置判断）
     ...(globalPos <= 15 ? {
-      sortOrder: item.sort_no ?? globalPos,
+      sortOrder: globalPos,
       titleColor: (item.title_red === 1 ? 'red' : null) as 'red' | null,
     } : {}),
   };

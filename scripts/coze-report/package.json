@@ -1,0 +1,12 @@
+{
+  "name": "coze-report",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "npx tsx test-local.ts"
+  },
+  "dependencies": {
+    "playwright": "^1.50.0",
+    "tsx": "^4.19.0"
+  }
+}

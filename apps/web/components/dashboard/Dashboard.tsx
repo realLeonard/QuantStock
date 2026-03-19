@@ -23,11 +23,6 @@ export default function Dashboard() {
     setModalOpen(true);
   }
 
-  function openCreate() {
-    setEditingTheme(null);
-    setModalOpen(true);
-  }
-
   function handleManage(themeId: string) {
     setCurrentThemeId(themeId);
     setCurrentNav('themes');
@@ -96,14 +91,6 @@ export default function Dashboard() {
       {/* 主题列表 */}
       <div className="section-header">
         <div className="section-title">投资主题</div>
-        {canEdit && (
-          <button className="btn-primary" onClick={openCreate}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            新增主题
-          </button>
-        )}
       </div>
 
       {themes.length === 0 ? (
@@ -113,7 +100,14 @@ export default function Dashboard() {
         </div>
       ) : (
         <div className="themes-grid">
-          {themes.map(theme => (
+          {[...themes].sort((a, b) => {
+            const aHas = a.sort_order != null;
+            const bHas = b.sort_order != null;
+            if (aHas && bHas) return a.sort_order! - b.sort_order!;
+            if (aHas) return -1;
+            if (bHas) return 1;
+            return (b.updated_at ?? 0) - (a.updated_at ?? 0);
+          }).slice(0, 15).map(theme => (
             <ThemeCard
               key={theme.id}
               theme={theme}
@@ -153,7 +147,10 @@ function ThemeCard({ theme, onEdit, onManage }: {
   return (
     <div className="theme-card">
       <div className="theme-card-header">
-        <div className="theme-name">{theme.name}</div>
+        <div
+          className="theme-name"
+          style={theme.title_color === 'red' ? { color: '#ef4444' } : undefined}
+        >{theme.name}</div>
         <span className="theme-count-badge">{stocks.length} 支</span>
       </div>
       {theme.overview ? (

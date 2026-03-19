@@ -284,8 +284,8 @@ async function processItem(item: ThemeItem, globalPos: number): Promise<ItemReco
       createdAt: item.create_time ? parseBeijingTime(item.create_time) : Date.now(),
       updatedAt: item.update_time ? parseBeijingTime(item.update_time) : (item.create_time ? parseBeijingTime(item.create_time) : Date.now()),
       stocks,
-      // 前15条写入 sort_order（优先用 API 的 sort_no，否则用全局位置）
-      sortOrder: globalPos <= 15 ? (item.sort_no ?? globalPos) : undefined,
+      // 前15条写入 sort_order（API 列表实际位置，1-indexed）
+      sortOrder: globalPos <= 15 ? globalPos : undefined,
       // 主题名称颜色（red 或 null 均写入，保持与 API 同步）
       titleColor: item.title_red === 1 ? 'red' : null,
     });
