@@ -2,7 +2,7 @@ name: 概念主题每日同步
 
 on:
   schedule:
-    - cron: '0 1,13 * * *'   # 北京时间 09:00 和 21:00（UTC+8）
+    - cron: '0 1,4,13 * * *'   # 北京时间 09:00、12:00、21:00（UTC+8）
   workflow_dispatch:           # 支持手动触发
 
 jobs:
