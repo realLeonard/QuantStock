@@ -36,6 +36,17 @@ export class QuantStockApiClient {
     this.sb = supabase;
   }
 
+  // 加载主题元数据（不含股票），用于快速渲染仪表盘
+  async loadThemesMeta(): Promise<Theme[]> {
+    const { data, error } = await this.sb
+      .from('themeConcept')
+      .select('id, name, overview, created_at, updated_at, sort_order, title_color')
+      .order('sort_order', { ascending: true, nullsFirst: false })
+      .order('updated_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data || []).map(row => mapThemeRow({ ...row, themeStocks: [] }));
+  }
+
   // 加载全量数据（含嵌套股票）
   // 排序：sort_order 正序优先（nulls last，前15条在前），其余按 updated_at 倒序
   async loadThemes(): Promise<Theme[]> {

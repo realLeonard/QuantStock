@@ -106,15 +106,18 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ isLoggedIn: false, currentUser: null, themes: [], users: [], currentNav: 'dashboard' });
   },
 
-  // ===== 加载全量主题 =====
+  // ===== 加载全量主题（两阶段：先拉元数据秒出，再后台拉股票数据）=====
   loadThemes: async () => {
     set({ isLoading: true });
     try {
-      const themes = await apiClient.loadThemes();
-      set({ themes });
+      // 第一阶段：只拉主题元数据，快速解除 loading
+      const metaThemes = await apiClient.loadThemesMeta();
+      set({ themes: metaThemes, isLoading: false });
+      // 第二阶段：后台静默拉全量股票，完成后更新
+      const fullThemes = await apiClient.loadThemes();
+      set({ themes: fullThemes });
     } catch (e) {
       get().showToast('❌ 加载数据失败：' + (e as Error).message);
-    } finally {
       set({ isLoading: false });
     }
   },
