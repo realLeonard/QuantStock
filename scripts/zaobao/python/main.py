@@ -32,6 +32,7 @@ else:
 
 from supabase import create_client, Client
 from fetchers import akshare_fetcher, yfinance_fetcher, rss_fetcher, macro_fetcher
+from news_collector import collect_cls_notice, upsert_news, now_utc_ms
 
 
 def json_safe(obj):
@@ -178,12 +179,36 @@ def run_collection():
     print()
 
     # 采集央视新闻联播（保留在每日脚本）
-    print('[5/5] 采集央视新闻联播...')
+    print('[5/6] 采集央视新闻联播...')
     try:
         cctv_data = rss_fetcher.fetch_cctv_news()
         save_to_supabase(sb, data_date, 'news', 'cctv', cctv_data)
+        # 同时写入 newsItems 表供早报查询
+        cctv_items = [
+            {
+                'source': 'cctv',
+                'title': str(row.get('标题') or row.get('title') or ''),
+                'published_at': now_utc_ms(),
+                'url': '',
+            }
+            for row in (cctv_data.get('data') or [])
+            if row.get('标题') or row.get('title')
+        ]
+        if cctv_items:
+            inserted, _ = upsert_news(sb, cctv_items)
+            print(f'      央视新闻写入 newsItems: {inserted} 条')
     except Exception as e:
         print(f'      央视新闻采集失败: {e}')
+
+    # 采集财联社A股公告精选（每日一次，不做时间过滤）
+    print('[6/6] 采集财联社公告精选...')
+    try:
+        notice_items = collect_cls_notice()
+        if notice_items:
+            inserted, skipped = upsert_news(sb, notice_items)
+            print(f'      公告精选写入 newsItems: {inserted} 条，重复跳过 {skipped} 条')
+    except Exception as e:
+        print(f'      公告精选采集失败: {e}')
 
     print(f'\n{"="*50}')
     print('采集完成！数据已写入 Supabase')

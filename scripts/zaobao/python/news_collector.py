@@ -31,7 +31,8 @@ from supabase import create_client, Client
 
 
 # ===== 常量 =====
-OVERLAP_HOURS = 3        # 每次采集时往前看3小时（兜底上一次漏跑的情况）
+OVERLAP_HOURS = 3        # 高频来源：往前看3小时（财联社/东方财富）
+OVERLAP_HOURS_SLOW = 24  # 低频来源：往前看24小时（同花顺更新慢）
 RETENTION_DAYS = 2       # 只保留最近2天的新闻
 
 
@@ -84,9 +85,9 @@ def combine_date_time(d: object, t: object) -> int:
         return now_utc_ms()
 
 
-def cutoff_utc_ms() -> int:
-    """返回 OVERLAP_HOURS 小时前的 UTC 毫秒（过滤时间窗口下限）"""
-    return int((time.time() - OVERLAP_HOURS * 3600) * 1000)
+def cutoff_utc_ms(hours: int = OVERLAP_HOURS) -> int:
+    """返回 hours 小时前的 UTC 毫秒（过滤时间窗口下限）"""
+    return int((time.time() - hours * 3600) * 1000)
 
 
 def retention_cutoff_ms() -> int:
@@ -213,11 +214,10 @@ def collect_ths_flash() -> list[dict]:
 
 # ===== 时间过滤 =====
 
-def filter_by_window(items: list[dict]) -> list[dict]:
-    """只保留最近 OVERLAP_HOURS 小时内的新闻"""
-    cutoff = cutoff_utc_ms()
-    filtered = [i for i in items if i['published_at'] >= cutoff]
-    return filtered
+def filter_by_window(items: list[dict], hours: int = OVERLAP_HOURS) -> list[dict]:
+    """只保留最近 hours 小时内的新闻"""
+    cutoff = cutoff_utc_ms(hours)
+    return [i for i in items if i['published_at'] >= cutoff]
 
 
 # ===== 写入 Supabase =====
@@ -284,18 +284,28 @@ def run():
     print('\n[2/3] 采集各新闻源...')
     all_items: list[dict] = []
 
-    sources = [
+    # 高频来源：3小时窗口
+    fast_sources = [
         ('财联社重点', collect_cls_focus),
         ('财联社快讯', collect_cls_flash),
-        ('财联社公告', collect_cls_notice),
         ('东方财富',   collect_em_flash),
-        ('同花顺',     collect_ths_flash),
+    ]
+    # 低频来源：24小时窗口
+    slow_sources = [
+        ('同花顺', collect_ths_flash),
     ]
 
-    for name, fn in sources:
+    for name, fn in fast_sources:
         print(f'  采集 {name}...')
         items = fn()
-        filtered = filter_by_window(items)
+        filtered = filter_by_window(items, OVERLAP_HOURS)
+        print(f'    采集 {len(items)} 条，过滤后 {len(filtered)} 条在时间窗口内')
+        all_items.extend(filtered)
+
+    for name, fn in slow_sources:
+        print(f'  采集 {name}（24h窗口）...')
+        items = fn()
+        filtered = filter_by_window(items, OVERLAP_HOURS_SLOW)
         print(f'    采集 {len(items)} 条，过滤后 {len(filtered)} 条在时间窗口内')
         all_items.extend(filtered)
 
