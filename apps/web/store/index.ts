@@ -1,19 +1,22 @@
 'use client';
 
 import { create } from 'zustand';
-import type { Theme, AdminUser, SessionUser, UserRole } from '@quantstock/types';
+import type { Theme, AdminUser, SessionUser, UserRole, DailyReport } from '@quantstock/types';
 import { apiClient } from '@/lib/supabase';
 import { hashPassword, verifyPassword } from '@/lib/crypto';
 import { uid } from '@/lib/utils';
 
-type NavItem = 'dashboard' | 'themes' | 'users' | 'roles';
+type NavItem = 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao';
 
 interface AppState {
   // 数据
   themes: Theme[];
   users: Omit<AdminUser, 'password_hash'>[];
+  reports: DailyReport[];
   // 当前聚焦的主题 ID（股票池视图使用）
   currentThemeId: string | null;
+  // 当前早报 ID（详情页使用）
+  currentReportId: string | null;
   // UI 状态
   isLoading: boolean;
   toastMsg: string;
@@ -32,6 +35,7 @@ interface AppState {
   setCurrentUser: (user: SessionUser | null) => void;
   setCurrentNav: (nav: NavItem) => void;
   setCurrentThemeId: (id: string | null) => void;
+  setCurrentReportId: (id: string | null) => void;
   toggleSystemMenu: () => void;
 
   // 登录 Action
@@ -47,6 +51,9 @@ interface AppState {
   updateStock: (stockId: string, input: Omit<import('@quantstock/types').Stock, 'id' | 'theme_id'>) => Promise<void>;
   deleteStock: (stockId: string) => Promise<void>;
 
+  // 早报 Actions
+  loadReports: () => Promise<void>;
+
   // 用户管理 Actions（仅 admin）
   loadUsers: () => Promise<void>;
   createUser: (username: string, password: string, role: UserRole) => Promise<void>;
@@ -58,7 +65,9 @@ interface AppState {
 export const useAppStore = create<AppState>((set, get) => ({
   themes: [],
   users: [],
+  reports: [],
   currentThemeId: null,
+  currentReportId: null,
   isLoading: false,
   toastMsg: '',
   isLoggedIn: false,
@@ -80,6 +89,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setCurrentNav: (nav) => set({ currentNav: nav }),
 
   setCurrentThemeId: (id) => set({ currentThemeId: id }),
+
+  setCurrentReportId: (id) => set({ currentReportId: id }),
 
   toggleSystemMenu: () => set((s) => ({ systemMenuOpen: !s.systemMenuOpen })),
 
@@ -103,7 +114,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   // ===== 退出登录 =====
   logout: () => {
     sessionStorage.removeItem('session_user');
-    set({ isLoggedIn: false, currentUser: null, themes: [], users: [], currentNav: 'dashboard' });
+    set({ isLoggedIn: false, currentUser: null, themes: [], users: [], reports: [], currentNav: 'dashboard' });
   },
 
   // ===== 加载全量主题（两阶段：先拉元数据秒出，再后台拉股票数据）=====
@@ -202,6 +213,19 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().showToast('🗑️ 股票已删除');
     } catch (e) {
       get().showToast('❌ 删除失败：' + (e as Error).message);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ===== 加载早报列表 =====
+  loadReports: async () => {
+    set({ isLoading: true });
+    try {
+      const reports = await apiClient.listReports(30);
+      set({ reports });
+    } catch (e) {
+      get().showToast('❌ 加载早报失败：' + (e as Error).message);
     } finally {
       set({ isLoading: false });
     }

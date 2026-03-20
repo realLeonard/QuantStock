@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { Theme, Stock, StockInput, ThemeRow, StockRow, AdminUser, UserRole } from '@quantstock/types';
+import type { Theme, Stock, StockInput, ThemeRow, StockRow, AdminUser, UserRole, DailyReport } from '@quantstock/types';
 
 // ===== Supabase 客户端工厂 =====
 export function createSupabaseClient(url: string, anonKey: string): SupabaseClient {
@@ -170,6 +170,49 @@ export class QuantStockApiClient {
     const { error } = await this.sb.from('adminUsers').delete().eq('id', userId);
     if (error) throw new Error(error.message);
   }
+
+  // ===== 每日早报 =====
+
+  // 获取早报列表（按日期倒序）
+  async listReports(limit = 30): Promise<DailyReport[]> {
+    const { data, error } = await this.sb
+      .from('dailyReport')
+      .select('*')
+      .order('report_date', { ascending: false })
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    return (data || []) as DailyReport[];
+  }
+
+  // 获取指定日期的早报
+  async getReportByDate(date: string): Promise<DailyReport | null> {
+    const { data, error } = await this.sb
+      .from('dailyReport')
+      .select('*')
+      .eq('report_date', date)
+      .single();
+    if (error) return null;
+    return data as DailyReport;
+  }
+
+  // 获取单条早报详情
+  async getReport(id: string): Promise<DailyReport | null> {
+    const { data, error } = await this.sb
+      .from('dailyReport')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error) return null;
+    return data as DailyReport;
+  }
+
+  // 新增或更新早报（upsert，按 report_date 去重）
+  async upsertReport(report: DailyReport): Promise<void> {
+    const { error } = await this.sb
+      .from('dailyReport')
+      .upsert(report, { onConflict: 'report_date' });
+    if (error) throw new Error(error.message);
+  }
 }
 
-export type { Theme, Stock, StockInput, AdminUser, UserRole };
+export type { Theme, Stock, StockInput, AdminUser, UserRole, DailyReport };

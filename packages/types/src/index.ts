@@ -81,6 +81,18 @@ export interface StockRow {
   sort_order: number | null;
 }
 
+// ===== 每日早报 =====
+export type ReportType = 'trading' | 'weekly';
+
+export interface DailyReport {
+  id: string;
+  report_date: string;      // 'YYYY-MM-DD'
+  report_type: ReportType;  // 'trading' | 'weekly'
+  content: string;          // 完整报告 Markdown
+  summary: string;          // 今日一句话
+  created_at: number;       // UTC 毫秒
+}
+
 // ===== API 统一响应结构 =====
 export interface ApiResponse<T = void> {
   data?: T;

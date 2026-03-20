@@ -6,6 +6,10 @@
         "-y",
         "@executeautomation/playwright-mcp-server"
       ]
+    },
+    "akshare-one-mcp": {
+      "command": "/Users/leohuang/.local/bin/uvx",
+      "args": ["akshare-one-mcp"]
     }
   }
 }

@@ -21,7 +21,7 @@ export default function AdminLayout({ children }: Props) {
     setCurrentThemeId, currentUser, systemMenuOpen, toggleSystemMenu,
   } = useAppStore();
 
-  function handleNav(nav: 'dashboard' | 'themes' | 'users' | 'roles') {
+  function handleNav(nav: 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao') {
     setCurrentThemeId(null);
     setCurrentNav(nav);
     if (nav === 'dashboard') {
@@ -29,6 +29,9 @@ export default function AdminLayout({ children }: Props) {
     }
     if (nav === 'users') {
       useAppStore.getState().loadUsers();
+    }
+    if (nav === 'zaobao') {
+      useAppStore.getState().loadReports();
     }
   }
 
@@ -85,6 +88,21 @@ export default function AdminLayout({ children }: Props) {
             </span>
             主题管理
             <span className="nav-badge">{themes.length}</span>
+          </div>
+          <div
+            className={`nav-item${currentNav === 'zaobao' ? ' active' : ''}`}
+            onClick={() => handleNav('zaobao')}
+          >
+            <span className="nav-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+              </svg>
+            </span>
+            每日早报
           </div>
         </nav>
 
@@ -223,6 +241,7 @@ const NAV_LABEL: Record<string, string> = {
   themes: '主题管理',
   users: '用户管理',
   roles: '角色管理',
+  zaobao: '每日早报',
 };
 
 function Topbar() {

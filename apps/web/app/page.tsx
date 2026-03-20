@@ -8,6 +8,7 @@ import Dashboard from '@/components/dashboard/Dashboard';
 import ThemesView from '@/components/themes/ThemesView';
 import UsersView from '@/components/users/UsersView';
 import RolesView from '@/components/roles/RolesView';
+import ZaobaoView from '@/components/zaobao/ZaobaoView';
 import type { SessionUser } from '@quantstock/types';
 
 export default function Home() {
@@ -40,6 +41,7 @@ export default function Home() {
       {currentNav === 'themes' && <ThemesView />}
       {currentNav === 'users' && <UsersView />}
       {currentNav === 'roles' && <RolesView />}
+      {currentNav === 'zaobao' && <ZaobaoView />}
     </AdminLayout>
   );
 }
