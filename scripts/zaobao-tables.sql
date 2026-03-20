@@ -60,9 +60,9 @@ CREATE INDEX IF NOT EXISTS "newsItems_source_idx" ON "newsItems"(source, publish
 
 -- RLS
 ALTER TABLE "newsItems" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "newsItems_select_policy"
-  ON "newsItems" FOR SELECT
-  USING (true);
+CREATE POLICY "newsItems_select_policy" ON "newsItems" FOR SELECT USING (true);
+CREATE POLICY "newsItems_insert_policy" ON "newsItems" FOR INSERT WITH CHECK (true);
+CREATE POLICY "newsItems_delete_policy" ON "newsItems" FOR DELETE USING (true);
 
 -- ===== 市场宽度表（涨跌家数，按天存储）=====
 CREATE TABLE IF NOT EXISTS "marketBreadth" (
@@ -80,9 +80,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS "marketBreadth_date_idx" ON "marketBreadth"(tr
 
 -- RLS
 ALTER TABLE "marketBreadth" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "marketBreadth_select_policy"
-  ON "marketBreadth" FOR SELECT
-  USING (true);
+CREATE POLICY "marketBreadth_select_policy" ON "marketBreadth" FOR SELECT USING (true);
+CREATE POLICY "marketBreadth_insert_policy" ON "marketBreadth" FOR INSERT WITH CHECK (true);
+CREATE POLICY "marketBreadth_delete_policy" ON "marketBreadth" FOR DELETE USING (true);
 
 -- 验证建表成功
 SELECT 'dailyReport 表创建成功' AS status;

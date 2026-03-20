@@ -53,14 +53,32 @@ def now_utc_ms() -> int:
 def parse_beijing_time(s: str) -> int:
     """
     解析北京时间字符串（无时区标识）→ UTC 毫秒
-    支持格式：'2026-03-20 10:23:00' 或 '2026-03-20 10:23'
+    支持格式：'2026-03-20 10:23:00' 或 '2026-03-20 10:23' 或 '2026-03-20'
     """
     s = s.strip()
     try:
-        fmt = '%Y-%m-%d %H:%M:%S' if len(s) > 16 else '%Y-%m-%d %H:%M'
+        if len(s) >= 19:
+            fmt = '%Y-%m-%d %H:%M:%S'
+        elif len(s) >= 16:
+            fmt = '%Y-%m-%d %H:%M'
+        else:
+            fmt = '%Y-%m-%d'
         naive = datetime.strptime(s, fmt)
-        # 显式指定 +08:00，不依赖本地时区
         bj_aware = naive.replace(tzinfo=timezone(timedelta(hours=8)))
+        return int(bj_aware.timestamp() * 1000)
+    except Exception:
+        return now_utc_ms()
+
+
+def combine_date_time(d: object, t: object) -> int:
+    """
+    合并 date 对象 + time 对象 → UTC 毫秒（北京时间）
+    财联社接口返回的时间是分开的两个字段
+    """
+    import datetime as _dt
+    try:
+        combined = _dt.datetime.combine(d, t)  # type: ignore
+        bj_aware = combined.replace(tzinfo=timezone(timedelta(hours=8)))
         return int(bj_aware.timestamp() * 1000)
     except Exception:
         return now_utc_ms()
@@ -79,25 +97,19 @@ def retention_cutoff_ms() -> int:
 # ===== 各新闻源采集 =====
 
 def collect_cls_focus() -> list[dict]:
-    """财联社重点新闻（symbol='重点'）"""
+    """财联社重点新闻（symbol='重点'）字段：标题、内容、发布日期、发布时间"""
     try:
         df = ak.stock_info_global_cls(symbol='重点')
         if df is None or df.empty:
             return []
         items = []
         for _, row in df.iterrows():
-            # 时间字段名可能为 '时间' 或 'time'
-            time_val = row.get('时间') or row.get('time') or ''
-            pub_ms = parse_beijing_time(str(time_val)) if time_val else now_utc_ms()
-            title = str(row.get('内容') or row.get('content') or row.get('title') or '')
+            pub_ms = combine_date_time(row['发布日期'], row['发布时间'])
+            # 标题字段为空时用内容字段
+            title = str(row.get('标题') or '').strip() or str(row.get('内容') or '').strip()
             if not title:
                 continue
-            items.append({
-                'source': 'cls_focus',
-                'title': title,
-                'published_at': pub_ms,
-                'url': str(row.get('链接') or row.get('url') or ''),
-            })
+            items.append({'source': 'cls_focus', 'title': title, 'published_at': pub_ms, 'url': ''})
         return items
     except Exception as e:
         print(f'  [collect] 财联社重点 采集失败: {e}')
@@ -105,24 +117,18 @@ def collect_cls_focus() -> list[dict]:
 
 
 def collect_cls_flash() -> list[dict]:
-    """财联社全量快讯（symbol='全部'），取最新200条"""
+    """财联社全量快讯（symbol='全部'）字段：标题、内容、发布日期、发布时间"""
     try:
         df = ak.stock_info_global_cls(symbol='全部')
         if df is None or df.empty:
             return []
         items = []
         for _, row in df.head(200).iterrows():
-            time_val = row.get('时间') or row.get('time') or ''
-            pub_ms = parse_beijing_time(str(time_val)) if time_val else now_utc_ms()
-            title = str(row.get('内容') or row.get('content') or row.get('title') or '')
+            pub_ms = combine_date_time(row['发布日期'], row['发布时间'])
+            title = str(row.get('标题') or '').strip() or str(row.get('内容') or '').strip()
             if not title:
                 continue
-            items.append({
-                'source': 'cls_flash',
-                'title': title,
-                'published_at': pub_ms,
-                'url': str(row.get('链接') or row.get('url') or ''),
-            })
+            items.append({'source': 'cls_flash', 'title': title, 'published_at': pub_ms, 'url': ''})
         return items
     except Exception as e:
         print(f'  [collect] 财联社快讯 采集失败: {e}')
@@ -130,23 +136,26 @@ def collect_cls_flash() -> list[dict]:
 
 
 def collect_cls_notice() -> list[dict]:
-    """财联社A股公告精选"""
+    """财联社A股公告精选，字段：代码、名称、公告标题、公告类型、公告日期、网址"""
     try:
         df = ak.stock_notice_report(symbol='全部')
         if df is None or df.empty:
             return []
         items = []
         for _, row in df.head(50).iterrows():
-            time_val = row.get('时间') or row.get('date') or row.get('公告日期') or ''
-            pub_ms = parse_beijing_time(str(time_val)) if time_val else now_utc_ms()
-            title = str(row.get('内容') or row.get('title') or row.get('公告内容') or '')
-            if not title:
+            # 公告只有日期无时间，取日期字符串解析
+            date_val = row.get('公告日期')
+            pub_ms = parse_beijing_time(str(date_val)) if date_val else now_utc_ms()
+            stock_name = str(row.get('名称') or '')
+            notice_title = str(row.get('公告标题') or '')
+            title = f'【{stock_name}】{notice_title}' if stock_name else notice_title
+            if not title.strip():
                 continue
             items.append({
                 'source': 'cls_notice',
                 'title': title,
                 'published_at': pub_ms,
-                'url': str(row.get('链接') or row.get('url') or ''),
+                'url': str(row.get('网址') or ''),
             })
         return items
     except Exception as e:
@@ -155,23 +164,22 @@ def collect_cls_notice() -> list[dict]:
 
 
 def collect_em_flash() -> list[dict]:
-    """东方财富全球快讯"""
+    """东方财富全球快讯，字段：标题、摘要、发布时间、链接"""
     try:
         df = ak.stock_info_global_em()
         if df is None or df.empty:
             return []
         items = []
         for _, row in df.head(100).iterrows():
-            time_val = row.get('时间') or row.get('time') or ''
-            pub_ms = parse_beijing_time(str(time_val)) if time_val else now_utc_ms()
-            title = str(row.get('内容') or row.get('content') or row.get('title') or '')
+            pub_ms = parse_beijing_time(str(row.get('发布时间') or ''))
+            title = str(row.get('标题') or '').strip()
             if not title:
                 continue
             items.append({
                 'source': 'em_flash',
                 'title': title,
                 'published_at': pub_ms,
-                'url': str(row.get('链接') or row.get('url') or ''),
+                'url': str(row.get('链接') or ''),
             })
         return items
     except Exception as e:
@@ -180,23 +188,22 @@ def collect_em_flash() -> list[dict]:
 
 
 def collect_ths_flash() -> list[dict]:
-    """同花顺全球快讯"""
+    """同花顺全球快讯，字段：标题、内容、发布时间、链接"""
     try:
         df = ak.stock_info_global_ths()
         if df is None or df.empty:
             return []
         items = []
         for _, row in df.head(50).iterrows():
-            time_val = row.get('时间') or row.get('time') or ''
-            pub_ms = parse_beijing_time(str(time_val)) if time_val else now_utc_ms()
-            title = str(row.get('内容') or row.get('content') or row.get('title') or '')
+            pub_ms = parse_beijing_time(str(row.get('发布时间') or ''))
+            title = str(row.get('标题') or '').strip()
             if not title:
                 continue
             items.append({
                 'source': 'ths_flash',
                 'title': title,
                 'published_at': pub_ms,
-                'url': str(row.get('链接') or row.get('url') or ''),
+                'url': str(row.get('链接') or ''),
             })
         return items
     except Exception as e:
