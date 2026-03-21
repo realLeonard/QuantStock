@@ -109,7 +109,7 @@ async function loadNewsItems(date: string): Promise<{
   const cls_focus = rows.filter(r => r.source === 'cls_focus');                    // 全量
   const cls_flash = rows.filter(r => r.source === 'cls_flash').slice(0, 100);     // 最新100条
   const cls_notice = rows.filter(r => r.source === 'cls_notice').slice(0, 30);    // 最新30条
-  const em_flash = rows.filter(r => r.source === 'em_flash').slice(0, 20);        // 最新20条
+  const em_flash = rows.filter(r => r.source === 'em_flash').slice(0, 50);        // 最新50条
   const ths_flash = rows.filter(r => r.source === 'ths_flash').slice(0, 20);      // 最新20条
   const cctv = rows.filter(r => r.source === 'cctv');                              // 全量
 
