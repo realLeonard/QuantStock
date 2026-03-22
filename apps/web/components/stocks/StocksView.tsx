@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useAppStore } from '@/store';
 import { starStr } from '@/lib/utils';
 import StockModal from './StockModal';
+import DetailBackBar from '@/components/ui/DetailBackBar';
 import type { Stock } from '@quantstock/types';
 
 export default function StocksView() {
@@ -106,27 +107,19 @@ export default function StocksView() {
 
   return (
     <>
-      {/* 股票池工具栏 */}
-      <div className="stocks-toolbar">
-        <span className="stocks-back" onClick={() => setCurrentThemeId(null)}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: 4 }}>
-            <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
-          </svg>
-          返回主题
-        </span>
-        <span style={{ color: '#e2e8f0', margin: '0 4px' }}>|</span>
-        <span className="stocks-title">{theme?.name} · 股票池</span>
-        <div style={{ marginLeft: 'auto' }}>
-          {canEdit && (
-            <button className="btn-primary" onClick={openCreate}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              添加股票
-            </button>
-          )}
-        </div>
-      </div>
+      <DetailBackBar
+        onBack={() => setCurrentThemeId(null)}
+        backLabel="返回主题"
+        title={`${theme?.name} · 股票池`}
+        actions={canEdit ? (
+          <button className="btn-primary" onClick={openCreate}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            添加股票
+          </button>
+        ) : undefined}
+      />
 
       {/* 股票表格 */}
       <div className="table-wrap">

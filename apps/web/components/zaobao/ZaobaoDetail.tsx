@@ -2,6 +2,8 @@
 
 import { useAppStore } from '@/store';
 import styles from './ZaobaoDetail.module.css';
+import DetailBackBar from '@/components/ui/DetailBackBar';
+import DetailNav from '@/components/ui/DetailNav';
 
 export default function ZaobaoDetail() {
   const { reports, currentReportId, setCurrentReportId } = useAppStore();
@@ -38,28 +40,19 @@ export default function ZaobaoDetail() {
 
   return (
     <div>
-      <div className="page-title">
-        <button
-          className={styles.backBtn}
-          onClick={() => setCurrentReportId(null)}
-          title="返回列表"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="19" y1="12" x2="5" y2="12"/>
-            <polyline points="12 19 5 12 12 5"/>
-          </svg>
-        </button>
-        {report.report_date} 投资早报
-      </div>
+      <DetailBackBar
+        onBack={() => setCurrentReportId(null)}
+        title={`${report.report_date} 投资早报`}
+      />
 
-      <div className={styles.meta}>
-        <span className={styles.metaTag}>
+      <DetailNav>
+        <span className="detail-nav-tag">
           {report.report_type === 'trading' ? '交易日早报' : '非交易日周报'}
         </span>
-        <span className={styles.metaTime}>
+        <span className="detail-nav-text">
           生成于 {new Date(report.created_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}
         </span>
-      </div>
+      </DetailNav>
 
       <div className={styles.content}>
         {renderContent(report.content)}

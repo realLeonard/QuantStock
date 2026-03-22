@@ -40,6 +40,20 @@ function bjDateTimeToUtcMs(date: string, hour: number, minute: number): number {
   return new Date(`${date}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+08:00`).getTime();
 }
 
+// ===== 查询最近一个有 A 股数据的交易日 =====
+async function getLastTradingDate(beforeDate: string): Promise<string> {
+  const sb = getSupabase();
+  const { data } = await sb
+    .from('rawMarketData')
+    .select('data_date')
+    .eq('data_type', 'a_share')
+    .lt('data_date', beforeDate)
+    .order('data_date', { ascending: false })
+    .limit(1)
+    .single();
+  return data?.data_date ?? beforeDate;
+}
+
 // ===== 读取市场行情数据（rawMarketData 表）=====
 async function loadRawData(date: string): Promise<{
   aShareData: Record<string, unknown>;
@@ -74,7 +88,7 @@ async function loadRawData(date: string): Promise<{
 }
 
 // ===== 从 newsItems 分级查询 20 小时窗口新闻 =====
-async function loadNewsItems(date: string): Promise<{
+async function loadNewsItems(date: string, reportType: 'trading' | 'weekly'): Promise<{
   cls_focus: Array<Record<string, unknown>>;
   cls_flash: Array<Record<string, unknown>>;
   cls_notice: Array<Record<string, unknown>>;
@@ -84,12 +98,25 @@ async function loadNewsItems(date: string): Promise<{
 }> {
   const sb = getSupabase();
 
-  // 窗口：昨日 12:00 北京时间 → 今日 08:00 北京时间
-  const yesterday = new Date(new Date(`${date}T00:00:00+08:00`).getTime() - 86400000)
-    .toISOString()
-    .slice(0, 10);
-  const windowStart = bjDateTimeToUtcMs(yesterday, 12, 0);
-  const windowEnd = bjDateTimeToUtcMs(date, 8, 0);
+  let windowStart: number;
+  let windowEnd: number;
+
+  if (reportType === 'weekly') {
+    // 周报窗口：周五 15:00 BJ（A股收盘）→ 周日 18:00 BJ
+    const friday = new Date(new Date(`${date}T00:00:00+08:00`).getTime() - 2 * 86400000)
+      .toISOString()
+      .slice(0, 10);
+    windowStart = bjDateTimeToUtcMs(friday, 15, 0);
+    windowEnd = bjDateTimeToUtcMs(date, 18, 0);
+    console.log(`  [generate] 周报新闻窗口: ${friday} 15:00 BJ → ${date} 18:00 BJ`);
+  } else {
+    // 日报窗口：昨日 12:00 BJ → 今日 08:00 BJ
+    const yesterday = new Date(new Date(`${date}T00:00:00+08:00`).getTime() - 86400000)
+      .toISOString()
+      .slice(0, 10);
+    windowStart = bjDateTimeToUtcMs(yesterday, 12, 0);
+    windowEnd = bjDateTimeToUtcMs(date, 8, 0);
+  }
 
   const { data, error } = await sb
     .from('newsItems')
@@ -178,6 +205,10 @@ async function generateReport(params: {
     system: SYSTEM_PROMPT,
   });
 
+  const { input_tokens, output_tokens } = message.usage;
+  const costUsd = (input_tokens * 3 + output_tokens * 15) / 1_000_000;
+  console.log(`  [Claude] token 用量: input=${input_tokens} output=${output_tokens} 合计=${input_tokens + output_tokens} 约$${costUsd.toFixed(4)}`);
+
   const content = message.content
     .filter(block => block.type === 'text')
     .map(block => (block as { type: 'text'; text: string }).text)
@@ -220,18 +251,27 @@ export async function generateDailyReport(date: string): Promise<void> {
 
   getEnv();
 
-  // 读取原始市场数据
+  // 提前判断报告类型
+  const reportType = isTradeDay(date) ? 'trading' : 'weekly';
+  console.log(`  [generate] 报告类型: ${reportType === 'trading' ? '交易日早报' : '周日周报'}`);
+
+  // 读取原始市场数据（周报取最近一个交易日数据）
+  let dataDate = date;
+  if (reportType === 'weekly') {
+    dataDate = await getLastTradingDate(date);
+    console.log(`  [generate] 周报：使用 ${dataDate}（上一交易日）的市场行情数据`);
+  }
   console.log('  [generate] 读取市场行情数据...');
-  const { aShareData, intlData, macroData } = await loadRawData(date);
+  const { aShareData, intlData, macroData } = await loadRawData(dataDate);
 
   const hasData = Object.keys(aShareData).length > 0 || Object.keys(intlData).length > 0;
   if (!hasData) {
-    console.warn(`  [generate] 警告：${date} 无市场数据，可能采集未完成`);
+    console.warn(`  [generate] 警告：${dataDate} 无市场数据，可能采集未完成`);
   }
 
-  // 读取新闻
+  // 读取新闻（周报使用周五15:00→周日18:00窗口）
   console.log('  [generate] 读取新闻数据（newsItems）...');
-  const newsItems = await loadNewsItems(date);
+  const newsItems = await loadNewsItems(date, reportType);
 
   // 读取近7日涨跌趋势
   console.log('  [generate] 读取近7日涨跌家数...');
@@ -239,9 +279,6 @@ export async function generateDailyReport(date: string): Promise<void> {
 
   // 读取昨日摘要
   const previousSummary = await loadPreviousSummary(date);
-
-  const reportType = isTradeDay(date) ? 'trading' : 'weekly';
-  console.log(`  [generate] 报告类型: ${reportType === 'trading' ? '交易日早报' : '非交易日周报'}`);
 
   // 生成报告
   const { content, summary } = await generateReport({

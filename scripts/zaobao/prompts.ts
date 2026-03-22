@@ -8,6 +8,7 @@ export const SYSTEM_PROMPT = `你是一位专业的 A 股投资顾问，擅长�
 你的任务是根据提供的市场数据和新闻，生成一份结构清晰、观点鲜明的每日投资早报。
 
 **核心原则：**
+- 开头一句话：2-3句，涵盖市场基调、核心驱动因素、操作方向，不可过于简短
 - 新闻层：从原始新闻中精选 10-15 条最重要的，附上一句话影响说明，让用户看到你判断的依据
 - 分析层：基于数据和新闻，给出你的综合判断，不是简单摘抄
 - 重要程度标注：🔴（高影响）🟡（中影响）⚪（低影响）
@@ -35,7 +36,7 @@ function formatNews(
     .map(item => {
       const pubMs = Number(item.published_at ?? 0);
       const dt = pubMs > 0
-        ? new Date(pubMs).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit' })
+        ? new Date(pubMs).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
         : '--:--';
       const title = String(item.title ?? '').trim();
       return `${dt} ${title}`;
@@ -191,14 +192,14 @@ ${trendSection}
 📰 投资早报  ${date}  08:00
 
 ━━━ 今日一句话 ━━━
-（一句话概括今日市场基调和操作方向）
+（2-3句话概括：①今日市场整体基调（涨跌/情绪）②最重要的1个宏观或新闻驱动因素 ③今日操作方向建议）
 
 ━━━ 今日关键新闻 ━━━
 （从所有新闻源中精选 10-15 条最重要的，格式：🔴/🟡/⚪ HH:MM [标题] → 一句话影响说明）
 （相同话题多源报道的视为热点，优先选入；全球重大动向也纳入）
 
 ━━━ 市场全景 ━━━
-（美股/港股隔夜表现 → A股三大指数昨日走势 → 北向资金 → 全市场涨跌家数简述）
+（美股/港股隔夜表现 → 重点板块表现（如科技/能源/金融等） → A股三大指数走势 → 北向资金 → 全市场涨跌家数简述）
 
 ━━━ 近7日情绪趋势 ━━━
 （直接复制下方 ASCII 趋势图，并加 1-2 句判断：情绪改善/恶化/横盘，与昨日对比）

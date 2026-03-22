@@ -33,7 +33,7 @@ from supabase import create_client, Client
 # ===== 常量 =====
 OVERLAP_HOURS = 3        # 高频来源：往前看3小时（财联社/东方财富）
 OVERLAP_HOURS_SLOW = 24  # 低频来源：往前看24小时（同花顺更新慢）
-RETENTION_DAYS = 2       # 只保留最近2天的新闻
+RETENTION_DAYS = 7       # 只保留最近7天的新闻
 
 
 def get_supabase_client() -> Client:

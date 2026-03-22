@@ -5,6 +5,7 @@ import { useAppStore } from '@/store';
 import { fmtDate } from '@/lib/utils';
 import type { AdminUser, UserRole } from '@quantstock/types';
 import UserModal from './UserModal';
+import PageHeader from '@/components/ui/PageHeader';
 
 type UserRow = Omit<AdminUser, 'password_hash'>;
 
@@ -54,8 +55,7 @@ export default function UsersView() {
     <>
       <div className="section-header">
         <div>
-          <div className="page-title">用户管理</div>
-          <div className="page-desc" style={{ marginBottom: 0 }}>管理系统账号与角色分配</div>
+          <PageHeader title="用户管理" desc="管理系统账号与角色分配" />
         </div>
         <button className="btn-primary" onClick={openCreate}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">

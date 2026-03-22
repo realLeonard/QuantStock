@@ -285,20 +285,38 @@ body {
   color: #94a3b8; font-size: 14px;
 }
 
-/* ===== 股票池工具栏 ===== */
-.stocks-toolbar {
+/* ===== 详情页返回栏（DetailBackBar 通用组件） ===== */
+.detail-back-bar {
   height: 52px; background: #1e293b;
   display: flex; align-items: center; gap: 10px;
   padding: 0 20px; border-radius: 12px 12px 0 0;
   margin-bottom: 0;
 }
-.stocks-back {
+.detail-back-btn {
   display: flex; align-items: center; gap: 4px;
   color: #94a3b8; cursor: pointer; font-size: 13px;
   transition: color 0.15s;
 }
-.stocks-back:hover { color: #e2e8f0; }
-.stocks-title { color: #e2e8f0; font-size: 14px; font-weight: 600; }
+.detail-back-btn:hover { color: #e2e8f0; }
+.detail-back-sep { color: #475569; margin: 0 2px; }
+.detail-back-title { color: #e2e8f0; font-size: 14px; font-weight: 600; }
+
+/* ===== 详情页元信息行（DetailNav 通用组件） ===== */
+.detail-nav {
+  display: flex; align-items: center; gap: 12px;
+  margin: 12px 0 20px;
+}
+.detail-nav-tag {
+  font-size: 12px; padding: 3px 10px;
+  border-radius: 5px;
+  background: rgba(99, 179, 237, 0.15);
+  color: #63b3ed;
+  border: 1px solid rgba(99, 179, 237, 0.25);
+  font-weight: 500;
+}
+.detail-nav-text {
+  font-size: 12px; color: #718096;
+}
 
 /* ===== 股票表格 ===== */
 .table-wrap {

@@ -18,11 +18,12 @@ const ROLE_LABEL: Record<string, string> = {
 export default function AdminLayout({ children }: Props) {
   const {
     themes, currentNav, setCurrentNav, logout,
-    setCurrentThemeId, currentUser, systemMenuOpen, toggleSystemMenu,
+    setCurrentThemeId, setCurrentReportId, currentUser, systemMenuOpen, toggleSystemMenu,
   } = useAppStore();
 
   function handleNav(nav: 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao' | 'breadth') {
     setCurrentThemeId(null);
+    setCurrentReportId(null);
     setCurrentNav(nav);
     if (nav === 'dashboard') {
       useAppStore.getState().loadThemes();
@@ -214,7 +215,10 @@ export default function AdminLayout({ children }: Props) {
 }
 
 function FloatingActions() {
-  const { currentNav, currentThemeId, setCurrentNav, setCurrentThemeId } = useAppStore();
+  const {
+    currentNav, currentThemeId, currentReportId,
+    setCurrentNav, setCurrentThemeId, setCurrentReportId,
+  } = useAppStore();
 
   function scrollToTop() {
     document.querySelector('.main-content')?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -223,12 +227,14 @@ function FloatingActions() {
   function goBack() {
     if (currentThemeId) {
       setCurrentThemeId(null);
+    } else if (currentReportId) {
+      setCurrentReportId(null);
     } else if (currentNav === 'themes') {
       setCurrentNav('dashboard');
     }
   }
 
-  const canGoBack = !!currentThemeId || currentNav === 'themes';
+  const canGoBack = !!currentThemeId || !!currentReportId;
 
   return (
     <div className="floating-actions">
@@ -239,7 +245,7 @@ function FloatingActions() {
         </svg>
       </button>
       {canGoBack && (
-        <button className="floating-btn" onClick={goBack} title="返回上一页">
+        <button className="floating-btn" onClick={goBack} title="返回">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <line x1="19" y1="12" x2="5" y2="12"/>
             <polyline points="12 19 5 12 12 5"/>
@@ -260,12 +266,17 @@ const NAV_LABEL: Record<string, string> = {
 };
 
 function Topbar() {
-  const { currentNav, currentThemeId, themes, currentUser } = useAppStore();
+  const { currentNav, currentThemeId, currentReportId, themes, reports, currentUser } = useAppStore();
 
   let breadcrumb = NAV_LABEL[currentNav] ?? currentNav;
   if (currentNav === 'themes' && currentThemeId) {
     const t = themes.find(t => t.id === currentThemeId);
     breadcrumb = `${t?.name ?? '主题'} · 股票池`;
+  }
+  if (currentNav === 'zaobao' && currentReportId) {
+    const r = reports.find(r => r.id === currentReportId);
+    const typeLabel = r?.report_type === 'weekly' ? '周报' : '交易日';
+    breadcrumb = `每日早报 · ${r?.report_date ?? '详情'}（${typeLabel}）`;
   }
 
   const avatarLetter = currentUser?.username?.charAt(0).toUpperCase() ?? 'U';

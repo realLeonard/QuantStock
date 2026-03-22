@@ -3,6 +3,7 @@
 import { useAppStore } from '@/store';
 import { fmtDate } from '@/lib/utils';
 import ThemeModal from '@/components/themes/ThemeModal';
+import PageHeader from '@/components/ui/PageHeader';
 import { useState } from 'react';
 import type { Theme } from '@quantstock/types';
 
@@ -30,8 +31,7 @@ export default function Dashboard() {
 
   return (
     <>
-      <div className="page-title">仪表盘</div>
-      <div className="page-desc">欢迎回来，{currentUser?.username}！以下是您的股票池概览。</div>
+      <PageHeader title="仪表盘" desc={`欢迎回来，${currentUser?.username}！以下是您的股票池概览。`} />
 
       {/* 统计卡片 */}
       <div className="stats-grid">

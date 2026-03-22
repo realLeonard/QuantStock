@@ -1,5 +1,7 @@
 'use client';
 
+import PageHeader from '@/components/ui/PageHeader';
+
 const ROLES = [
   {
     label: '观察者',
@@ -56,10 +58,10 @@ const ROLES = [
 export default function RolesView() {
   return (
     <>
-      <div className="page-title">角色管理</div>
-      <div className="page-desc">
-        系统内置三个固定角色，权限范围不可自定义。如需调整权限，请联系开发者修改代码。
-      </div>
+      <PageHeader
+        title="角色管理"
+        desc="系统内置三个固定角色，权限范围不可自定义。如需调整权限，请联系开发者修改代码。"
+      />
 
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, marginTop: 8 }}>
         {ROLES.map(role => (

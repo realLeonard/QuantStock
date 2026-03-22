@@ -7,6 +7,7 @@ import {
 import { useAppStore } from '@/store';
 import type { MarketBreadth } from '@quantstock/types';
 import styles from './BreadthView.module.css';
+import PageHeader from '@/components/ui/PageHeader';
 
 // 获取当前月份字符串，如 '2026-03'
 function getCurrentMonth(): string {
@@ -138,8 +139,7 @@ export default function BreadthView() {
 
   return (
     <div className={styles.container}>
-      <div className="page-title">涨跌家数</div>
-      <div className="page-desc">全市场 A 股每日上涨/下跌家数趋势</div>
+      <PageHeader title="涨跌家数" desc="全市场 A 股每日上涨/下跌家数趋势" />
 
       {/* 最新一日统计 + 情绪解读（始终显示） */}
       <div className={styles.statsCard}>

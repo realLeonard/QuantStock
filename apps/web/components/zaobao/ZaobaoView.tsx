@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useAppStore } from '@/store';
 import styles from './ZaobaoView.module.css';
 import ZaobaoDetail from './ZaobaoDetail';
+import PageHeader from '@/components/ui/PageHeader';
 import type { DailyReport } from '@quantstock/types';
 
 // 报告类型中文标签
@@ -33,8 +34,7 @@ export default function ZaobaoView() {
 
   return (
     <div>
-      <div className="page-title">每日早报</div>
-      <div className="page-desc">AI 生成的每日 A 股投资早报，覆盖七大维度市场分析。</div>
+      <PageHeader title="每日早报" desc="AI 生成的每日 A 股投资早报，覆盖七大维度市场分析。" />
 
       {reports.length === 0 ? (
         <div className={styles.empty}>

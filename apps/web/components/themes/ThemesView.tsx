@@ -5,6 +5,7 @@ import { useAppStore } from '@/store';
 import { fmtDate } from '@/lib/utils';
 import ThemeModal from './ThemeModal';
 import StocksView from '@/components/stocks/StocksView';
+import PageHeader from '@/components/ui/PageHeader';
 import type { Theme } from '@quantstock/types';
 
 export default function ThemesView() {
@@ -38,8 +39,7 @@ export default function ThemesView() {
     <>
       <div className="section-header">
         <div>
-          <div className="page-title">主题管理</div>
-          <div className="page-desc" style={{ marginBottom: 0 }}>管理您的所有投资主题及关联股票池</div>
+          <PageHeader title="主题管理" desc="管理您的所有投资主题及关联股票池" />
         </div>
         <div className="search-bar">
           <svg className="search-bar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
