@@ -2,6 +2,107 @@
 
 ---
 
+## 2026-03-22
+
+### 涨跌家数页面上线 + 股票代码表初始化
+
+---
+
+#### 一、涨跌家数前端页面（BreadthView）
+
+**新增页面**：后台管理系统侧边栏新增「涨跌家数」导航项，展示全市场 A 股每日上涨/下跌家数趋势。
+
+**技术实现**：
+- 安装 `recharts` 图表库
+- `packages/types`：新增 `MarketBreadth` 接口，`NavItem` 扩展 `'breadth'`
+- `packages/api-client`：新增 `getBreadthByMonth(mode)` 方法，支持 `'recent30'`（最近30天）和 `'YYYY-MM'`（指定月份）两种查询模式
+- `store/index.ts`：新增 `breadthData`、`breadthMonth` 状态和 `loadBreadth` action
+- `AdminLayout.tsx`：侧边栏插入导航项，点击时自动加载最近30天数据
+- `BreadthView.tsx`：核心组件，包含情绪解读、五项统计数字、月份切换器、折线图
+
+**页面布局（从上到下）**：
+1. 页面标题（复用全局 `page-title` / `page-desc` 样式）
+2. 情绪解读（乐咕乐股数据，5档判断：`rise/total` 比例）+ 五项统计（上涨/下跌/涨停/跌停/平盘）
+3. 月份切换器（最近30天 + 最近6个月，从近到远，禁止选未来月份）
+4. recharts 折线图（绿色线条，Tooltip 显示完整日数据，无数据日期自然断开）
+
+**情绪判断逻辑**：
+- `rise/total >= 0.6`：🔥 市场情绪热烈，多头主导
+- `rise/total >= 0.45`：📈 市场情绪偏多，上涨氛围良好
+- `rise/total >= 0.35`：🔄 市场情绪中性，涨跌分化
+- `rise/total >= 0.25`：📉 市场情绪偏弱，下跌家数占优
+- 否则：❄️ 市场情绪低迷，建议谨慎
+
+---
+
+#### 二、marketBreadth 历史数据初始化
+
+**问题背景**：
+- 原脚本 `init_market_breadth.py` 使用 `ak.stock_zh_a_hist` 逐股拉历史行情，因东财接口被限流大量返回空数据，每天只统计到 ~13 只股票（全市场应有 5000+），数据严重偏少
+
+**解决方案**：改用 `baostock`（专为量化设计的免费历史数据源）
+
+**数据验证（3月20日对比乐咕乐股）**：
+| 字段 | 乐咕乐股 | baostock 脚本 |
+|------|---------|--------------|
+| 上涨 | 620 | 620 ✅ |
+| 下跌 | 4531 | 4531 ✅ |
+| 平盘 | 30 | 30 ✅ |
+| 涨停 | 40 | 44（含 ST 5% 涨停，误差 <1%）|
+| 跌停 | 26 | 34（同上）|
+
+**脚本逻辑**（`init_market_breadth.py`）：
+1. baostock 登录
+2. `query_stock_basic` 拉全量上市 A 股（5191 只，过滤 type=1 & status=1）
+3. 逐只拉 `date,pctChg`（涨跌幅），聚合到 `date_stats[trade_date]`
+4. 支持断点续跑（跳过 DB 已有交易日）
+5. 批量写入 Supabase `marketBreadth` 表
+
+**运行结果**：49 个交易日（2026-01-05 至 2026-03-20），失败 0 只，全部写入成功
+
+**注意**：3月21日（周五）baostock 延迟到周一才更新，届时重跑脚本即可补入（断点续跑）
+
+---
+
+#### 三、stockCodes 股票代码表初始化
+
+**新增表**：`stockCodes`（code, name, exchange, board, created_at）
+- `exchange`：SH / SZ / BJ（按交易所）
+- `board`：主板 / 创业板 / 科创板 / 北交所（按板块）
+- 板块由代码前缀规则推断（非数据源直接给出）
+
+**代码前缀规则**：
+- `60xxxx` → SH 主板，`688xxx` → SH 科创板
+- `00xxxx / 002xxx / 003xxx` → SZ 主板，`300xxx / 301xxx` → SZ 创业板
+- `8xxxxx / 4xxxxx` → BJ 北交所
+
+**数据来源**：`ak.stock_info_a_code_name()`（东方财富）
+
+**写入结果**：5491 只（SH 2306 / SZ 2885 / BJ 300），全部 upsert 成功
+
+**后续维护**：手动按需重跑 `init_stock_codes.py` 即可，无需定时任务
+
+---
+
+#### 四、数据流说明
+
+```
+历史数据：init_market_breadth.py（baostock）→ marketBreadth 表（一次性）
+每日增量：zaobao main.py → akshare_fetcher.fetch_market_breadth()
+         → ak.stock_market_activity_legu()（乐咕乐股）→ marketBreadth 表
+前端展示：BreadthView → apiClient.getBreadthByMonth() → Supabase → 折线图
+```
+
+---
+
+#### 五、Bug 修复
+
+**akshare_fetcher.py 字段匹配 bug**：
+- 原逻辑用 `elif '涨停' in label` 模糊匹配，`真实涨停=35`、`st st*涨停=11` 会依次覆盖 `limit_up`，最终存入错误值 11
+- 修复：改为精确匹配 `EXACT_MAP = {'上涨': 'rise', '下跌': 'fall', '平盘': 'flat', '涨停': 'limit_up', '跌停': 'limit_down'}`，子行（真实涨停、ST 涨停等）全部跳过
+
+---
+
 ## 2026-03-18
 
 ### 增量同步优化：支持 sort_order/title_color 字段 + SKIP_IDS 永久排除
