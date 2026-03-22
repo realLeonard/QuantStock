@@ -31,6 +31,15 @@ if env_file.exists():
 else:
     load_dotenv()
 
+import requests
+
+# 强制所有 requests.Session 不走任何代理（绕过 ClashX 等本地代理工具）
+_orig_session_init = requests.Session.__init__
+def _no_proxy_session_init(self, *args, **kwargs):
+    _orig_session_init(self, *args, **kwargs)
+    self.trust_env = False
+requests.Session.__init__ = _no_proxy_session_init
+
 import akshare as ak
 from supabase import create_client, Client
 
