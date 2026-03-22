@@ -93,6 +93,18 @@ export interface DailyReport {
   created_at: number;       // UTC 毫秒
 }
 
+// ===== 市场涨跌家数 =====
+export interface MarketBreadth {
+  id: string;
+  trade_date: string;   // 'YYYY-MM-DD'
+  rise: number;
+  fall: number;
+  flat: number;
+  limit_up: number;
+  limit_down: number;
+  created_at: number;
+}
+
 // ===== API 统一响应结构 =====
 export interface ApiResponse<T = void> {
   data?: T;

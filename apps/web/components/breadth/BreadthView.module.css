@@ -1,0 +1,204 @@
+.container {
+  padding: 0 0 40px;
+}
+
+/* 最新一日统计卡片 */
+.statsCard {
+  padding: 4px 0 20px;
+  margin-bottom: 4px;
+}
+
+.statsGrid {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.statItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.statLabel {
+  font-size: 13px;
+  color: var(--text-secondary, #718096);
+}
+
+.statValue {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.riseColor .statValue {
+  color: #22c55e;
+}
+
+.flatColor .statValue {
+  color: #a0aec0;
+}
+
+.fallColor .statValue {
+  color: #f87171;
+}
+
+.divider {
+  height: 1px;
+  background: var(--border, rgba(255, 255, 255, 0.07));
+  margin: 16px 0;
+}
+
+.sentimentSection {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.sentimentLabel {
+  font-size: 13px;
+  color: var(--text-secondary, #718096);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.sentiment {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #e2e8f0);
+}
+
+.sentimentEmpty {
+  font-size: 14px;
+  color: var(--text-secondary, #718096);
+  opacity: 0.5;
+}
+
+.latestDate {
+  font-size: 12px;
+  color: var(--text-secondary, #718096);
+  opacity: 0.6;
+}
+
+.noDataStats {
+  width: 100%;
+}
+
+.statValueEmpty {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-secondary, #718096);
+  opacity: 0.3;
+  letter-spacing: 0.5px;
+}
+
+/* 月份切换器 */
+.switcher {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.switchBtn {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  background: transparent;
+  color: var(--text-secondary, #718096);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.switchBtn:hover:not(:disabled) {
+  border-color: rgba(99, 179, 237, 0.4);
+  color: #63b3ed;
+}
+
+.switchBtn.active {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #22c55e;
+}
+
+.switchBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* 折线图卡片 */
+.chartCard {
+  background: var(--card-bg, #1a1d23);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.07));
+  border-radius: 10px;
+  padding: 20px;
+}
+
+/* 空状态 */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 60px 20px;
+  color: var(--text-secondary, #718096);
+  text-align: center;
+}
+
+.empty p {
+  font-size: 16px;
+  margin: 0;
+  color: var(--text-primary, #e2e8f0);
+  opacity: 0.5;
+}
+
+.empty span {
+  font-size: 13px;
+  opacity: 0.4;
+}
+
+/* Tooltip */
+.tooltip {
+  background: #1e2230;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 13px;
+  min-width: 150px;
+}
+
+.tooltipDate {
+  font-size: 12px;
+  color: #718096;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.tooltipRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 4px;
+  color: var(--text-primary, #e2e8f0);
+}
+
+.tooltipRow:last-child {
+  margin-bottom: 0;
+}
+
+.rise {
+  color: #22c55e;
+}
+
+.flat {
+  color: #a0aec0;
+}
+
+.fall {
+  color: #f87171;
+}

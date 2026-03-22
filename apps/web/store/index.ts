@@ -1,18 +1,20 @@
 'use client';
 
 import { create } from 'zustand';
-import type { Theme, AdminUser, SessionUser, UserRole, DailyReport } from '@quantstock/types';
+import type { Theme, AdminUser, SessionUser, UserRole, DailyReport, MarketBreadth } from '@quantstock/types';
 import { apiClient } from '@/lib/supabase';
 import { hashPassword, verifyPassword } from '@/lib/crypto';
 import { uid } from '@/lib/utils';
 
-type NavItem = 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao';
+type NavItem = 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao' | 'breadth';
 
 interface AppState {
   // 数据
   themes: Theme[];
   users: Omit<AdminUser, 'password_hash'>[];
   reports: DailyReport[];
+  breadthData: MarketBreadth[];
+  breadthMonth: string; // 'recent30' 或 'YYYY-MM'
   // 当前聚焦的主题 ID（股票池视图使用）
   currentThemeId: string | null;
   // 当前早报 ID（详情页使用）
@@ -54,6 +56,9 @@ interface AppState {
   // 早报 Actions
   loadReports: () => Promise<void>;
 
+  // 涨跌家数 Actions
+  loadBreadth: (mode: string) => Promise<void>;
+
   // 用户管理 Actions（仅 admin）
   loadUsers: () => Promise<void>;
   createUser: (username: string, password: string, role: UserRole) => Promise<void>;
@@ -66,6 +71,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   themes: [],
   users: [],
   reports: [],
+  breadthData: [],
+  breadthMonth: 'recent30',
   currentThemeId: null,
   currentReportId: null,
   isLoading: false,
@@ -226,6 +233,19 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ reports });
     } catch (e) {
       get().showToast('❌ 加载早报失败：' + (e as Error).message);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ===== 加载涨跌家数 =====
+  loadBreadth: async (mode) => {
+    set({ isLoading: true });
+    try {
+      const breadthData = await apiClient.getBreadthByMonth(mode);
+      set({ breadthData, breadthMonth: mode });
+    } catch (e) {
+      get().showToast('❌ 加载涨跌家数失败：' + (e as Error).message);
     } finally {
       set({ isLoading: false });
     }

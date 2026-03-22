@@ -21,7 +21,7 @@ export default function AdminLayout({ children }: Props) {
     setCurrentThemeId, currentUser, systemMenuOpen, toggleSystemMenu,
   } = useAppStore();
 
-  function handleNav(nav: 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao') {
+  function handleNav(nav: 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao' | 'breadth') {
     setCurrentThemeId(null);
     setCurrentNav(nav);
     if (nav === 'dashboard') {
@@ -32,6 +32,9 @@ export default function AdminLayout({ children }: Props) {
     }
     if (nav === 'zaobao') {
       useAppStore.getState().loadReports();
+    }
+    if (nav === 'breadth') {
+      useAppStore.getState().loadBreadth('recent30');
     }
   }
 
@@ -103,6 +106,17 @@ export default function AdminLayout({ children }: Props) {
               </svg>
             </span>
             每日早报
+          </div>
+          <div
+            className={`nav-item${currentNav === 'breadth' ? ' active' : ''}`}
+            onClick={() => handleNav('breadth')}
+          >
+            <span className="nav-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+              </svg>
+            </span>
+            涨跌家数
           </div>
         </nav>
 
@@ -242,6 +256,7 @@ const NAV_LABEL: Record<string, string> = {
   users: '用户管理',
   roles: '角色管理',
   zaobao: '每日早报',
+  breadth: '涨跌家数',
 };
 
 function Topbar() {

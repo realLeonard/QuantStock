@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { Theme, Stock, StockInput, ThemeRow, StockRow, AdminUser, UserRole, DailyReport } from '@quantstock/types';
+import type { Theme, Stock, StockInput, ThemeRow, StockRow, AdminUser, UserRole, DailyReport, MarketBreadth } from '@quantstock/types';
 
 // ===== Supabase 客户端工厂 =====
 export function createSupabaseClient(url: string, anonKey: string): SupabaseClient {
@@ -213,6 +213,30 @@ export class QuantStockApiClient {
       .upsert(report, { onConflict: 'report_date' });
     if (error) throw new Error(error.message);
   }
+
+  // ===== 市场涨跌家数 =====
+
+  // 查询最近 N 天数据（mode='recent30'）或指定月份（mode='YYYY-MM'）
+  async getBreadthByMonth(mode: string): Promise<MarketBreadth[]> {
+    let query = this.sb.from('marketBreadth').select('*');
+
+    if (mode === 'recent30') {
+      // 最近 30 个自然日
+      const from = new Date();
+      from.setDate(from.getDate() - 30);
+      const fromStr = from.toISOString().slice(0, 10);
+      query = query.gte('trade_date', fromStr);
+    } else {
+      // 指定月份，如 '2026-03'
+      const start = `${mode}-01`;
+      const end = `${mode}-31`;
+      query = query.gte('trade_date', start).lte('trade_date', end);
+    }
+
+    const { data, error } = await query.order('trade_date', { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data || []) as MarketBreadth[];
+  }
 }
 
-export type { Theme, Stock, StockInput, AdminUser, UserRole, DailyReport };
+export type { Theme, Stock, StockInput, AdminUser, UserRole, DailyReport, MarketBreadth };
