@@ -188,21 +188,24 @@ def fetch_market_breadth() -> dict[str, Any]:
         df = ak.stock_market_activity_legu()
         if df is not None and not df.empty:
             records = df.to_dict(orient='records')
-            # 提取结构化字段（字段名可能因版本不同而异，兼容处理）
+            # 提取结构化字段，精确匹配标签，避免"真实涨停"等子行覆盖主值
+            EXACT_MAP = {
+                '上涨': 'rise',
+                '下跌': 'fall',
+                '平盘': 'flat',
+                '涨停': 'limit_up',
+                '跌停': 'limit_down',
+            }
             structured = {'rise': 0, 'fall': 0, 'flat': 0, 'limit_up': 0, 'limit_down': 0}
             for row in records:
-                label = str(row.get('item') or row.get('类型') or '')
-                val = int(row.get('value') or row.get('数量') or 0)
-                if '上涨' in label:
-                    structured['rise'] = val
-                elif '下跌' in label:
-                    structured['fall'] = val
-                elif '平盘' in label or '平' in label:
-                    structured['flat'] = val
-                elif '涨停' in label:
-                    structured['limit_up'] = val
-                elif '跌停' in label:
-                    structured['limit_down'] = val
+                label = str(row.get('item') or row.get('类型') or '').strip()
+                raw_val = row.get('value') or row.get('数量') or 0
+                try:
+                    val = int(float(str(raw_val).replace('%', ''))) if '%' not in str(raw_val) else 0
+                except (ValueError, TypeError):
+                    val = 0
+                if label in EXACT_MAP:
+                    structured[EXACT_MAP[label]] = val
             return {
                 'success': True,
                 'data': records,
