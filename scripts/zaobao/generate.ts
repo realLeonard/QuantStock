@@ -105,15 +105,16 @@ async function loadNewsItems(date: string): Promise<{
 
   const rows = data ?? [];
 
-  // 分级筛选
-  const cls_focus = rows.filter(r => r.source === 'cls_focus');                    // 全量
-  const cls_flash = rows.filter(r => r.source === 'cls_flash').slice(0, 100);     // 最新100条
-  const cls_notice = rows.filter(r => r.source === 'cls_notice').slice(0, 30);    // 最新30条
-  const em_flash = rows.filter(r => r.source === 'em_flash').slice(0, 50);        // 最新50条
-  const ths_flash = rows.filter(r => r.source === 'ths_flash').slice(0, 20);      // 最新20条
-  const cctv = rows.filter(r => r.source === 'cctv');                              // 全量
+  // 按来源分组，全量传入（由 Claude 判断重要性，不在此截断）
+  const cls_focus = rows.filter(r => r.source === 'cls_focus');
+  const cls_flash = rows.filter(r => r.source === 'cls_flash');
+  const cls_notice = rows.filter(r => r.source === 'cls_notice');
+  const em_flash = rows.filter(r => r.source === 'em_flash');
+  const ths_flash = rows.filter(r => r.source === 'ths_flash');
+  const cctv = rows.filter(r => r.source === 'cctv');
 
-  console.log(`  [generate] newsItems 窗口内：重点${cls_focus.length} 快讯${cls_flash.length} 公告${cls_notice.length} 东财${em_flash.length} 同花顺${ths_flash.length} 央视${cctv.length}`);
+  const total = cls_focus.length + cls_flash.length + cls_notice.length + em_flash.length + ths_flash.length + cctv.length;
+  console.log(`  [generate] newsItems 窗口内共 ${total} 条：重点${cls_focus.length} 快讯${cls_flash.length} 公告${cls_notice.length} 东财${em_flash.length} 同花顺${ths_flash.length} 央视${cctv.length}`);
 
   return { cls_focus, cls_flash, cls_notice, em_flash, ths_flash, cctv };
 }
@@ -172,7 +173,7 @@ async function generateReport(params: {
   console.log('  [Claude] 调用 claude-sonnet-4-6 生成报告...');
   const message = await client.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
+    max_tokens: 8192,
     messages: [{ role: 'user', content: userPrompt }],
     system: SYSTEM_PROMPT,
   });

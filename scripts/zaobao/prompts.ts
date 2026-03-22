@@ -28,12 +28,10 @@ export const SYSTEM_PROMPT = `你是一位专业的 A 股投资顾问，擅长�
 // ===== 格式化新闻为紧凑文本 =====
 function formatNews(
   items: Array<Record<string, unknown>>,
-  sourceLabel: string,
-  limit: number
+  sourceLabel: string
 ): string {
   if (!items || items.length === 0) return '';
   return items
-    .slice(0, limit)
     .map(item => {
       const pubMs = Number(item.published_at ?? 0);
       const dt = pubMs > 0
@@ -120,22 +118,22 @@ export function buildUserPrompt(params: {
 ## 新闻数据（按来源分层）
 
 ### 财联社重点（最高优先级，编辑精选）
-${formatNews(newsItems.cls_focus, 'cls_focus', 999) || '（无数据）'}
+${formatNews(newsItems.cls_focus, 'cls_focus') || '（无数据）'}
 
 ### 财联社快讯（主力信源）
-${formatNews(newsItems.cls_flash, 'cls_flash', 100) || '（无数据）'}
+${formatNews(newsItems.cls_flash, 'cls_flash') || '（无数据）'}
 
 ### 财联社公告精选
-${formatNews(newsItems.cls_notice, 'cls_notice', 30) || '（无数据）'}
+${formatNews(newsItems.cls_notice, 'cls_notice') || '（无数据）'}
 
 ### 东方财富快讯（辅助）
-${formatNews(newsItems.em_flash, 'em_flash', 20) || '（无数据）'}
+${formatNews(newsItems.em_flash, 'em_flash') || '（无数据）'}
 
 ### 同花顺快讯（辅助）
-${formatNews(newsItems.ths_flash, 'ths_flash', 20) || '（无数据）'}
+${formatNews(newsItems.ths_flash, 'ths_flash') || '（无数据）'}
 
 ### 央视新闻联播（政策权威）
-${formatNews(newsItems.cctv, 'cctv', 999) || '（无数据）'}
+${formatNews(newsItems.cctv, 'cctv') || '（无数据）'}
 `.trim();
 
   // 市场行情紧凑格式
