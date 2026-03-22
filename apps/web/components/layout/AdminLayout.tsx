@@ -59,8 +59,8 @@ export default function AdminLayout({ children }: Props) {
             </svg>
           </div>
           <div>
-            <div className="sidebar-brand-text">股海罗盘</div>
-            <div className="sidebar-brand-sub">投资主题管理系统</div>
+            <div className="sidebar-brand-text">股海远洋</div>
+            <div className="sidebar-brand-sub">股票投资智能小助理</div>
           </div>
         </div>
 
@@ -273,7 +273,7 @@ function Topbar() {
   return (
     <header className="topbar">
       <div className="topbar-breadcrumb">
-        <span>股海罗盘</span>
+        <span>股海远洋</span>
         <span className="sep">/</span>
         <span className="current">{breadcrumb}</span>
       </div>

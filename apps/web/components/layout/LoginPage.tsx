@@ -38,9 +38,9 @@ export default function LoginPage() {
               <polyline points="16 7 22 7 22 13"/>
             </svg>
           </div>
-          <span className="login-logo-name">股海罗盘</span>
+          <span className="login-logo-name">股海远洋</span>
         </div>
-        <div className="login-subtitle">投资主题与股票池管理后台</div>
+        <div className="login-subtitle">股票投资智能小助理</div>
 
         <form onSubmit={handleLogin}>
           <label className="login-label">账号</label>

@@ -62,7 +62,7 @@ async function main() {
   const { date } = parseArgs();
 
   console.log('\n========================================');
-  console.log(`  股海罗盘 · 每日早报系统`);
+  console.log(`  股海远洋 · 每日早报系统`);
   console.log(`  日期: ${date}`);
   console.log('========================================\n');
 

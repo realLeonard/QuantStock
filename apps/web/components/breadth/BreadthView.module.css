@@ -33,7 +33,7 @@
 }
 
 .riseColor .statValue {
-  color: #22c55e;
+  color: #f87171;
 }
 
 .flatColor .statValue {
@@ -41,7 +41,7 @@
 }
 
 .fallColor .statValue {
-  color: #f87171;
+  color: #22c55e;
 }
 
 .divider {
@@ -65,9 +65,14 @@
 }
 
 .sentiment {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary, #e2e8f0);
+  font-size: 13px;
+  font-weight: 500;
+  color: #fbbf24;
+}
+
+.sentimentSuffix {
+  color: #fbbf24;
+  font-weight: 400;
 }
 
 .sentimentEmpty {
@@ -120,9 +125,9 @@
 }
 
 .switchBtn.active {
-  background: rgba(34, 197, 94, 0.12);
-  border-color: rgba(34, 197, 94, 0.4);
-  color: #22c55e;
+  background: rgba(248, 113, 113, 0.12);
+  border-color: rgba(248, 113, 113, 0.4);
+  color: #f87171;
 }
 
 .switchBtn:disabled {
@@ -192,7 +197,7 @@
 }
 
 .rise {
-  color: #22c55e;
+  color: #f87171;
 }
 
 .flat {
@@ -200,5 +205,5 @@
 }
 
 .fall {
-  color: #f87171;
+  color: #22c55e;
 }

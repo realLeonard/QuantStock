@@ -48,6 +48,29 @@ function getSentimentText(rise: number, total: number): string {
   return '❄️ 市场情绪低迷，建议谨慎';
 }
 
+// 连续两日趋势补充说明
+function getConsecutiveSuffix(data: MarketBreadth[]): string {
+  if (data.length < 2) return '';
+  const last = data[data.length - 1];
+  const prev = data[data.length - 2];
+  const r1 = prev.rise;
+  const r2 = last.rise;
+
+  if (r1 < 1000 && r2 < 1000) {
+    return '市场连续低迷，随时关注情绪转好，适当增加仓位';
+  }
+  if (r1 > 4000 && r2 > 4000) {
+    return '市场过于兴奋，注意控制风险，适当降低仓位';
+  }
+  if (r2 > r1) {
+    return '连续两日上涨家数回暖，情绪逐步修复，可关注结构性机会';
+  }
+  if (r2 < r1) {
+    return '连续两日上涨家数走弱，保持谨慎，控制仓位';
+  }
+  return '';
+}
+
 // 自定义 Tooltip
 interface TooltipPayload {
   payload?: MarketBreadth;
@@ -124,7 +147,14 @@ export default function BreadthView() {
           <>
             <div className={styles.sentimentSection}>
               <span className={styles.sentimentLabel}>{formatDateLabel(latest.trade_date)}情绪解读</span>
-              <span className={styles.sentiment}>{getSentimentText(latest.rise, latestTotal)}</span>
+              <span className={styles.sentiment}>
+                {getSentimentText(latest.rise, latestTotal)}
+                {getConsecutiveSuffix(breadthData) && (
+                  <span className={styles.sentimentSuffix}>
+                    {' '}· {getConsecutiveSuffix(breadthData)}
+                  </span>
+                )}
+              </span>
             </div>
             <div className={styles.divider} />
             <div className={styles.statsGrid}>
@@ -211,12 +241,13 @@ export default function BreadthView() {
                 axisLine={false}
                 tickLine={false}
                 width={50}
+                domain={[0, 5500]}
               />
               <Tooltip content={<CustomTooltip />} />
               <Line
                 type="monotone"
                 dataKey="rise"
-                stroke="#22c55e"
+                stroke="#f87171"
                 strokeWidth={2}
                 dot={false}
                 connectNulls={false}
