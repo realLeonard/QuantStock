@@ -1,0 +1,165 @@
+.filterBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.dateInput {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #374151;
+  background: #fff;
+  cursor: pointer;
+}
+
+.dateInput:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.count {
+  font-size: 12px;
+  color: #9ca3af;
+  white-space: nowrap;
+}
+
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table thead th {
+  background: #f9fafb;
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 600;
+  color: #6b7280;
+  font-size: 12px;
+  border-bottom: 1px solid #e5e7eb;
+  white-space: nowrap;
+}
+
+.row {
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: top;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.row:hover {
+  background: #f9fafb;
+}
+
+.colTime {
+  width: 90px;
+  padding: 12px 14px;
+}
+
+.colContent {
+  padding: 12px 14px;
+}
+
+.colCats {
+  width: 120px;
+  padding: 12px 14px;
+}
+
+.colLevel {
+  width: 72px;
+  padding: 12px 14px;
+  text-align: center;
+}
+
+.time {
+  font-size: 12px;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.title {
+  font-weight: 500;
+  color: #111827;
+  line-height: 1.5;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sourceLink {
+  font-size: 12px;
+  color: #3b82f6;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.sourceLink:hover {
+  text-decoration: underline;
+}
+
+.summary {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.6;
+}
+
+.cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.cat {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  background: #f3f4f6;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.catPriority {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.level {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.levelA {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.levelB {
+  background: #ffedd5;
+  color: #ea580c;
+}
+
+.levelC {
+  background: #f3f4f6;
+  color: #9ca3af;
+}

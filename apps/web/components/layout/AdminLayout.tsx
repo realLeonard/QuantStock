@@ -21,7 +21,7 @@ export default function AdminLayout({ children }: Props) {
     setCurrentThemeId, setCurrentReportId, currentUser, systemMenuOpen, toggleSystemMenu,
   } = useAppStore();
 
-  function handleNav(nav: 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao' | 'breadth') {
+  function handleNav(nav: 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao' | 'breadth' | 'news') {
     setCurrentThemeId(null);
     setCurrentReportId(null);
     setCurrentNav(nav);
@@ -36,6 +36,9 @@ export default function AdminLayout({ children }: Props) {
     }
     if (nav === 'breadth') {
       useAppStore.getState().loadBreadth('recent30');
+    }
+    if (nav === 'news') {
+      useAppStore.getState().loadNewsItems();
     }
   }
 
@@ -118,6 +121,18 @@ export default function AdminLayout({ children }: Props) {
               </svg>
             </span>
             涨跌家数
+          </div>
+          <div
+            className={`nav-item${currentNav === 'news' ? ' active' : ''}`}
+            onClick={() => handleNav('news')}
+          >
+            <span className="nav-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/>
+                <path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/>
+              </svg>
+            </span>
+            今日资讯
           </div>
         </nav>
 
@@ -263,6 +278,7 @@ const NAV_LABEL: Record<string, string> = {
   roles: '角色管理',
   zaobao: '每日早报',
   breadth: '涨跌家数',
+  news: '今日资讯',
 };
 
 function Topbar() {

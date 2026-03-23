@@ -2,11 +2,22 @@
 
 import { create } from 'zustand';
 import type { Theme, AdminUser, SessionUser, UserRole, DailyReport, MarketBreadth } from '@quantstock/types';
-import { apiClient } from '@/lib/supabase';
+import { apiClient, supabase } from '@/lib/supabase';
+
+export interface NewsItem {
+  id: string;
+  cls_id: string | null;
+  title: string;
+  summary: string;
+  categories: string[];
+  level: string;
+  url: string;
+  published_at: number;
+}
 import { hashPassword, verifyPassword } from '@/lib/crypto';
 import { uid } from '@/lib/utils';
 
-type NavItem = 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao' | 'breadth';
+type NavItem = 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao' | 'breadth' | 'news';
 
 interface AppState {
   // 数据
@@ -59,6 +70,11 @@ interface AppState {
   // 涨跌家数 Actions
   loadBreadth: (mode: string) => Promise<void>;
 
+  // 今日资讯 Actions
+  newsItems: NewsItem[];
+  newsDate: string;
+  loadNewsItems: (date?: string) => Promise<void>;
+
   // 用户管理 Actions（仅 admin）
   loadUsers: () => Promise<void>;
   createUser: (username: string, password: string, role: UserRole) => Promise<void>;
@@ -73,6 +89,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   reports: [],
   breadthData: [],
   breadthMonth: 'recent30',
+  newsItems: [],
+  newsDate: '',
   currentThemeId: null,
   currentReportId: null,
   isLoading: false,
@@ -233,6 +251,28 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ reports });
     } catch (e) {
       get().showToast('❌ 加载早报失败：' + (e as Error).message);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ===== 加载今日资讯 =====
+  loadNewsItems: async (date?: string) => {
+    set({ isLoading: true });
+    try {
+      const targetDate = date ?? new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+      const startMs = new Date(`${targetDate}T00:00:00+08:00`).getTime();
+      const endMs   = new Date(`${targetDate}T23:59:59+08:00`).getTime();
+      const { data, error } = await supabase
+        .from('newsItems_cls')
+        .select('id, cls_id, title, summary, categories, level, url, published_at')
+        .gte('published_at', startMs)
+        .lte('published_at', endMs)
+        .order('published_at', { ascending: false });
+      if (error) throw new Error(error.message);
+      set({ newsItems: (data ?? []) as NewsItem[], newsDate: targetDate });
+    } catch (e) {
+      get().showToast('❌ 加载资讯失败：' + (e as Error).message);
     } finally {
       set({ isLoading: false });
     }

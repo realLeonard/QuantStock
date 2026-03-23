@@ -10,6 +10,7 @@ import UsersView from '@/components/users/UsersView';
 import RolesView from '@/components/roles/RolesView';
 import ZaobaoView from '@/components/zaobao/ZaobaoView';
 import BreadthView from '@/components/breadth/BreadthView';
+import NewsView from '@/components/news/NewsView';
 import type { SessionUser } from '@quantstock/types';
 
 export default function Home() {
@@ -44,6 +45,7 @@ export default function Home() {
       {currentNav === 'roles' && <RolesView />}
       {currentNav === 'zaobao' && <ZaobaoView />}
       {currentNav === 'breadth' && <BreadthView />}
+      {currentNav === 'news' && <NewsView />}
     </AdminLayout>
   );
 }
