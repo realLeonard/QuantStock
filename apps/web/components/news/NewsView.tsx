@@ -5,28 +5,42 @@ import { useAppStore } from '@/store';
 import PageHeader from '@/components/ui/PageHeader';
 import styles from './NewsView.module.css';
 
-const PRIORITY_CATS = new Set(['A股', '热门']);
+type TabKey = 'flash' | 'priority';
+
+const PRIORITY_CATS = new Set(['A股', '热门', '提醒']);
 
 const LEVEL_LABEL: Record<string, string> = { A: '重大', B: '重要', C: '一般' };
 const LEVEL_CLASS: Record<string, string> = { A: styles.levelA, B: styles.levelB, C: styles.levelC };
 
+const TABS: { key: TabKey; label: string }[] = [
+  { key: 'flash',    label: '快讯' },
+  { key: 'priority', label: '热门' },
+];
+
 export default function NewsView() {
   const { newsItems, newsDate, loadNewsItems } = useAppStore();
   const [titleFilter, setTitleFilter] = useState('');
+  const [activeTab, setActiveTab] = useState<TabKey>('flash');
+
+  const tabItems = useMemo(() => {
+    return activeTab === 'priority'
+      ? newsItems.filter(n => n.categories.some(c => PRIORITY_CATS.has(c)))
+      : newsItems.filter(n => !n.categories.some(c => PRIORITY_CATS.has(c)));
+  }, [newsItems, activeTab]);
 
   const sorted = useMemo(() => {
     const kw = titleFilter.trim().toLowerCase();
     const filtered = kw
-      ? newsItems.filter(n => n.title.toLowerCase().includes(kw) || n.summary.toLowerCase().includes(kw))
-      : newsItems;
+      ? tabItems.filter(n =>
+          n.title.toLowerCase().includes(kw) || n.summary.toLowerCase().includes(kw)
+        )
+      : tabItems;
+    return [...filtered].sort((a, b) => b.published_at - a.published_at);
+  }, [tabItems, titleFilter]);
 
-    return [...filtered].sort((a, b) => {
-      const aPriority = a.categories.some(c => PRIORITY_CATS.has(c)) ? 0 : 1;
-      const bPriority = b.categories.some(c => PRIORITY_CATS.has(c)) ? 0 : 1;
-      if (aPriority !== bPriority) return aPriority - bPriority;
-      return b.published_at - a.published_at;
-    });
-  }, [newsItems, titleFilter]);
+  const flashCount    = newsItems.filter(n => !n.categories.some(c => PRIORITY_CATS.has(c))).length;
+  const priorityCount = newsItems.filter(n =>  n.categories.some(c => PRIORITY_CATS.has(c))).length;
+  const tabCounts: Record<TabKey, number> = { flash: flashCount, priority: priorityCount };
 
   function formatTime(ms: number) {
     return new Date(ms).toLocaleString('zh-CN', {
@@ -38,41 +52,52 @@ export default function NewsView() {
     });
   }
 
-  function handleDateChange(e: React.ChangeEvent<HTMLInputElement>) {
-    loadNewsItems(e.target.value);
-  }
-
   return (
     <div>
       <div className="section-header">
-        <PageHeader title="今日资讯" desc="财联社新闻资讯，A股/热门优先展示" />
-      </div>
-
-      <div className={styles.filterBar}>
-        <input
-          type="date"
-          className={styles.dateInput}
-          value={newsDate}
-          onChange={handleDateChange}
-        />
-        <div className="search-bar" style={{ flex: 1, maxWidth: 320 }}>
-          <span className="search-icon">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-          </span>
+        <div className={styles.headerWrap}>
+          <PageHeader title="今日资讯" desc="财联社新闻资讯，按分类分 Tab 展示" />
+        </div>
+        <div className="search-bar">
+          <svg className="search-bar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
           <input
+            className="search-bar-input"
             type="text"
-            className="search-input"
-            placeholder="搜索标题或摘要..."
+            placeholder="搜索标题或摘要…"
             value={titleFilter}
             onChange={e => setTitleFilter(e.target.value)}
           />
           {titleFilter && (
-            <button className="search-clear" onClick={() => setTitleFilter('')}>×</button>
+            <button className="search-bar-clear" onClick={() => setTitleFilter('')} title="清除">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
           )}
         </div>
-        <span className={styles.count}>{sorted.length} 条</span>
+        <div className={styles.rightControls}>
+          <input
+            type="date"
+            className={styles.dateInput}
+            value={newsDate}
+            onChange={e => loadNewsItems(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className={styles.tabBar}>
+        {TABS.map(tab => (
+          <button
+            key={tab.key}
+            className={`${styles.tabBtn} ${activeTab === tab.key ? styles.tabActive : ''}`}
+            onClick={() => setActiveTab(tab.key)}
+          >
+            {tab.label}
+            <span className={styles.tabCount}>{tabCounts[tab.key]}</span>
+          </button>
+        ))}
       </div>
 
       {sorted.length === 0 ? (
