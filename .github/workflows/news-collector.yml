@@ -1,9 +1,9 @@
 name: 每小时新闻采集
 
 on:
-  schedule:
-    - cron: '7 * * * *'   # 每小时第7分钟触发（错开整点，减少平台拥堵）
-  workflow_dispatch:       # 支持手动触发
+  # schedule:
+  #   - cron: '7 * * * *'  # 已停用，由 cls-news-collector.yml 替代（2026-03-23）
+  workflow_dispatch:       # 保留手动触发，供调试旧脚本使用
 
 jobs:
   collect:
