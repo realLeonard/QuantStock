@@ -1,9 +1,7 @@
 name: 财联社快讯采集
 
 on:
-  schedule:
-    - cron: '37 * * * *'  # 每小时第37分钟触发（北京时间）
-  workflow_dispatch:        # 支持手动触发调试
+  workflow_dispatch:  # 由 cron-job.org 外部触发
 
 concurrency:
   group: cls-flash-collector
