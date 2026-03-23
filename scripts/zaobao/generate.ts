@@ -127,21 +127,16 @@ async function loadNewsItems(date: string, reportType: 'trading' | 'weekly'): Pr
   }
 
   const rows = data ?? [];
-  const PRIORITY_CATS = new Set(['热门', '深度', '提醒']);
 
   const levelOrder = (l: unknown) => l === 'A' ? 0 : l === 'B' ? 1 : 2;
   const byLevelThenTime = (a: Record<string, unknown>, b: Record<string, unknown>) =>
     levelOrder(a.level) - levelOrder(b.level) || Number(b.published_at) - Number(a.published_at);
 
-  const priority = rows
-    .filter(r => (r.categories as string[]).some(c => PRIORITY_CATS.has(c)))
-    .sort(byLevelThenTime);
+  // A 级新闻传标题+摘要，其余只传标题
+  const priority = rows.filter(r => r.level === 'A').sort(byLevelThenTime);
+  const flash = rows.filter(r => r.level !== 'A').sort(byLevelThenTime);
 
-  const flash = rows
-    .filter(r => !(r.categories as string[]).some(c => PRIORITY_CATS.has(c)))
-    .sort(byLevelThenTime);
-
-  console.log(`  [generate] newsItems_cls 窗口内共 ${rows.length} 条：优先层(热门/A股/提醒)${priority.length} 快讯层${flash.length}`);
+  console.log(`  [generate] newsItems_cls 窗口内共 ${rows.length} 条：A级(含摘要)${priority.length} 其他(仅标题)${flash.length}`);
 
   return { priority, flash };
 }

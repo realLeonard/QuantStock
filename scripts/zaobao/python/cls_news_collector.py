@@ -234,9 +234,6 @@ def detect_categories(
     if any(k in subject_names for k in REMINDER_SUBJECT_KEYWORDS) and '提醒' not in cats:
         cats.append('提醒')
 
-    # 重点（快讯中 level=A/B）
-    if level in ('A', 'B') and '快讯' in cats and '重点' not in cats:
-        cats.append('重点')
 
     return cats
 
