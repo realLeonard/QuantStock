@@ -97,19 +97,24 @@ async function loadNewsItems(date: string, reportType: 'trading' | 'weekly'): Pr
   let windowStart: number;
   let windowEnd: number;
 
+  const dateMs = new Date(`${date}T00:00:00+08:00`).getTime();
+  const dayOfWeek = new Date(dateMs).getDay(); // 0=周日, 1=周一
+
   if (reportType === 'weekly') {
     // 周报窗口：周五 15:00 BJ（A股收盘）→ 周日 18:00 BJ
-    const friday = new Date(new Date(`${date}T00:00:00+08:00`).getTime() - 2 * 86400000)
-      .toISOString()
-      .slice(0, 10);
+    const friday = new Date(dateMs - 2 * 86400000).toISOString().slice(0, 10);
     windowStart = bjDateTimeToUtcMs(friday, 15, 0);
     windowEnd = bjDateTimeToUtcMs(date, 18, 0);
     console.log(`  [generate] 周报新闻窗口: ${friday} 15:00 BJ → ${date} 18:00 BJ`);
+  } else if (dayOfWeek === 1) {
+    // 周一：覆盖整个周末，周五 15:00 BJ → 今日 08:00 BJ
+    const friday = new Date(dateMs - 3 * 86400000).toISOString().slice(0, 10);
+    windowStart = bjDateTimeToUtcMs(friday, 15, 0);
+    windowEnd = bjDateTimeToUtcMs(date, 8, 0);
+    console.log(`  [generate] 周一新闻窗口: ${friday} 15:00 BJ → ${date} 08:00 BJ`);
   } else {
-    // 日报窗口：昨日 12:00 BJ → 今日 08:00 BJ
-    const yesterday = new Date(new Date(`${date}T00:00:00+08:00`).getTime() - 86400000)
-      .toISOString()
-      .slice(0, 10);
+    // 普通交易日窗口：昨日 12:00 BJ → 今日 08:00 BJ
+    const yesterday = new Date(dateMs - 86400000).toISOString().slice(0, 10);
     windowStart = bjDateTimeToUtcMs(yesterday, 12, 0);
     windowEnd = bjDateTimeToUtcMs(date, 8, 0);
   }
