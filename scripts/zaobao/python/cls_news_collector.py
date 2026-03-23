@@ -37,7 +37,7 @@ from supabase import create_client, Client
 
 # ===== 常量 =====
 RETENTION_DAYS     = 7    # 保留最近7天数据
-DEPTH_WINDOW_HOURS = 3    # A股深度文章时间窗口（小时）
+DEPTH_WINDOW_HOURS = 24   # A股深度文章时间窗口（小时）
 FLASH_WINDOW_HOURS = 4    # 快讯时间窗口（小时）
 FLASH_RN           = 50   # 快讯每次取条数
 DEPTH_TAKE         = 20   # 深度文章取前N条再过滤
@@ -386,8 +386,11 @@ def collect_depth_ashare() -> tuple:
                 'published_at': ctime_to_ms(art['ctime']),
             }
 
-        # --- 头条推荐（top_list，不限时间窗口）---
-        top_items = [item for art in api_data.get('top_list', [])[:DEPTH_TOP_TAKE]
+        # --- 头条推荐（top_article，不限时间窗口）---
+        top_raw = api_data.get('top_article') or []
+        if not isinstance(top_raw, list):
+            top_raw = [top_raw]   # 接口有时返回单个对象而非列表
+        top_items = [item for art in top_raw[:DEPTH_TOP_TAKE]
                      if (item := _parse_art(art)) is not None]
 
         # --- 深度文章（depth_list，时间窗口过滤）---
@@ -396,8 +399,8 @@ def collect_depth_ashare() -> tuple:
                        if ctime_to_ms(art['ctime']) >= cutoff
                        and (item := _parse_art(art)) is not None]
 
-        print(f'  [深度-头条] 采集 {len(top_items)} 条（取前 {DEPTH_TOP_TAKE} 条）')
-        print(f'  [深度-文章] 采集 {len(depth_items)} 条（取前 {DEPTH_TAKE} 条，{DEPTH_WINDOW_HOURS}h 窗口）')
+        print(f'  [深度-头条] 采集 {len(top_items)} 条（top_article，取前 {DEPTH_TOP_TAKE} 条）')
+        print(f'  [深度-文章] 采集 {len(depth_items)} 条（depth_list，取前 {DEPTH_TAKE} 条，{DEPTH_WINDOW_HOURS}h 窗口）')
         return top_items, depth_items
     except Exception as e:
         print(f'  [深度] 采集失败: {e}')
