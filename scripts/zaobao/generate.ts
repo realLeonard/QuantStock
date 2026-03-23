@@ -209,7 +209,7 @@ async function generateReport(params: {
     .map(block => (block as { type: 'text'; text: string }).text)
     .join('\n');
 
-  const summaryMatch = content.match(/━━━ 今日一句话 ━━━\n([\s\S]*?)(?=\n━━━|$)/);
+  const summaryMatch = content.match(/━━━ 今日核心概述 ━━━\n([\s\S]*?)(?=\n━━━|$)/);
   const summary = summaryMatch ? summaryMatch[1].trim() : content.slice(0, 100);
 
   return { content, summary };
