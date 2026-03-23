@@ -127,7 +127,7 @@ async function loadNewsItems(date: string, reportType: 'trading' | 'weekly'): Pr
   }
 
   const rows = data ?? [];
-  const PRIORITY_CATS = new Set(['热门', 'A股', '提醒']);
+  const PRIORITY_CATS = new Set(['热门', '深度', '提醒']);
 
   const levelOrder = (l: unknown) => l === 'A' ? 0 : l === 'B' ? 1 : 2;
   const byLevelThenTime = (a: Record<string, unknown>, b: Record<string, unknown>) =>

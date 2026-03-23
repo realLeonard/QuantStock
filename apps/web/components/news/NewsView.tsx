@@ -7,7 +7,7 @@ import styles from './NewsView.module.css';
 
 type TabKey = 'flash' | 'priority';
 
-const PRIORITY_CATS = new Set(['A股', '热门', '提醒']);
+const PRIORITY_CATS = new Set(['热门', '深度', '提醒']);
 
 const LEVEL_LABEL: Record<string, string> = { A: '重大', B: '重要', C: '一般' };
 const LEVEL_CLASS: Record<string, string> = { A: styles.levelA, B: styles.levelB, C: styles.levelC };
