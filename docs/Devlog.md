@@ -2,6 +2,76 @@
 
 ---
 
+## 2026-03-23
+
+### 今日资讯页面 + 财联社采集重构 + 定时任务迁移至 cron-job.org
+
+---
+
+#### 一、今日资讯页面（NewsView）
+
+**新增页面**：后台管理系统侧边栏新增「今日资讯」导航项，展示 `newsItems_cls` 表中的财联社新闻数据。
+
+**功能设计**：
+- 两个 Tab：**快讯**（默认）/ **热门**，快讯显示在前
+- 热门 Tab 包含分类为 `热门 / 深度 / 提醒` 的内容；快讯 Tab 显示其余条目
+- 支持标题和摘要全文搜索，支持日期选择（默认今日北京时间）
+- 表格列：发布时间 / 标题+摘要（含"查看原文"超链接，新窗口打开）/ 分类标签 / 重要程度（A=重大/B=重要/C=一般）
+
+**UI 规范**：
+- 页面标题、搜索框、section-header 布局与主题管理页保持一致
+- Tab 字号与主题名（15px/600）一致，摘要字号与主题描述（13px/#64748b）一致
+- 菜单顺序：今日资讯排在涨跌家数之前
+
+**涉及文件**：
+- `apps/web/components/news/NewsView.tsx`（新建）
+- `apps/web/components/news/NewsView.module.css`（新建）
+- `apps/web/store/index.ts`：新增 `NewsItem` 接口、`'news'` NavItem、`newsItems/newsDate` 状态、`loadNewsItems` action
+- `apps/web/components/layout/AdminLayout.tsx`：新增导航项和数据加载逻辑
+- `apps/web/app/page.tsx`：条件渲染 NewsView
+
+---
+
+#### 二、财联社深度采集重构
+
+**背景**：原深度采集（`cls-news-collector`）分类使用 `A股`，头条字段使用 `top_list`（错误），导致 0 条入库。
+
+**修复内容**：
+- 字段名修正：`top_article`（非 `top_list`），同一 API 请求复用
+- 新增 `DEPTH_TOP_TAKE = 10`，头条取前 10 条，不限时间窗口
+- 深度文章时间窗口由 3h 扩展为 24h（编辑精选内容，不适合短窗口过滤）
+- **分类统一**：原 `A股` 和 `头条` 两个分类合并为 `深度`，均走 `detect_categories()` 报告/提醒检测规则
+- 采集优先级：热门 > 深度头条 > 深度文章 > 快讯
+- 同步更新 `generate.ts` / `NewsView.tsx` / `prompts.ts` 中的 `PRIORITY_CATS`（热门/深度/提醒）
+- 数据库旧记录手动执行 SQL 将 `A股` 分类批量替换为 `深度`：
+  ```sql
+  UPDATE "newsItems_cls"
+  SET categories = array_replace(categories, 'A股', '深度')
+  WHERE 'A股' = ANY(categories);
+  ```
+
+---
+
+#### 三、定时任务迁移至 cron-job.org
+
+**问题**：GitHub Actions 内置 `schedule` 触发器在免费账号下极不可靠，手动 Enable 后 13+ 小时未自动运行。
+
+**解决方案**：移除三个 workflow 的 `schedule` 配置，改由 [cron-job.org](https://cron-job.org) 外部定时调用 GitHub `workflow_dispatch` API。
+
+**cron-job.org 任务配置**：
+
+| 任务 | Workflow | 触发频率 |
+|------|---------|---------|
+| 快讯采集 | `cls-flash-collector.yml` | 每小时（整点） |
+| 深度采集 | `cls-news-collector.yml` | 每6小时（北京 02/08/14/20 时） |
+| 每日早报 | `zaobao.yml` | 工作日+周日（北京 08:05/18:05） |
+
+**说明**：
+- 早报 workflow 内已内置深度采集步骤，自身形成完整依赖链，无需外部协调
+- cron-job.org 仅作触发器，代码/脚本无需同步，push 到 main 后下次触发自动使用最新代码
+
+---
+
 ## 2026-03-22
 
 ### 涨跌家数页面上线 + 股票代码表初始化
