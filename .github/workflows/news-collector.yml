@@ -5,6 +5,9 @@ on:
   #   - cron: '7 * * * *'  # 已停用，由 cls-news-collector.yml 替代（2026-03-23）
   workflow_dispatch:       # 保留手动触发，供调试旧脚本使用
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   collect:
     runs-on: ubuntu-latest

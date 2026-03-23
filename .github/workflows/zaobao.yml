@@ -3,6 +3,9 @@ name: 每日早报生成
 on:
   workflow_dispatch:  # 由 cron-job.org 外部触发
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   collect-and-generate:
     runs-on: ubuntu-latest
