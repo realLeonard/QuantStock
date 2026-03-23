@@ -53,7 +53,7 @@ HEADERS = {
 }
 
 # 报告类识别正则（宽匹配，不限前缀）
-REPORT_PATTERN = re.compile(r'早报|午报|晚报|周报|周末要闻')
+REPORT_PATTERN = re.compile(r'早报|午报|晚报|周报|周末要闻|新闻精选')
 
 # 提醒类关键词
 REMINDER_TITLE_KEYWORDS   = ['投资日历']
