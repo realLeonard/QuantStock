@@ -57,7 +57,7 @@ REPORT_PATTERN = re.compile(r'早报|午报|晚报|周报|周末要闻')
 REMINDER_TITLE_KEYWORDS   = ['投资日历']
 REMINDER_SUBJECT_KEYWORDS = ['提醒电报']
 
-# 快讯标题清洗正则（顺序执行，清洗无效前缀）
+# 快讯标题/摘要清洗正则（顺序执行，清洗无效前缀）
 FLASH_CLEAN_PATTERNS = [
     re.compile(r'^财联社\d+月\d+日电[，,]\s*'),  # 财联社3月23日电，
     re.compile(r'^据报道[，,]\s*'),
@@ -65,6 +65,9 @@ FLASH_CLEAN_PATTERNS = [
     re.compile(r'^消息称[，,]\s*'),
     re.compile(r'^【[^】]*】\s*'),               # 【标签】前缀（无独立title时去掉）
 ]
+
+# 快讯摘要括号内容清洗（有独立title时使用）
+FLASH_BRACKET_PATTERN = re.compile(r'【[^】]*】')
 
 
 # ===== 工具函数 =====
@@ -420,10 +423,21 @@ def collect_flash() -> list:
                     continue  # 清洗后为空则跳过
 
             cats = detect_categories(title, subjects, level, ['快讯'])
+
+            # 等级过滤：只保留 A/B，报告/提醒类不受限
+            if level not in ('A', 'B') and '报告' not in cats and '提醒' not in cats:
+                continue
+
+            # 摘要清洗：统一去除【括号】内容和无效前缀
+            summary = FLASH_BRACKET_PATTERN.sub('', content)
+            for p in FLASH_CLEAN_PATTERNS:
+                summary = p.sub('', summary)
+            summary = summary.strip()
+
             items.append({
                 'cls_id':       cls_id,
                 'title':        title,
-                'summary':      content,
+                'summary':      summary,
                 'categories':   cats,
                 'level':        level,
                 'url':          str(art.get('shareurl') or ''),
@@ -438,32 +452,41 @@ def collect_flash() -> list:
 
 # ===== 主流程 =====
 
-def run():
+def run(mode: str = 'full'):
+    mode_label = {'full': '全部来源', 'flash': '仅快讯', 'depth': '热门+A股'}[mode]
     print(f'\n{"=" * 55}')
-    print(f'财联社新闻采集 - {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
+    print(f'财联社新闻采集（{mode_label}）- {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
     print(f'{"=" * 55}\n')
 
     # Step 0: 环境变量检查
     check_env()
 
-    # Step 1: 生成并验证 sign
-    print('[1/5] 生成 sign...')
-    sign = fetch_sign()
-    if not validate_sign(sign):
-        send_alert(f'sign 验证失败，请检查财联社接口是否变更，sign={sign}')
-        sys.exit(1)
-    print(f'      sign 验证通过\n')
+    need_sign = mode in ('full', 'depth')
+
+    # Step 1: 生成并验证 sign（快讯模式不需要）
+    if need_sign:
+        print('[1/5] 生成 sign...')
+        sign = fetch_sign()
+        if not validate_sign(sign):
+            send_alert(f'sign 验证失败，请检查财联社接口是否变更，sign={sign}')
+            sys.exit(1)
+        print(f'      sign 验证通过\n')
+    else:
+        print('[1/5] 快讯模式，跳过 sign\n')
 
     # Step 2: 连接 Supabase
     print('[2/5] 连接 Supabase...')
     sb = connect_supabase_with_retry()
     print('      连接成功\n')
 
-    # Step 3: 按优先级顺序采集
+    # Step 3: 按模式采集
     print('[3/5] 采集新闻...')
-    hot_items   = collect_hot()
-    depth_items = collect_depth_ashare()
-    flash_items = collect_flash()
+    hot_items, depth_items, flash_items = [], [], []
+    if mode in ('full', 'depth'):
+        hot_items   = collect_hot()
+        depth_items = collect_depth_ashare()
+    if mode in ('full', 'flash'):
+        flash_items = collect_flash()
     total_collected = len(hot_items) + len(depth_items) + len(flash_items)
     print(f'\n      合计采集：热门 {len(hot_items)} + A股 {len(depth_items)} + 快讯 {len(flash_items)} = {total_collected} 条\n')
 
@@ -471,6 +494,8 @@ def run():
     print('[4/5] 写入数据库...')
     total_inserted, total_skipped = 0, 0
     for name, items in [('热门', hot_items), ('A股', depth_items), ('快讯', flash_items)]:
+        if not items:
+            continue
         ins, skip = upsert_news(sb, items)
         total_inserted += ins
         total_skipped  += skip
@@ -486,4 +511,13 @@ def run():
 
 
 if __name__ == '__main__':
-    run()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--mode',
+        choices=['full', 'flash', 'depth'],
+        default='full',
+        help='full=全部来源, flash=仅快讯, depth=热门+A股'
+    )
+    args = parser.parse_args()
+    run(mode=args.mode)
