@@ -87,14 +87,10 @@ async function loadRawData(date: string): Promise<{
   return { aShareData, intlData, macroData };
 }
 
-// ===== 从 newsItems 分级查询 20 小时窗口新闻 =====
+// ===== 从 newsItems_cls 查询新闻窗口数据 =====
 async function loadNewsItems(date: string, reportType: 'trading' | 'weekly'): Promise<{
-  cls_focus: Array<Record<string, unknown>>;
-  cls_flash: Array<Record<string, unknown>>;
-  cls_notice: Array<Record<string, unknown>>;
-  em_flash: Array<Record<string, unknown>>;
-  ths_flash: Array<Record<string, unknown>>;
-  cctv: Array<Record<string, unknown>>;
+  priority: Array<Record<string, unknown>>;
+  flash: Array<Record<string, unknown>>;
 }> {
   const sb = getSupabase();
 
@@ -119,31 +115,35 @@ async function loadNewsItems(date: string, reportType: 'trading' | 'weekly'): Pr
   }
 
   const { data, error } = await sb
-    .from('newsItems')
-    .select('title, source, published_at')
+    .from('newsItems_cls')
+    .select('title, summary, categories, level, published_at')
     .gte('published_at', windowStart)
     .lte('published_at', windowEnd)
     .order('published_at', { ascending: false });
 
   if (error) {
-    console.warn(`  [generate] 读取 newsItems 失败: ${error.message}`);
-    return { cls_focus: [], cls_flash: [], cls_notice: [], em_flash: [], ths_flash: [], cctv: [] };
+    console.warn(`  [generate] 读取 newsItems_cls 失败: ${error.message}`);
+    return { priority: [], flash: [] };
   }
 
   const rows = data ?? [];
+  const PRIORITY_CATS = new Set(['热门', 'A股', '提醒']);
 
-  // 按来源分组，全量传入（由 Claude 判断重要性，不在此截断）
-  const cls_focus = rows.filter(r => r.source === 'cls_focus');
-  const cls_flash = rows.filter(r => r.source === 'cls_flash');
-  const cls_notice = rows.filter(r => r.source === 'cls_notice');
-  const em_flash = rows.filter(r => r.source === 'em_flash');
-  const ths_flash = rows.filter(r => r.source === 'ths_flash');
-  const cctv = rows.filter(r => r.source === 'cctv');
+  const levelOrder = (l: unknown) => l === 'A' ? 0 : l === 'B' ? 1 : 2;
+  const byLevelThenTime = (a: Record<string, unknown>, b: Record<string, unknown>) =>
+    levelOrder(a.level) - levelOrder(b.level) || Number(b.published_at) - Number(a.published_at);
 
-  const total = cls_focus.length + cls_flash.length + cls_notice.length + em_flash.length + ths_flash.length + cctv.length;
-  console.log(`  [generate] newsItems 窗口内共 ${total} 条：重点${cls_focus.length} 快讯${cls_flash.length} 公告${cls_notice.length} 东财${em_flash.length} 同花顺${ths_flash.length} 央视${cctv.length}`);
+  const priority = rows
+    .filter(r => (r.categories as string[]).some(c => PRIORITY_CATS.has(c)))
+    .sort(byLevelThenTime);
 
-  return { cls_focus, cls_flash, cls_notice, em_flash, ths_flash, cctv };
+  const flash = rows
+    .filter(r => !(r.categories as string[]).some(c => PRIORITY_CATS.has(c)))
+    .sort(byLevelThenTime);
+
+  console.log(`  [generate] newsItems_cls 窗口内共 ${rows.length} 条：优先层(热门/A股/提醒)${priority.length} 快讯层${flash.length}`);
+
+  return { priority, flash };
 }
 
 // ===== 读取近7日涨跌家数（marketBreadth 表）=====
@@ -190,7 +190,7 @@ async function generateReport(params: {
   aShareData: Record<string, unknown>;
   intlData: Record<string, unknown>;
   macroData: Record<string, unknown>;
-  newsItems: Record<string, Array<Record<string, unknown>>>;
+  newsItems: { priority: Array<Record<string, unknown>>; flash: Array<Record<string, unknown>> };
   breadthHistory: Array<Record<string, unknown>>;
   previousSummary?: string;
 }): Promise<{ content: string; summary: string }> {
@@ -270,7 +270,7 @@ export async function generateDailyReport(date: string): Promise<void> {
   }
 
   // 读取新闻（周报使用周五15:00→周日18:00窗口）
-  console.log('  [generate] 读取新闻数据（newsItems）...');
+  console.log('  [generate] 读取新闻数据（newsItems_cls）...');
   const newsItems = await loadNewsItems(date, reportType);
 
   // 读取近7日涨跌趋势

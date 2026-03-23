@@ -15,13 +15,11 @@ export const SYSTEM_PROMPT = `你是一位专业的 A 股投资顾问，擅长�
 - 简洁有力，每条结论要有依据，不废话
 
 **新闻优先级规则（从高到低）：**
-1. cls_focus（财联社重点）— 编辑精选，最高优先级
-2. cls_flash（财联社快讯）— 主力信源
-3. cls_notice（财联社公告）— A股公告类
-4. em_flash / ths_flash — 辅助印证
-5. cctv — 政策权威信号
+1. 重要资讯（热门 / A股 / 提醒）— 编辑精选深度内容，最高优先级，附有摘要
+2. 快讯精选（A/B 级快讯 + 报告）— 主力实时信源，仅标题
+3. 等级标签 [A]=重大 [B]=重要 [C]=一般，优先选入 A/B 级新闻
 
-**如果同一事件被多个来源重复报道，视为热点，优先选入。**
+**如果同一事件在重要资讯和快讯中都有出现，视为热点，必须选入。**
 
 **输出语言：** 中文`;
 
@@ -29,7 +27,7 @@ export const SYSTEM_PROMPT = `你是一位专业的 A 股投资顾问，擅长�
 // ===== 格式化新闻为紧凑文本 =====
 function formatNews(
   items: Array<Record<string, unknown>>,
-  sourceLabel: string
+  withSummary = false
 ): string {
   if (!items || items.length === 0) return '';
   return items
@@ -38,8 +36,16 @@ function formatNews(
       const dt = pubMs > 0
         ? new Date(pubMs).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
         : '--:--';
+      const level = String(item.level ?? '').trim();
       const title = String(item.title ?? '').trim();
-      return `${dt} ${title}`;
+      const levelTag = level ? `[${level}] ` : '';
+      if (withSummary) {
+        const summary = String(item.summary ?? '').trim();
+        return summary
+          ? `${dt} ${levelTag}${title}\n  ${summary}`
+          : `${dt} ${levelTag}${title}`;
+      }
+      return `${dt} ${levelTag}${title}`;
     })
     .join('\n');
 }
@@ -108,7 +114,7 @@ export function buildUserPrompt(params: {
   aShareData: Record<string, unknown>;
   intlData: Record<string, unknown>;
   macroData: Record<string, unknown>;
-  newsItems: Record<string, Array<Record<string, unknown>>>;
+  newsItems: { priority: Array<Record<string, unknown>>; flash: Array<Record<string, unknown>> };
   breadthHistory: Array<Record<string, unknown>>;
   previousSummary?: string;
 }): string {
@@ -116,25 +122,13 @@ export function buildUserPrompt(params: {
 
   // 新闻紧凑格式
   const newsSection = `
-## 新闻数据（按来源分层）
+## 新闻数据
 
-### 财联社重点（最高优先级，编辑精选）
-${formatNews(newsItems.cls_focus, 'cls_focus') || '（无数据）'}
+### 重要资讯（热门 / A股 / 提醒，最高优先级，含摘要）
+${formatNews(newsItems.priority, true) || '（无数据）'}
 
-### 财联社快讯（主力信源）
-${formatNews(newsItems.cls_flash, 'cls_flash') || '（无数据）'}
-
-### 财联社公告精选
-${formatNews(newsItems.cls_notice, 'cls_notice') || '（无数据）'}
-
-### 东方财富快讯（辅助）
-${formatNews(newsItems.em_flash, 'em_flash') || '（无数据）'}
-
-### 同花顺快讯（辅助）
-${formatNews(newsItems.ths_flash, 'ths_flash') || '（无数据）'}
-
-### 央视新闻联播（政策权威）
-${formatNews(newsItems.cctv, 'cctv') || '（无数据）'}
+### 快讯精选（A/B 级快讯 + 报告，仅标题）
+${formatNews(newsItems.flash, false) || '（无数据）'}
 `.trim();
 
   // 市场行情紧凑格式

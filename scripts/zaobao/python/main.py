@@ -96,36 +96,6 @@ def save_to_supabase(sb: Client, data_date: str, data_type: str, source: str, pa
                 print(f'  [DB] 写入失败 ({source}): {e}')
 
 
-def save_market_breadth(sb: Client, data_date: str, breadth: dict) -> None:
-    """将涨跌家数写入 marketBreadth 表（幂等：同日存在则跳过）"""
-    if not breadth or not any(breadth.values()):
-        print('  [marketBreadth] 无有效数据，跳过')
-        return
-    try:
-        # 检查当日是否已有记录
-        existing = sb.table('marketBreadth').select('id').eq('trade_date', data_date).execute()
-        if existing.data:
-            print(f'  [marketBreadth] {data_date} 已存在，跳过')
-            return
-        record = {
-            'id': str(uuid.uuid4()),
-            'trade_date': data_date,
-            'rise': breadth.get('rise', 0),
-            'fall': breadth.get('fall', 0),
-            'flat': breadth.get('flat', 0),
-            'limit_up': breadth.get('limit_up', 0),
-            'limit_down': breadth.get('limit_down', 0),
-            'created_at': int(time.time() * 1000),
-        }
-        sb.table('marketBreadth').insert(record).execute()
-        print(f'  [marketBreadth] 写入成功: 涨{breadth.get("rise")} 跌{breadth.get("fall")} 涨停{breadth.get("limit_up")}')
-
-        # 清理1年前的旧数据
-        from datetime import date as dt_date
-        one_year_ago = (dt_date.today().replace(year=dt_date.today().year - 1)).isoformat()
-        sb.table('marketBreadth').delete().lt('trade_date', one_year_ago).execute()
-    except Exception as e:
-        print(f'  [marketBreadth] 写入失败: {e}')
 
 
 def run_collection():
@@ -150,9 +120,6 @@ def run_collection():
     try:
         a_share_data = akshare_fetcher.fetch_all()
         save_to_supabase(sb, data_date, 'a_share', 'akshare', a_share_data)
-        # 写入 marketBreadth 表
-        breadth = a_share_data.get('market_breadth', {}).get('structured', {})
-        save_market_breadth(sb, data_date, breadth)
     except Exception as e:
         print(f'      A 股数据采集失败: {e}')
 

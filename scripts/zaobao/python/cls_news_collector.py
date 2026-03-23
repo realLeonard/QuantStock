@@ -19,6 +19,7 @@ import time
 import hashlib
 import requests
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -450,6 +451,70 @@ def collect_flash() -> list:
         return []
 
 
+# ===== 收盘后涨跌家数采集 =====
+
+def collect_market_breadth(sb: Client) -> None:
+    """
+    收盘后采集全市场涨跌家数，写入 marketBreadth 表。
+    仅在北京时间 17:00-20:00 窗口内执行（A股 15:00 收盘后数据稳定）。
+    幂等：当日已有记录则跳过。
+    """
+    import akshare as ak
+
+    now_bj = datetime.now(ZoneInfo('Asia/Shanghai'))
+    if not (17 <= now_bj.hour < 20):
+        print(f'  [marketBreadth] 当前 {now_bj.strftime("%H:%M")} BJ，不在 17:00-20:00 窗口，跳过')
+        return
+
+    trade_date = now_bj.strftime('%Y-%m-%d')
+
+    try:
+        # 幂等：已存在则跳过
+        existing = sb.table('marketBreadth').select('id').eq('trade_date', trade_date).execute()
+        if existing.data:
+            print(f'  [marketBreadth] {trade_date} 已存在，跳过')
+            return
+
+        df = ak.stock_market_activity_legu()
+        if df is None or df.empty:
+            print('  [marketBreadth] 接口无数据，跳过')
+            return
+
+        EXACT_MAP = {
+            '上涨': 'rise', '下跌': 'fall', '平盘': 'flat',
+            '涨停': 'limit_up', '跌停': 'limit_down',
+        }
+        structured = {'rise': 0, 'fall': 0, 'flat': 0, 'limit_up': 0, 'limit_down': 0}
+        for row in df.to_dict(orient='records'):
+            label = str(row.get('item', '')).strip()
+            raw_val = row.get('value', 0)
+            try:
+                val = int(float(str(raw_val).replace('%', ''))) if '%' not in str(raw_val) else 0
+            except (ValueError, TypeError):
+                val = 0
+            if label in EXACT_MAP:
+                structured[EXACT_MAP[label]] = val
+
+        if structured['rise'] + structured['fall'] == 0:
+            print('  [marketBreadth] 涨跌数为零（可能非交易日），跳过')
+            return
+
+        record = {
+            'id': str(uuid.uuid4()),
+            'trade_date': trade_date,
+            **structured,
+            'created_at': now_utc_ms(),
+        }
+        sb.table('marketBreadth').insert(record).execute()
+        print(
+            f'  [marketBreadth] 写入成功 {trade_date}：'
+            f'涨{structured["rise"]} 跌{structured["fall"]} 涨停{structured["limit_up"]}'
+        )
+
+    except Exception as e:
+        print(f'  [marketBreadth] 采集失败: {e}')
+
+
 # ===== 主流程 =====
 
 def run(mode: str = 'full'):
@@ -504,6 +569,11 @@ def run(mode: str = 'full'):
     # Step 5: 清理旧数据
     print('\n[5/5] 清理旧数据...')
     cleanup_old_news(sb)
+
+    # Step 6: 收盘后涨跌家数采集（仅 flash/full 模式，17:00-20:00 BJ 窗口）
+    if mode in ('full', 'flash'):
+        print('\n[6/6] 采集涨跌家数（收盘窗口检查）...')
+        collect_market_breadth(sb)
 
     print(f'\n{"=" * 55}')
     print(f'采集完成！新增 {total_inserted} 条，跳过重复 {total_skipped} 条')

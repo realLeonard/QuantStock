@@ -42,6 +42,13 @@ jobs:
         run: python main.py
         working-directory: scripts/zaobao/python
 
+      - name: 采集财联社热门+A股（确保新闻数据最新）
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: python cls_news_collector.py --mode depth
+        working-directory: scripts/zaobao/python
+
       - name: 生成早报
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
