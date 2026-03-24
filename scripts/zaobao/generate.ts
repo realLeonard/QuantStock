@@ -98,7 +98,8 @@ async function loadNewsItems(date: string, reportType: 'trading' | 'weekly'): Pr
   let windowEnd: number;
 
   const dateMs = new Date(`${date}T00:00:00+08:00`).getTime();
-  const dayOfWeek = new Date(dateMs).getDay(); // 0=周日, 1=周一
+  // 用北京时间正午判断星期，避免 UTC 时区偏差导致误判
+  const dayOfWeek = new Date(`${date}T12:00:00+08:00`).getDay(); // 0=周日, 1=周一
 
   if (reportType === 'weekly') {
     // 周报窗口：周五 15:00 BJ（A股收盘）→ 周日 18:00 BJ
@@ -198,13 +199,28 @@ async function generateReport(params: {
   const userPrompt = buildUserPrompt(params);
 
   console.log('  [Claude] 调用 claude-sonnet-4-6 生成报告...');
-  const message = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 8192,
-    messages: [{ role: 'user', content: userPrompt }],
-    system: SYSTEM_PROMPT,
-  });
+  let message;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      message = await client.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 8192,
+        messages: [{ role: 'user', content: userPrompt }],
+        system: SYSTEM_PROMPT,
+      });
+      break;
+    } catch (err: unknown) {
+      const status = (err as { status?: number }).status;
+      if (status === 500 && attempt < 2) {
+        console.warn(`  [Claude] 500 错误，30秒后重试（第 ${attempt} 次）...`);
+        await new Promise(r => setTimeout(r, 30000));
+      } else {
+        throw err;
+      }
+    }
+  }
 
+  if (!message) throw new Error('Claude API 调用失败，重试后仍无响应');
   const { input_tokens, output_tokens } = message.usage;
   const costUsd = (input_tokens * 3 + output_tokens * 15) / 1_000_000;
   console.log(`  [Claude] token 用量: input=${input_tokens} output=${output_tokens} 合计=${input_tokens + output_tokens} 约$${costUsd.toFixed(4)}`);
