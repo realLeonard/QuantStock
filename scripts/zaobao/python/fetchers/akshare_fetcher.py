@@ -7,17 +7,20 @@ A股行情数据采集器
 import akshare as ak
 import pandas as pd
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from typing import Any
+
+_BJ = ZoneInfo('Asia/Shanghai')
 
 
 def get_today_str() -> str:
-    """获取今日日期字符串（格式：YYYYMMDD）"""
-    return datetime.now().strftime('%Y%m%d')
+    """获取今日日期字符串（北京时间，格式：YYYYMMDD）"""
+    return datetime.now(_BJ).strftime('%Y%m%d')
 
 
 def get_yesterday_str() -> str:
-    """获取昨日日期字符串（格式：YYYYMMDD）"""
-    return (datetime.now() - timedelta(days=1)).strftime('%Y%m%d')
+    """获取昨日日期字符串（北京时间，格式：YYYYMMDD）"""
+    return (datetime.now(_BJ) - timedelta(days=1)).strftime('%Y%m%d')
 
 
 def fetch_north_money() -> dict[str, Any]:

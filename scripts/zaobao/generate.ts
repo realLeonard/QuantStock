@@ -184,10 +184,10 @@ async function loadPreviousSummary(date: string): Promise<string | undefined> {
   return data?.summary ?? undefined;
 }
 
-// ===== 判断是否为交易日 =====
+// ===== 判断是否为交易日（仅判断星期，不含法定节假日）=====
 function isTradeDay(date: string): boolean {
-  const d = new Date(date);
-  const day = d.getDay();
+  // 用北京正午避免 UTC 环境下 getDay() 日期偏移
+  const day = new Date(`${date}T12:00:00+08:00`).getDay();
   return day >= 1 && day <= 5;
 }
 
