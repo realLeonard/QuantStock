@@ -2,6 +2,83 @@
 
 ---
 
+## 2026-03-24
+
+### 早报展示优化 + 时区 Bug 全面修复 + 数据采集清理
+
+---
+
+#### 一、早报列表卡片摘要优化
+
+**问题**：早报列表页每张卡片展示的是完整报告内容，格式混乱（含 `①②③`、`**粗体**`、`━━━` 等 Markdown 符号）。
+
+**修复内容**：
+- 重构 `cleanMarkdown()` 函数：逐行扫描，智能跳过 `📰` 标题行、`---` 分隔线、`投资早报 YYYY-MM-DD` 日期行，返回第一段有意义的纯文本
+- `ZaobaoView.module.css`：`.summary` 添加 CSS 3行 line-clamp 截断，防止超长内容溢出
+- `generate.ts`：`summary` 字段改为只提取 `①【市场基调】` 单行，不再存储完整三点内容
+
+**涉及文件**：
+- `apps/web/components/zaobao/ZaobaoView.tsx`
+- `apps/web/components/zaobao/ZaobaoView.module.css`
+- `scripts/zaobao/generate.ts`
+
+---
+
+#### 二、早报下载功能
+
+**新增**：早报详情页顶部操作栏新增「下载早报」按钮，生成自包含 HTML 文件，可离线查看。
+
+**技术细节**：
+- `escapeHtml()` 防止 HTML 特殊字符破坏结构
+- `renderMarkdown()` 将 `**粗体**`、`*斜体*`、`` `代码` `` 渲染为 HTML 标签
+- 章节标题检测兼容 `## ━━━ xxx ━━━` 格式，`---` 分隔线渲染为 `<hr>`
+- 修复 Safari 兼容性：`document.body.appendChild(a)` 后再 `click()`，并延迟 revoke Blob URL
+- 文件名格式：`2026-03-24-交易日早报.html`（去掉品牌名，去掉空格避免截断）
+- 报告末尾保留「本报告仅供参考，不构成投资建议」，去掉 AI 自动添加的数据来源注释
+
+**涉及文件**：
+- `apps/web/components/zaobao/ZaobaoDetail.tsx`
+- `scripts/zaobao/prompts.ts`（新增禁止数据来源尾注 + 末尾格式规范）
+
+---
+
+#### 三、时区 Bug 全面排查与修复
+
+**背景**：用户发现 `03-23 08:06` 的新闻出现在 `03-24` 的早报中（应在窗口之外），触发系统性时区审计。
+
+**根本原因**：新闻窗口日期计算用 `new Date('YYYY-MM-DDT00:00:00+08:00').getTime()` 取 BJ 午夜时间戳，再做毫秒减法后 `toISOString()` 还原日期，因为 BJ 00:00 = UTC 前一天 16:00，每减一天多偏移一天，实际窗口比预期宽 24 小时。
+
+**修复清单**：
+
+| 文件 | 修复内容 |
+|------|---------|
+| `generate.ts` | 新增 `addDays()` 纯 UTC 日历运算函数，替换所有 `dateMs ± N*86400000` 的日期推算 |
+| `generate.ts` | `isTradeDay()` 改用 `new Date('YYYY-MM-DDT12:00:00+08:00').getDay()` 避免时区偏移 |
+| `akshare_fetcher.py` | `get_today_str()` / `get_yesterday_str()` 改用 `datetime.now(ZoneInfo('Asia/Shanghai'))` |
+
+**新增日志**：三种窗口场景（普通交易日 / 周一 / 周报）均打印窗口起止时间，方便验证。
+
+**记忆更新**：将 5 种时区高危反模式补充进 `MEMORY.md`，防止重复踩坑。
+
+---
+
+#### 四、数据采集清理
+
+- **移除 ^HSCEI**：Yahoo Finance 该标的已退市，采集报 404，从 `yfinance_fetcher.py` 删除
+- **移除 CCTV 新闻联播采集**：数据无实际价值，从 `main.py` 删除
+- **移除财联社公告精选采集**：同上，从 `main.py` 删除
+- 步骤编号重排为 1/4 ~ 4/4
+
+---
+
+#### 五、新闻窗口与分类规则调整
+
+- **普通交易日窗口起始时间**：`12:00 BJ` → `15:00 BJ`（A股收盘后），与周一/周报统一
+- **报告分类新增关键词**：`REPORT_PATTERN` 新增「全球要闻」
+- **需求文档同步更新**：`docs/requirements-cls-news.md`
+
+---
+
 ## 2026-03-23
 
 ### 今日资讯页面 + 财联社采集重构 + 定时任务迁移至 cron-job.org
