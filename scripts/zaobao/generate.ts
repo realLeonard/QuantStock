@@ -40,6 +40,13 @@ function bjDateTimeToUtcMs(date: string, hour: number, minute: number): number {
   return new Date(`${date}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+08:00`).getTime();
 }
 
+/** 对日期字符串做加减天数（纯日历运算，无时区偏差） */
+function addDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + days));
+  return dt.toISOString().slice(0, 10);
+}
+
 // ===== 查询最近一个有 A 股数据的交易日 =====
 async function getLastTradingDate(beforeDate: string): Promise<string> {
   const sb = getSupabase();
@@ -97,27 +104,27 @@ async function loadNewsItems(date: string, reportType: 'trading' | 'weekly'): Pr
   let windowStart: number;
   let windowEnd: number;
 
-  const dateMs = new Date(`${date}T00:00:00+08:00`).getTime();
   // 用北京时间正午判断星期，避免 UTC 时区偏差导致误判
   const dayOfWeek = new Date(`${date}T12:00:00+08:00`).getDay(); // 0=周日, 1=周一
 
   if (reportType === 'weekly') {
     // 周报窗口：周五 15:00 BJ（A股收盘）→ 周日 18:00 BJ
-    const friday = new Date(dateMs - 2 * 86400000).toISOString().slice(0, 10);
+    const friday = addDays(date, -2);
     windowStart = bjDateTimeToUtcMs(friday, 15, 0);
     windowEnd = bjDateTimeToUtcMs(date, 18, 0);
     console.log(`  [generate] 周报新闻窗口: ${friday} 15:00 BJ → ${date} 18:00 BJ`);
   } else if (dayOfWeek === 1) {
     // 周一：覆盖整个周末，周五 15:00 BJ → 今日 08:00 BJ
-    const friday = new Date(dateMs - 3 * 86400000).toISOString().slice(0, 10);
+    const friday = addDays(date, -3);
     windowStart = bjDateTimeToUtcMs(friday, 15, 0);
     windowEnd = bjDateTimeToUtcMs(date, 8, 0);
     console.log(`  [generate] 周一新闻窗口: ${friday} 15:00 BJ → ${date} 08:00 BJ`);
   } else {
     // 普通交易日窗口：昨日 12:00 BJ → 今日 08:00 BJ
-    const yesterday = new Date(dateMs - 86400000).toISOString().slice(0, 10);
+    const yesterday = addDays(date, -1);
     windowStart = bjDateTimeToUtcMs(yesterday, 12, 0);
     windowEnd = bjDateTimeToUtcMs(date, 8, 0);
+    console.log(`  [generate] 普通交易日新闻窗口: ${yesterday} 12:00 BJ → ${date} 08:00 BJ`);
   }
 
   const { data, error } = await sb
