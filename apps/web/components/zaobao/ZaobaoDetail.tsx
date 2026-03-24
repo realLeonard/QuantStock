@@ -73,10 +73,13 @@ function downloadHtml(report: DailyReport) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
+  a.style.display = 'none';
   const typeLabel = report.report_type === 'trading' ? '交易日早报' : '周报';
-  a.download = `${report.report_date} 股海远洋${typeLabel}.html`;
+  a.download = `${report.report_date}-股海远洋${typeLabel}.html`;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export default function ZaobaoDetail() {
