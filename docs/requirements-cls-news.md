@@ -69,7 +69,7 @@ CREATE POLICY "allow delete" ON "newsItems_cls" FOR DELETE USING (true);
 | `热门` | 热门文章排行榜 | 基础分类 |
 | `深度` | A股频道深度文章（top_list + depth_list） | 基础分类 |
 | `快讯` | 财联社电报（telegraphList） | 基础分类 |
-| `报告` | 任意来源 | 标题含「早报/午报/晚报/周报/周末要闻/新闻精选」则追加 |
+| `报告` | 任意来源 | 标题含「早报/午报/晚报/周报/周末要闻/新闻精选/全球要闻」则追加 |
 | `提醒` | 任意来源 | 标题含「投资日历」或 subjects 含「提醒电报」则追加 |
 
 **支持多分类**，同一条新闻可同时属于多个分类，如：
@@ -91,7 +91,7 @@ CREATE POLICY "allow delete" ON "newsItems_cls" FOR DELETE USING (true);
 标题匹配正则（宽匹配，不限前缀）：
 
 ```python
-REPORT_PATTERN = re.compile(r'早报|午报|晚报|周报|周末要闻|新闻精选')
+REPORT_PATTERN = re.compile(r'早报|午报|晚报|周报|周末要闻|新闻精选|全球要闻')
 ```
 
 适用范围：深度文章（depth_list）、热门文章（hot/list）、快讯（telegraphList）**三个来源均适用**。
@@ -402,7 +402,7 @@ cls_news_collector.py
 
 | 场景 | 窗口起点 | 窗口终点 |
 |------|---------|---------|
-| 普通交易日（周二～周六） | 昨日 12:00 BJ | 今日 08:00 BJ |
+| 普通交易日（周二～周六） | 昨日 15:00 BJ（A股收盘后） | 今日 08:00 BJ |
 | 周一（覆盖整个周末） | 上周五 15:00 BJ | 今日 08:00 BJ |
 | 周末/节假日周报 | 周五 15:00 BJ | 当日 18:00 BJ |
 

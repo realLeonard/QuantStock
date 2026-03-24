@@ -120,11 +120,11 @@ async function loadNewsItems(date: string, reportType: 'trading' | 'weekly'): Pr
     windowEnd = bjDateTimeToUtcMs(date, 8, 0);
     console.log(`  [generate] 周一新闻窗口: ${friday} 15:00 BJ → ${date} 08:00 BJ`);
   } else {
-    // 普通交易日窗口：昨日 12:00 BJ → 今日 08:00 BJ
+    // 普通交易日窗口：昨日 15:00 BJ（A股收盘后）→ 今日 08:00 BJ
     const yesterday = addDays(date, -1);
-    windowStart = bjDateTimeToUtcMs(yesterday, 12, 0);
+    windowStart = bjDateTimeToUtcMs(yesterday, 15, 0);
     windowEnd = bjDateTimeToUtcMs(date, 8, 0);
-    console.log(`  [generate] 普通交易日新闻窗口: ${yesterday} 12:00 BJ → ${date} 08:00 BJ`);
+    console.log(`  [generate] 普通交易日新闻窗口: ${yesterday} 15:00 BJ → ${date} 08:00 BJ`);
   }
 
   const { data, error } = await sb
