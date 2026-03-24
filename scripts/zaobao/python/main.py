@@ -31,8 +31,7 @@ else:
     load_dotenv()
 
 from supabase import create_client, Client
-from fetchers import akshare_fetcher, yfinance_fetcher, rss_fetcher, macro_fetcher
-from news_collector import collect_cls_notice, upsert_news, now_utc_ms
+from fetchers import akshare_fetcher, yfinance_fetcher, macro_fetcher
 
 
 def json_safe(obj):
@@ -104,7 +103,7 @@ def run_collection():
     print(f'{"="*50}\n')
 
     # 连接 Supabase
-    print('[1/5] 连接 Supabase...')
+    print('[1/4] 连接 Supabase...')
     try:
         sb = get_supabase_client()
         print('      连接成功')
@@ -116,7 +115,7 @@ def run_collection():
     print(f'      采集日期: {data_date}\n')
 
     # 采集 A 股数据
-    print('[2/5] 采集 A 股数据（akshare）...')
+    print('[2/4] 采集 A 股数据（akshare）...')
     try:
         a_share_data = akshare_fetcher.fetch_all()
         save_to_supabase(sb, data_date, 'a_share', 'akshare', a_share_data)
@@ -126,7 +125,7 @@ def run_collection():
     print()
 
     # 采集国际市场数据
-    print('[3/5] 采集国际市场数据（yfinance）...')
+    print('[3/4] 采集国际市场数据（yfinance）...')
     try:
         intl_data = yfinance_fetcher.fetch_all()
         save_to_supabase(sb, data_date, 'intl_market', 'yfinance', intl_data)
@@ -136,7 +135,7 @@ def run_collection():
     print()
 
     # 采集宏观经济 & 债券数据
-    print('[4/5] 采集宏观经济 & 债券数据（akshare）...')
+    print('[4/4] 采集宏观经济 & 债券数据（akshare）...')
     try:
         macro_data = macro_fetcher.fetch_all()
         save_to_supabase(sb, data_date, 'macro', 'akshare_macro', macro_data)
@@ -144,38 +143,6 @@ def run_collection():
         print(f'      宏观数据采集失败: {e}')
 
     print()
-
-    # 采集央视新闻联播（保留在每日脚本）
-    print('[5/6] 采集央视新闻联播...')
-    try:
-        cctv_data = rss_fetcher.fetch_cctv_news()
-        save_to_supabase(sb, data_date, 'news', 'cctv', cctv_data)
-        # 同时写入 newsItems 表供早报查询
-        cctv_items = [
-            {
-                'source': 'cctv',
-                'title': str(row.get('标题') or row.get('title') or ''),
-                'published_at': now_utc_ms(),
-                'url': '',
-            }
-            for row in (cctv_data.get('data') or [])
-            if row.get('标题') or row.get('title')
-        ]
-        if cctv_items:
-            inserted, _ = upsert_news(sb, cctv_items)
-            print(f'      央视新闻写入 newsItems: {inserted} 条')
-    except Exception as e:
-        print(f'      央视新闻采集失败: {e}')
-
-    # 采集财联社A股公告精选（每日一次，不做时间过滤）
-    print('[6/6] 采集财联社公告精选...')
-    try:
-        notice_items = collect_cls_notice()
-        if notice_items:
-            inserted, skipped = upsert_news(sb, notice_items)
-            print(f'      公告精选写入 newsItems: {inserted} 条，重复跳过 {skipped} 条')
-    except Exception as e:
-        print(f'      公告精选采集失败: {e}')
 
     print(f'\n{"="*50}')
     print('采集完成！数据已写入 Supabase')

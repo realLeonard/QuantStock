@@ -56,8 +56,12 @@
   font-size: 14px;
   color: var(--text-primary, #e2e8f0);
   font-weight: 500;
-  line-height: 1.5;
+  line-height: 1.6;
   margin-bottom: 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .preview {

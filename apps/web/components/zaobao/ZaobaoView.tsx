@@ -13,11 +13,30 @@ const TYPE_LABEL: Record<string, string> = {
   weekly: '非交易日周报',
 };
 
-// 根据内容摘要截取预览
-function getPreview(content: string, maxLen = 80): string {
-  // 跳过标题行，找第一句有实质内容的
-  const lines = content.split('\n').filter(l => l.trim() && !l.startsWith('#') && !l.startsWith('━') && !l.startsWith('📰'));
-  return (lines[0] ?? content).slice(0, maxLen);
+// 提取卡片摘要：去除 Markdown 符号，返回第一段有意义的纯文本
+function cleanMarkdown(text: string): string {
+  const lines = text.split('\n');
+  for (const line of lines) {
+    const cleaned = line
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\*(.*?)\*/g, '$1')
+      .replace(/`(.*?)`/g, '$1')
+      .replace(/#+\s*/g, '')
+      .replace(/^[━─\-\s>]+/, '')
+      .replace(/[━─]/g, '')
+      .replace(/^[①②③④⑤⑥⑦⑧⑨⑩【】]/g, '')
+      .replace(/^📰\s*/, '')
+      .trim();
+    // 跳过空行、分隔线、标题行、纯 emoji 行、报告日期行
+    if (
+      cleaned.length > 15 &&
+      !/^[-|*#>]/.test(cleaned) &&
+      !/^投资早报\s+\d{4}/.test(cleaned)
+    ) {
+      return cleaned;
+    }
+  }
+  return text.slice(0, 80).replace(/\n/g, ' ');
 }
 
 export default function ZaobaoView() {
@@ -62,8 +81,7 @@ export default function ZaobaoView() {
                   {TYPE_LABEL[report.report_type] ?? report.report_type}
                 </span>
               </div>
-              <div className={styles.summary}>{report.summary}</div>
-              <div className={styles.preview}>{getPreview(report.content)}</div>
+              <div className={styles.summary}>{cleanMarkdown(report.summary)}</div>
               <div className={styles.cardFooter}>
                 <span className={styles.readMore}>阅读全文 →</span>
                 <span className={styles.time}>

@@ -230,8 +230,9 @@ async function generateReport(params: {
     .map(block => (block as { type: 'text'; text: string }).text)
     .join('\n');
 
-  const summaryMatch = content.match(/━━━ 今日核心概述 ━━━\n([\s\S]*?)(?=\n━━━|$)/);
-  const summary = summaryMatch ? summaryMatch[1].trim() : content.slice(0, 100);
+  // 只取①市场基调一行作为摘要，简洁适合卡片和推送预览
+  const summaryMatch = content.match(/①【市场基调】([^\n]+)/);
+  const summary = summaryMatch ? summaryMatch[1].trim() : content.slice(0, 120);
 
   return { content, summary };
 }
