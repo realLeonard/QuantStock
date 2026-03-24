@@ -75,7 +75,7 @@ function downloadHtml(report: DailyReport) {
   a.href = url;
   a.style.display = 'none';
   const typeLabel = report.report_type === 'trading' ? '交易日早报' : '周报';
-  a.download = `${report.report_date}-股海远洋${typeLabel}.html`;
+  a.download = `${report.report_date}-${typeLabel}.html`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
