@@ -98,15 +98,23 @@ export default function ZaobaoDetail() {
   // 简单渲染 Markdown（将分隔线和 emoji 保留，换行转 <br>）
   function renderContent(text: string) {
     const lines = text.split('\n');
+    let afterTitle = false;
     return lines.map((line, i) => {
       // 分隔标题行
       if (line.startsWith('━━━')) {
+        afterTitle = false;
         return <div key={i} className={styles.sectionTitle}>{line}</div>;
       }
       // 报告标题行
       if (line.startsWith('📰')) {
+        afterTitle = true;
         return <div key={i} className={styles.reportTitle}>{line}</div>;
       }
+      // 跳过紧跟在报告标题后的 --- 分隔线
+      if (afterTitle && /^---+$/.test(line.trim())) {
+        return null;
+      }
+      afterTitle = false;
       // 空行
       if (!line.trim()) {
         return <div key={i} className={styles.emptyLine} />;
