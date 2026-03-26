@@ -117,14 +117,14 @@ async function loadNewsItems(date: string, reportType: 'trading' | 'weekly'): Pr
     // 周一：覆盖整个周末，周五 15:00 BJ → 今日 08:00 BJ
     const friday = addDays(date, -3);
     windowStart = bjDateTimeToUtcMs(friday, 15, 0);
-    windowEnd = bjDateTimeToUtcMs(date, 8, 0);
-    console.log(`  [generate] 周一新闻窗口: ${friday} 15:00 BJ → ${date} 08:00 BJ`);
+    windowEnd = bjDateTimeToUtcMs(date, 8, 20);
+    console.log(`  [generate] 周一新闻窗口: ${friday} 15:00 BJ → ${date} 08:20 BJ`);
   } else {
-    // 普通交易日窗口：昨日 15:00 BJ（A股收盘后）→ 今日 08:00 BJ
+    // 普通交易日窗口：昨日 15:00 BJ（A股收盘后）→ 今日 08:20 BJ
     const yesterday = addDays(date, -1);
     windowStart = bjDateTimeToUtcMs(yesterday, 15, 0);
-    windowEnd = bjDateTimeToUtcMs(date, 8, 0);
-    console.log(`  [generate] 普通交易日新闻窗口: ${yesterday} 15:00 BJ → ${date} 08:00 BJ`);
+    windowEnd = bjDateTimeToUtcMs(date, 8, 20);
+    console.log(`  [generate] 普通交易日新闻窗口: ${yesterday} 15:00 BJ → ${date} 08:20 BJ`);
   }
 
   const { data, error } = await sb
