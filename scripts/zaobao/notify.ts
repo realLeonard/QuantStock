@@ -49,11 +49,13 @@ export async function sendWxPush(date: string, content: string, summary: string)
 
   const uids = uidsRaw.split(',').map(u => u.trim()).filter(Boolean);
 
-  // WxPusher 对 Markdown 内容有长度限制（约 3000 字），截断处理
-  const MAX_LEN = 2800;
-  const pushContent = content.length > MAX_LEN
-    ? content.slice(0, MAX_LEN) + '\n\n...(内容已截断，请查看完整版)'
-    : content;
+  // 粗体转斜体（黑色背景下粗体颜色不可见）
+  // 去除中间分隔线，只保留末尾一条
+  const lastHr = content.lastIndexOf('\n---\n');
+  const body = lastHr !== -1 ? content.slice(0, lastHr) : content;
+  const tail = lastHr !== -1 ? content.slice(lastHr) : '';
+  const pushContent = (body.replace(/\n---\n/g, '\n') + tail)
+    .replace(/\*\*(.+?)\*\*/g, '_$1_');
 
   const payload: WxPusherPayload = {
     appToken: token,
