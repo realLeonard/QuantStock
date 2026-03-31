@@ -6,7 +6,9 @@
   1. 热门文章排行榜   /v2/article/hot/list              → 分类: 热门
   2. A股频道深度文章  /v3/depth/home/assembled/1003     → 分类: 深度（top_article + depth_list，复用单次请求）
   3. 头条频道深度文章  /v3/depth/home/assembled/1000     → 分类: 深度（top_article + depth_list，复用单次请求）
-  4. 财联社快讯        /nodeapi/telegraphList            → 分类: 快讯
+  4. 环球频道深度文章  /v3/depth/home/assembled/1007     → 分类: 深度（top_article + depth_list，复用单次请求）
+  5. 科创频道深度文章  /v3/depth/home/assembled/1111     → 分类: 深度（top_article + depth_list，复用单次请求）
+  6. 财联社快讯        /nodeapi/telegraphList            → 分类: 快讯
 
 时区：所有时间统一存为 UTC 毫秒（BIGINT）
 去重：依赖数据库唯一索引（cls_id），首次写入定终身
@@ -415,6 +417,16 @@ def collect_depth_top() -> tuple:
     return collect_depth(1000, '头条深度')
 
 
+def collect_depth_global() -> tuple:
+    """来源四：环球频道深度文章（channel_id=1007）"""
+    return collect_depth(1007, '环球深度')
+
+
+def collect_depth_tech() -> tuple:
+    """来源五：科创频道深度文章（channel_id=1111）"""
+    return collect_depth(1111, '科创深度')
+
+
 def collect_flash() -> list:
     """来源四（最低优先级）：财联社快讯（不需要 sign）"""
     try:
@@ -571,32 +583,46 @@ def run(mode: str = 'full'):
     print('[3/5] 采集新闻...')
     hot_items = []
     top_ashare, depth_ashare = [], []
+    top_top, depth_top       = [], []
     top_global, depth_global = [], []
+    top_tech, depth_tech     = [], []
     flash_items = []
     if mode in ('full', 'depth'):
-        hot_items                  = collect_hot()
-        top_ashare, depth_ashare   = collect_depth_ashare()
-        top_global, depth_global   = collect_depth_top()
+        hot_items                = collect_hot()
+        top_ashare, depth_ashare = collect_depth_ashare()
+        top_top, depth_top       = collect_depth_top()
+        top_global, depth_global = collect_depth_global()
+        top_tech, depth_tech     = collect_depth_tech()
     if mode in ('full', 'flash'):
         flash_items = collect_flash()
-    total_collected = (len(hot_items) + len(top_ashare) + len(depth_ashare)
-                       + len(top_global) + len(depth_global) + len(flash_items))
+    total_collected = (len(hot_items)
+                       + len(top_ashare) + len(depth_ashare)
+                       + len(top_top)    + len(depth_top)
+                       + len(top_global) + len(depth_global)
+                       + len(top_tech)   + len(depth_tech)
+                       + len(flash_items))
     print(
         f'\n      合计采集：热门 {len(hot_items)} + '
         f'A股深度头条 {len(top_ashare)} + A股深度文章 {len(depth_ashare)} + '
-        f'头条深度头条 {len(top_global)} + 头条深度文章 {len(depth_global)} + '
+        f'头条深度头条 {len(top_top)} + 头条深度文章 {len(depth_top)} + '
+        f'环球深度头条 {len(top_global)} + 环球深度文章 {len(depth_global)} + '
+        f'科创深度头条 {len(top_tech)} + 科创深度文章 {len(depth_tech)} + '
         f'快讯 {len(flash_items)} = {total_collected} 条\n'
     )
 
-    # Step 4: 写入数据库（优先级：热门 > A股深度头条 > A股深度文章 > 头条深度头条 > 头条深度文章 > 快讯）
+    # Step 4: 写入数据库（优先级：热门 > A股 > 头条 > 环球 > 科创 > 快讯）
     print('[4/5] 写入数据库...')
     total_inserted, total_skipped = 0, 0
     for name, items in [
         ('热门',        hot_items),
         ('A股深度-头条', top_ashare),
         ('A股深度-文章', depth_ashare),
-        ('头条深度-头条', top_global),
-        ('头条深度-文章', depth_global),
+        ('头条深度-头条', top_top),
+        ('头条深度-文章', depth_top),
+        ('环球深度-头条', top_global),
+        ('环球深度-文章', depth_global),
+        ('科创深度-头条', top_tech),
+        ('科创深度-文章', depth_tech),
         ('快讯',        flash_items),
     ]:
         if not items:
