@@ -1,0 +1,87 @@
+{
+  "pages": [
+    {
+      "path": "pages/report/list",
+      "style": {
+        "navigationBarTitleText": "日报",
+        "navigationBarBackgroundColor": "#0A1628",
+        "navigationBarTextStyle": "white",
+        "backgroundColor": "#0A1628"
+      }
+    },
+    {
+      "path": "pages/report/detail",
+      "style": {
+        "navigationBarTitleText": "日报详情",
+        "navigationBarBackgroundColor": "#0A1628",
+        "navigationBarTextStyle": "white",
+        "backgroundColor": "#0A1628"
+      }
+    },
+    {
+      "path": "pages/jinjin/index",
+      "style": {
+        "navigationBarTitleText": "掘金",
+        "navigationBarBackgroundColor": "#0A1628",
+        "navigationBarTextStyle": "white",
+        "backgroundColor": "#0A1628"
+      }
+    },
+    {
+      "path": "pages/mine/index",
+      "style": {
+        "navigationBarTitleText": "我的",
+        "navigationBarBackgroundColor": "#0A1628",
+        "navigationBarTextStyle": "white",
+        "backgroundColor": "#0A1628"
+      }
+    },
+    {
+      "path": "pages/auth/login",
+      "style": {
+        "navigationBarTitleText": "登录",
+        "navigationBarBackgroundColor": "#0A1628",
+        "navigationBarTextStyle": "white",
+        "backgroundColor": "#0A1628"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "white",
+    "navigationBarBackgroundColor": "#0A1628",
+    "backgroundColor": "#0A1628",
+    "app-plus": {
+      "background": "#0A1628"
+    }
+  },
+  "tabBar": {
+    "color": "#8E8E93",
+    "selectedColor": "#FF6B00",
+    "backgroundColor": "#111111",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/report/list",
+        "text": "日报",
+        "iconPath": "static/tabbar/report.png",
+        "selectedIconPath": "static/tabbar/report-active.png"
+      },
+      {
+        "pagePath": "pages/jinjin/index",
+        "text": "掘金",
+        "iconPath": "static/tabbar/jinjin.png",
+        "selectedIconPath": "static/tabbar/jinjin-active.png"
+      },
+      {
+        "pagePath": "pages/mine/index",
+        "text": "我的",
+        "iconPath": "static/tabbar/mine.png",
+        "selectedIconPath": "static/tabbar/mine-active.png"
+      }
+    ]
+  },
+  "easycom": {
+    "autoscan": true,
+    "custom": {}
+  }
+}

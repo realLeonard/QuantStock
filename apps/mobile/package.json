@@ -1,0 +1,19 @@
+{
+  "name": "quantstock-mobile",
+  "version": "1.0.0",
+  "description": "股海远洋 App - uni-app 移动端",
+  "scripts": {
+    "dev:mp-weixin": "uni -p mp-weixin",
+    "dev:app": "uni -p app",
+    "dev:h5": "uni -p h5",
+    "build:mp-weixin": "uni build -p mp-weixin",
+    "build:app": "uni build -p app",
+    "build:h5": "uni build -p h5"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@dcloudio/types": "*",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.3"
+  }
+}

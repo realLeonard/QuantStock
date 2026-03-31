@@ -3,6 +3,9 @@
 ## 系统概述
 
 面向 A 股投资者的每日投资早报系统。每天早上 08:20 自动生成，通过 QuantStock 网页展示 + WxPusher 推送微信。
+WxPusher token:
+AT_ZwHJFTB6epjY2bxftdHzf0DtRsm3JvRs
+uid:UID_fbyM7USUtlBiPrvLeBbmQJDmuEzh
 
 ---
 

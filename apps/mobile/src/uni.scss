@@ -1,0 +1,31 @@
+// 颜色变量
+$color-bg-deep: #0a1628;
+$color-bg-card: #0d1f3c;
+$color-bg-surface: #132244;
+$color-border: rgba(212, 175, 55, 0.15);
+
+$color-text-primary: #e8edf5;
+$color-text-secondary: #8a9bb8;
+$color-text-muted: #5a6a80;
+
+$color-gold: #d4af37;
+$color-gold-light: #f0d060;
+$color-blue: #2d7cf6;
+$color-red: #e85d54;
+$color-green: #30c874;
+
+// 圆角
+$radius-sm: 8rpx;
+$radius-md: 16rpx;
+$radius-lg: 24rpx;
+$radius-xl: 32rpx;
+
+// 卡片阴影
+$shadow-card: 0 4rpx 24rpx rgba(0, 0, 0, 0.3);
+
+// 间距
+$spacing-xs: 8rpx;
+$spacing-sm: 16rpx;
+$spacing-md: 24rpx;
+$spacing-lg: 32rpx;
+$spacing-xl: 48rpx;

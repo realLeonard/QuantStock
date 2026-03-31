@@ -105,6 +105,50 @@ export interface MarketBreadth {
   created_at: number;
 }
 
+// ===== App 端用户（C 端，区别于后台 AdminUser） =====
+export type PlanType = 'free' | 'trial' | 'monthly' | 'quarterly' | 'yearly';
+
+export interface AppUser {
+  id: string;
+  auth_id: string;          // 关联 Supabase Auth UID
+  nickname: string | null;
+  avatar_url: string | null;
+  phone: string | null;
+  wechat_openid: string | null;
+  plan_type: PlanType;
+  plan_expired_at: number | null; // UTC 毫秒，null=永久或免费
+  last_login_at: number | null;
+  created_at: number;             // UTC 毫秒
+}
+
+// ===== 用户行为事件 =====
+export interface UserEvent {
+  id: string;
+  user_id: string | null;
+  event_type: string;
+  target_id: string | null;
+  duration_ms: number | null;
+  platform: string | null;
+  created_at: number;
+}
+
+// ===== 用户反馈 =====
+export interface UserFeedback {
+  id: string;
+  user_id: string | null;
+  content: string;
+  contact: string | null;
+  platform: string | null;
+  created_at: number;
+}
+
+// ===== App 全局配置 =====
+export interface AppConfig {
+  key: string;
+  value: string;
+  updated_at: number;
+}
+
 // ===== API 统一响应结构 =====
 export interface ApiResponse<T = void> {
   data?: T;
