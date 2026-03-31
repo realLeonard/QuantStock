@@ -4,8 +4,9 @@
 
 采集来源（按写入优先级）：
   1. 热门文章排行榜   /v2/article/hot/list              → 分类: 热门
-  2. A股频道深度文章  /v3/depth/home/assembled/1003     → 分类: 深度（top_list + depth_list，复用单次请求）
-  3. 财联社快讯        /nodeapi/telegraphList            → 分类: 快讯
+  2. A股频道深度文章  /v3/depth/home/assembled/1003     → 分类: 深度（top_article + depth_list，复用单次请求）
+  3. 头条频道深度文章  /v3/depth/home/assembled/1000     → 分类: 深度（top_article + depth_list，复用单次请求）
+  4. 财联社快讯        /nodeapi/telegraphList            → 分类: 快讯
 
 时区：所有时间统一存为 UTC 毫秒（BIGINT）
 去重：依赖数据库唯一索引（cls_id），首次写入定终身
@@ -347,23 +348,23 @@ def collect_hot() -> list:
         return []
 
 
-def collect_depth_ashare() -> tuple:
+def collect_depth(channel_id: int, label: str) -> tuple:
     """
-    来源二：A股频道深度文章（top_list 头条 + depth_list 深度，复用单次请求）
+    通用深度频道采集（top_article 头条 + depth_list 深度，复用单次请求）
     两类统一归入 '深度' 分类，同时走报告/提醒检测规则。
     返回 (top_items, depth_items)
     """
     try:
         sign = generate_sign()
         r = requests.get(
-            'https://www.cls.cn/v3/depth/home/assembled/1003',
-            headers=HEADERS,
+            f'https://www.cls.cn/v3/depth/home/assembled/{channel_id}',
+            headers={**HEADERS, 'Referer': f'https://www.cls.cn/depth?id={channel_id}'},
             params={**_BASE_PARAMS, 'sign': sign},
             timeout=10
         )
         data = r.json()
         if data.get('errno', -1) != 0:
-            print(f'  [深度] API 异常: errno={data.get("errno")}')
+            print(f'  [{label}] API 异常: errno={data.get("errno")}')
             return [], []
 
         api_data = data.get('data') or {}
@@ -396,16 +397,26 @@ def collect_depth_ashare() -> tuple:
                        if ctime_to_ms(art['ctime']) >= cutoff
                        and (item := _parse_art(art)) is not None]
 
-        print(f'  [深度-头条] 采集 {len(top_items)} 条（top_article，取前 {DEPTH_TOP_TAKE} 条）')
-        print(f'  [深度-文章] 采集 {len(depth_items)} 条（depth_list，取前 {DEPTH_TAKE} 条，{DEPTH_WINDOW_HOURS}h 窗口）')
+        print(f'  [{label}-头条] 采集 {len(top_items)} 条（top_article，取前 {DEPTH_TOP_TAKE} 条）')
+        print(f'  [{label}-文章] 采集 {len(depth_items)} 条（depth_list，取前 {DEPTH_TAKE} 条，{DEPTH_WINDOW_HOURS}h 窗口）')
         return top_items, depth_items
     except Exception as e:
-        print(f'  [深度] 采集失败: {e}')
+        print(f'  [{label}] 采集失败: {e}')
         return [], []
 
 
+def collect_depth_ashare() -> tuple:
+    """来源二：A股频道深度文章（channel_id=1003）"""
+    return collect_depth(1003, 'A股深度')
+
+
+def collect_depth_top() -> tuple:
+    """来源三：头条频道深度文章（channel_id=1000）"""
+    return collect_depth(1000, '头条深度')
+
+
 def collect_flash() -> list:
-    """来源三（最低优先级）：财联社快讯（不需要 sign）"""
+    """来源四（最低优先级）：财联社快讯（不需要 sign）"""
     try:
         r = requests.get(
             'https://www.cls.cn/nodeapi/telegraphList',
@@ -558,22 +569,36 @@ def run(mode: str = 'full'):
 
     # Step 3: 按模式采集
     print('[3/5] 采集新闻...')
-    hot_items, top_items, depth_items, flash_items = [], [], [], []
+    hot_items = []
+    top_ashare, depth_ashare = [], []
+    top_global, depth_global = [], []
+    flash_items = []
     if mode in ('full', 'depth'):
-        hot_items            = collect_hot()
-        top_items, depth_items = collect_depth_ashare()
+        hot_items                  = collect_hot()
+        top_ashare, depth_ashare   = collect_depth_ashare()
+        top_global, depth_global   = collect_depth_top()
     if mode in ('full', 'flash'):
         flash_items = collect_flash()
-    total_collected = len(hot_items) + len(top_items) + len(depth_items) + len(flash_items)
+    total_collected = (len(hot_items) + len(top_ashare) + len(depth_ashare)
+                       + len(top_global) + len(depth_global) + len(flash_items))
     print(
-        f'\n      合计采集：热门 {len(hot_items)} + 深度头条 {len(top_items)} + '
-        f'深度文章 {len(depth_items)} + 快讯 {len(flash_items)} = {total_collected} 条\n'
+        f'\n      合计采集：热门 {len(hot_items)} + '
+        f'A股深度头条 {len(top_ashare)} + A股深度文章 {len(depth_ashare)} + '
+        f'头条深度头条 {len(top_global)} + 头条深度文章 {len(depth_global)} + '
+        f'快讯 {len(flash_items)} = {total_collected} 条\n'
     )
 
-    # Step 4: 写入数据库（优先级：热门 > 深度头条 > 深度文章 > 快讯）
+    # Step 4: 写入数据库（优先级：热门 > A股深度头条 > A股深度文章 > 头条深度头条 > 头条深度文章 > 快讯）
     print('[4/5] 写入数据库...')
     total_inserted, total_skipped = 0, 0
-    for name, items in [('热门', hot_items), ('深度-头条', top_items), ('深度-文章', depth_items), ('快讯', flash_items)]:
+    for name, items in [
+        ('热门',        hot_items),
+        ('A股深度-头条', top_ashare),
+        ('A股深度-文章', depth_ashare),
+        ('头条深度-头条', top_global),
+        ('头条深度-文章', depth_global),
+        ('快讯',        flash_items),
+    ]:
         if not items:
             continue
         ins, skip = upsert_news(sb, items)
