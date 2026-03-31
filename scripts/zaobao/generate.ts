@@ -205,12 +205,12 @@ async function generateReport(params: {
   const client = new Anthropic();
   const userPrompt = buildUserPrompt(params);
 
-  console.log('  [Claude] 调用 claude-sonnet-4-6 生成报告...');
+  console.log('  [Claude] 调用 claude-opus-4-6 生成报告...');
   let message;
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       message = await client.messages.create({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-opus-4-6',
         max_tokens: 8192,
         messages: [{ role: 'user', content: userPrompt }],
         system: SYSTEM_PROMPT,

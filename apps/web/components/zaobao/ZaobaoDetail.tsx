@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { useAppStore } from '@/store';
 import styles from './ZaobaoDetail.module.css';
 import DetailBackBar from '@/components/ui/DetailBackBar';
@@ -99,28 +100,87 @@ export default function ZaobaoDetail() {
   function renderContent(text: string) {
     const lines = text.split('\n');
     let afterTitle = false;
-    return lines.map((line, i) => {
+    const result: React.ReactNode[] = [];
+    let i = 0;
+
+    while (i < lines.length) {
+      const line = lines[i];
+
+      // 检测 Markdown 表格：当前行是表格行，下一行是分隔行（|---|）
+      if (
+        /^\|/.test(line) &&
+        i + 1 < lines.length &&
+        /^\|[\s\-:]+\|/.test(lines[i + 1])
+      ) {
+        // 收集连续表格行
+        const tableLines: string[] = [];
+        while (i < lines.length && /^\|/.test(lines[i])) {
+          tableLines.push(lines[i]);
+          i++;
+        }
+        // 解析表头、分隔行、数据行
+        const parseRow = (row: string) =>
+          row.split('|').slice(1, -1).map(cell => cell.trim());
+
+        const headers = parseRow(tableLines[0]);
+        const dataRows = tableLines.slice(2); // 跳过分隔行
+
+        result.push(
+          <div key={`table-${i}`} className={styles.tableWrapper}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  {headers.map((h, hi) => (
+                    <th key={hi}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {dataRows.map((row, ri) => (
+                  <tr key={ri}>
+                    {parseRow(row).map((cell, ci) => (
+                      <td key={ci}>{cell}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+        continue;
+      }
+
       // 分隔标题行
       if (line.startsWith('━━━')) {
         afterTitle = false;
-        return <div key={i} className={styles.sectionTitle}>{line}</div>;
+        result.push(<div key={i} className={styles.sectionTitle}>{line}</div>);
+        i++;
+        continue;
       }
       // 报告标题行
       if (line.startsWith('📰')) {
         afterTitle = true;
-        return <div key={i} className={styles.reportTitle}>{line}</div>;
+        result.push(<div key={i} className={styles.reportTitle}>{line}</div>);
+        i++;
+        continue;
       }
       // 跳过紧跟在报告标题后的 --- 分隔线
       if (afterTitle && /^---+$/.test(line.trim())) {
-        return null;
+        i++;
+        continue;
       }
       afterTitle = false;
       // 空行
       if (!line.trim()) {
-        return <div key={i} className={styles.emptyLine} />;
+        result.push(<div key={i} className={styles.emptyLine} />);
+        i++;
+        continue;
       }
-      return <div key={i} className={styles.line}>{line}</div>;
-    });
+      result.push(<div key={i} className={styles.line}>{line}</div>);
+      i++;
+    }
+
+    return result;
   }
 
   return (

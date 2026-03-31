@@ -38,6 +38,42 @@
   height: 8px;
 }
 
+.tableWrapper {
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.table th,
+.table td {
+  padding: 7px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: left;
+  vertical-align: top;
+  word-break: break-word;
+}
+
+.table th {
+  background: rgba(99, 179, 237, 0.12);
+  color: #63b3ed;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.table td {
+  color: var(--text-primary, #e2e8f0);
+}
+
+.table tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
 .notFound {
   display: flex;
   flex-direction: column;
