@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import type { Theme, AdminUser, SessionUser, UserRole, DailyReport, MarketBreadth } from '@quantstock/types';
+import type { Theme, AdminUser, SessionUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl } from '@quantstock/types';
 import { apiClient, supabase } from '@/lib/supabase';
 
 export interface NewsItem {
@@ -17,7 +17,8 @@ export interface NewsItem {
 import { hashPassword, verifyPassword } from '@/lib/crypto';
 import { uid } from '@/lib/utils';
 
-type NavItem = 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao' | 'breadth' | 'news';
+type NavItem = 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao' | 'breadth' | 'news'
+             | 'app-users' | 'app-feedback' | 'app-events' | 'app-version';
 
 interface AppState {
   // 数据
@@ -40,6 +41,8 @@ interface AppState {
   currentNav: NavItem;
   // 侧边栏系统管理菜单是否展开
   systemMenuOpen: boolean;
+  // 侧边栏 APP 管理菜单是否展开
+  appMenuOpen: boolean;
 
   // Actions
   setLoading: (v: boolean) => void;
@@ -50,6 +53,7 @@ interface AppState {
   setCurrentThemeId: (id: string | null) => void;
   setCurrentReportId: (id: string | null) => void;
   toggleSystemMenu: () => void;
+  toggleAppMenu: () => void;
 
   // 登录 Action
   login: (username: string, password: string) => Promise<boolean>;
@@ -75,6 +79,19 @@ interface AppState {
   newsDate: string;
   loadNewsItems: (date?: string) => Promise<void>;
 
+  // APP 管理 Actions
+  appUsers: AppUser[];
+  userFeedbacks: UserFeedback[];
+  userEvents: UserEvent[];
+  appVersions: AppVersionControl[];
+  loadAppUsers: () => Promise<void>;
+  updateAppUserPlan: (userId: string, planType: PlanType, planExpiredAt: number | null) => Promise<void>;
+  loadUserFeedbacks: () => Promise<void>;
+  loadUserEvents: () => Promise<void>;
+  loadAppVersions: () => Promise<void>;
+  createAppVersion: (version: string, isForceUpdate: boolean, valueDesc: string) => Promise<void>;
+  updateAppVersion: (id: string, patch: Partial<Omit<AppVersionControl, 'id' | 'created_at'>>) => Promise<void>;
+
   // 用户管理 Actions（仅 admin）
   loadUsers: () => Promise<void>;
   createUser: (username: string, password: string, role: UserRole) => Promise<void>;
@@ -91,6 +108,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   breadthMonth: 'recent30',
   newsItems: [],
   newsDate: '',
+  appUsers: [],
+  userFeedbacks: [],
+  userEvents: [],
+  appVersions: [],
   currentThemeId: null,
   currentReportId: null,
   isLoading: false,
@@ -99,6 +120,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   currentUser: null,
   currentNav: 'dashboard',
   systemMenuOpen: false,
+  appMenuOpen: false,
 
   setLoading: (v) => set({ isLoading: v }),
 
@@ -118,6 +140,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setCurrentReportId: (id) => set({ currentReportId: id }),
 
   toggleSystemMenu: () => set((s) => ({ systemMenuOpen: !s.systemMenuOpen })),
+
+  toggleAppMenu: () => set((s) => ({ appMenuOpen: !s.appMenuOpen })),
 
   // ===== 登录 =====
   login: async (username, password) => {
@@ -286,6 +310,100 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ breadthData, breadthMonth: mode });
     } catch (e) {
       get().showToast('❌ 加载涨跌家数失败：' + (e as Error).message);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ===== 加载 App 用户列表 =====
+  loadAppUsers: async () => {
+    set({ isLoading: true });
+    try {
+      const appUsers = await apiClient.listAppUsers();
+      set({ appUsers });
+    } catch (e) {
+      get().showToast('❌ 加载 App 用户失败：' + (e as Error).message);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ===== 更新 App 用户套餐 =====
+  updateAppUserPlan: async (userId, planType, planExpiredAt) => {
+    set({ isLoading: true });
+    try {
+      await apiClient.updateAppUserPlan(userId, planType, planExpiredAt);
+      await get().loadAppUsers();
+      get().showToast('✅ 套餐已更新');
+    } catch (e) {
+      get().showToast('❌ 更新失败：' + (e as Error).message);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ===== 加载用户反馈 =====
+  loadUserFeedbacks: async () => {
+    set({ isLoading: true });
+    try {
+      const userFeedbacks = await apiClient.listUserFeedbacks();
+      set({ userFeedbacks });
+    } catch (e) {
+      get().showToast('❌ 加载用户反馈失败：' + (e as Error).message);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ===== 加载用户行为事件 =====
+  loadUserEvents: async () => {
+    set({ isLoading: true });
+    try {
+      const userEvents = await apiClient.listUserEvents();
+      set({ userEvents });
+    } catch (e) {
+      get().showToast('❌ 加载用户行为失败：' + (e as Error).message);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ===== 加载版本列表 =====
+  loadAppVersions: async () => {
+    set({ isLoading: true });
+    try {
+      const appVersions = await apiClient.listVersions();
+      set({ appVersions });
+    } catch (e) {
+      get().showToast('❌ 加载版本列表失败：' + (e as Error).message);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ===== 新增版本 =====
+  createAppVersion: async (version, isForceUpdate, valueDesc) => {
+    set({ isLoading: true });
+    try {
+      await apiClient.createVersion({ id: uid(), version, is_force_update: isForceUpdate, value_desc: valueDesc, created_at: Date.now() });
+      await get().loadAppVersions();
+      get().showToast('✅ 版本已发布');
+    } catch (e) {
+      get().showToast('❌ 发布失败：' + (e as Error).message);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ===== 更新版本 =====
+  updateAppVersion: async (id, patch) => {
+    set({ isLoading: true });
+    try {
+      await apiClient.updateVersion(id, patch);
+      await get().loadAppVersions();
+      get().showToast('✅ 版本已更新');
+    } catch (e) {
+      get().showToast('❌ 更新失败：' + (e as Error).message);
     } finally {
       set({ isLoading: false });
     }

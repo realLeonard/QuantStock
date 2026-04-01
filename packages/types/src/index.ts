@@ -142,6 +142,15 @@ export interface UserFeedback {
   created_at: number;
 }
 
+// ===== App 版本管理 =====
+export interface AppVersionControl {
+  id: string;
+  version: string;
+  is_force_update: boolean;
+  value_desc: string;
+  created_at: number;
+}
+
 // ===== App 全局配置 =====
 export interface AppConfig {
   key: string;

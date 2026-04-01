@@ -11,6 +11,10 @@ import RolesView from '@/components/roles/RolesView';
 import ZaobaoView from '@/components/zaobao/ZaobaoView';
 import BreadthView from '@/components/breadth/BreadthView';
 import NewsView from '@/components/news/NewsView';
+import AppUsersView from '@/components/app-users/AppUsersView';
+import AppFeedbackView from '@/components/app-feedback/AppFeedbackView';
+import AppEventsView from '@/components/app-events/AppEventsView';
+import AppVersionView from '@/components/app-version/AppVersionView';
 import type { SessionUser } from '@quantstock/types';
 
 export default function Home() {
@@ -46,6 +50,10 @@ export default function Home() {
       {currentNav === 'zaobao' && <ZaobaoView />}
       {currentNav === 'breadth' && <BreadthView />}
       {currentNav === 'news' && <NewsView />}
+      {currentNav === 'app-users' && <AppUsersView />}
+      {currentNav === 'app-feedback' && <AppFeedbackView />}
+      {currentNav === 'app-events' && <AppEventsView />}
+      {currentNav === 'app-version' && <AppVersionView />}
     </AdminLayout>
   );
 }

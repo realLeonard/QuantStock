@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { Theme, Stock, StockInput, ThemeRow, StockRow, AdminUser, UserRole, DailyReport, MarketBreadth } from '@quantstock/types';
+import type { Theme, Stock, StockInput, ThemeRow, StockRow, AdminUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl } from '@quantstock/types';
 
 // ===== Supabase 客户端工厂 =====
 export function createSupabaseClient(url: string, anonKey: string): SupabaseClient {
@@ -237,6 +237,79 @@ export class QuantStockApiClient {
     if (error) throw new Error(error.message);
     return (data || []) as MarketBreadth[];
   }
+
+  // ===== APP 用户管理 =====
+
+  // 获取全量 App 用户列表
+  async listAppUsers(): Promise<AppUser[]> {
+    const { data, error } = await this.sb
+      .from('appUser')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data || []) as AppUser[];
+  }
+
+  // 更新 App 用户套餐
+  async updateAppUserPlan(userId: string, planType: PlanType, planExpiredAt: number | null): Promise<void> {
+    const { error } = await this.sb
+      .from('appUser')
+      .update({ plan_type: planType, plan_expired_at: planExpiredAt })
+      .eq('id', userId);
+    if (error) throw new Error(error.message);
+  }
+
+  // ===== 用户反馈 =====
+
+  // 获取用户反馈列表
+  async listUserFeedbacks(): Promise<UserFeedback[]> {
+    const { data, error } = await this.sb
+      .from('userFeedback')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data || []) as UserFeedback[];
+  }
+
+  // ===== 用户行为事件 =====
+
+  // 获取用户行为事件列表
+  async listUserEvents(limit = 200): Promise<UserEvent[]> {
+    const { data, error } = await this.sb
+      .from('userEvent')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    return (data || []) as UserEvent[];
+  }
+
+  // ===== App 版本管理 =====
+
+  // 获取版本列表
+  async listVersions(): Promise<AppVersionControl[]> {
+    const { data, error } = await this.sb
+      .from('appVersionControl')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data || []) as AppVersionControl[];
+  }
+
+  // 新增版本
+  async createVersion(record: AppVersionControl): Promise<void> {
+    const { error } = await this.sb.from('appVersionControl').insert(record);
+    if (error) throw new Error(error.message);
+  }
+
+  // 更新版本
+  async updateVersion(id: string, patch: Partial<Omit<AppVersionControl, 'id' | 'created_at'>>): Promise<void> {
+    const { error } = await this.sb
+      .from('appVersionControl')
+      .update(patch)
+      .eq('id', id);
+    if (error) throw new Error(error.message);
+  }
 }
 
-export type { Theme, Stock, StockInput, AdminUser, UserRole, DailyReport, MarketBreadth };
+export type { Theme, Stock, StockInput, AdminUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl };

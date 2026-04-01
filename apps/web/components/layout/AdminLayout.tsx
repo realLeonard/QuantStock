@@ -18,10 +18,12 @@ const ROLE_LABEL: Record<string, string> = {
 export default function AdminLayout({ children }: Props) {
   const {
     themes, currentNav, setCurrentNav, logout,
-    setCurrentThemeId, setCurrentReportId, currentUser, systemMenuOpen, toggleSystemMenu,
+    setCurrentThemeId, setCurrentReportId, currentUser,
+    systemMenuOpen, toggleSystemMenu,
+    appMenuOpen, toggleAppMenu,
   } = useAppStore();
 
-  function handleNav(nav: 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao' | 'breadth' | 'news') {
+  function handleNav(nav: Parameters<typeof setCurrentNav>[0]) {
     setCurrentThemeId(null);
     setCurrentReportId(null);
     setCurrentNav(nav);
@@ -39,6 +41,18 @@ export default function AdminLayout({ children }: Props) {
     }
     if (nav === 'news') {
       useAppStore.getState().loadNewsItems();
+    }
+    if (nav === 'app-users') {
+      useAppStore.getState().loadAppUsers();
+    }
+    if (nav === 'app-feedback') {
+      useAppStore.getState().loadUserFeedbacks();
+    }
+    if (nav === 'app-events') {
+      useAppStore.getState().loadUserEvents();
+    }
+    if (nav === 'app-version') {
+      useAppStore.getState().loadAppVersions();
     }
   }
 
@@ -136,8 +150,84 @@ export default function AdminLayout({ children }: Props) {
           </div>
         </nav>
 
-        {/* 弹性间距，把系统管理顶到底部 */}
+        {/* 弹性间距，把下方菜单顶到底部 */}
         <div style={{ flex: 1 }} />
+
+        {/* APP 管理（仅 admin 可见） */}
+        {isAdmin && (
+          <>
+            <div className="sidebar-section-title">APP 管理</div>
+            <nav className="sidebar-nav" style={{ flex: 'none' }}>
+              <div className="nav-item nav-group-toggle" onClick={toggleAppMenu}>
+                <span className="nav-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+                    <line x1="12" y1="18" x2="12.01" y2="18"/>
+                  </svg>
+                </span>
+                APP 管理
+                <span className="nav-arrow" style={{ marginLeft: 'auto', transition: 'transform .2s', transform: appMenuOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </span>
+              </div>
+
+              {appMenuOpen && (
+                <>
+                  <div
+                    className={`nav-item nav-sub-item${currentNav === 'app-users' ? ' active' : ''}`}
+                    onClick={() => handleNav('app-users')}
+                  >
+                    <span className="nav-icon">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                      </svg>
+                    </span>
+                    APP用户管理
+                  </div>
+                  <div
+                    className={`nav-item nav-sub-item${currentNav === 'app-feedback' ? ' active' : ''}`}
+                    onClick={() => handleNav('app-feedback')}
+                  >
+                    <span className="nav-icon">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                      </svg>
+                    </span>
+                    用户反馈
+                  </div>
+                  <div
+                    className={`nav-item nav-sub-item${currentNav === 'app-events' ? ' active' : ''}`}
+                    onClick={() => handleNav('app-events')}
+                  >
+                    <span className="nav-icon">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                      </svg>
+                    </span>
+                    用户行为
+                  </div>
+                  <div
+                    className={`nav-item nav-sub-item${currentNav === 'app-version' ? ' active' : ''}`}
+                    onClick={() => handleNav('app-version')}
+                  >
+                    <span className="nav-icon">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
+                      </svg>
+                    </span>
+                    管理控制
+                  </div>
+                </>
+              )}
+            </nav>
+          </>
+        )}
 
         {/* 系统管理（仅 admin 可见，固定在底部） */}
         {isAdmin && (
@@ -279,6 +369,10 @@ const NAV_LABEL: Record<string, string> = {
   zaobao: '每日早报',
   breadth: '涨跌家数',
   news: '今日资讯',
+  'app-users': 'APP用户管理',
+  'app-feedback': '用户反馈',
+  'app-events': '用户行为',
+  'app-version': '管理控制',
 };
 
 function Topbar() {
