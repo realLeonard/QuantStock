@@ -37,7 +37,9 @@ jobs:
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
+          key_path: ""
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          key_is_base64: true
           script: |
             set -e
             cd ~/quantstock
