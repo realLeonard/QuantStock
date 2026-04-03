@@ -1,0 +1,75 @@
+name: 部署到阿里云
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 判断变更范围
+        id: changes
+        run: |
+          git fetch origin ${{ github.event.before }} 2>/dev/null || true
+          CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} 2>/dev/null || echo "all")
+          echo "changed=$CHANGED" >> $GITHUB_OUTPUT
+
+          if echo "$CHANGED" | grep -q "^backend/api/"; then
+            echo "api_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "api_changed=false" >> $GITHUB_OUTPUT
+          fi
+
+          if echo "$CHANGED" | grep -qE "^apps/web/|^packages/"; then
+            echo "web_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "web_changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 部署到服务器
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/quantstock
+
+            echo ">>> 拉取最新代码"
+            git pull origin main
+
+            echo ">>> 安装依赖"
+            npm install
+
+            API_CHANGED="${{ steps.changes.outputs.api_changed }}"
+            WEB_CHANGED="${{ steps.changes.outputs.web_changed }}"
+
+            # 如果无法判断变更范围，两个都更新
+            if [ "$API_CHANGED" = "" ]; then
+              API_CHANGED="true"
+              WEB_CHANGED="true"
+            fi
+
+            if [ "$API_CHANGED" = "true" ]; then
+              echo ">>> 构建 Hono API"
+              cd backend/api && npm run build && cd ~/quantstock
+              echo ">>> 重启 API"
+              pm2 restart quantstock-api
+            fi
+
+            if [ "$WEB_CHANGED" = "true" ]; then
+              echo ">>> 构建 Next.js"
+              cd apps/web && npm run build && cd ~/quantstock
+              echo ">>> 重启 Web"
+              pm2 restart quantstock-web
+            fi
+
+            echo ">>> 部署完成"
+            pm2 list
