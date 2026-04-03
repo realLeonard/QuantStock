@@ -12,13 +12,14 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: 判断变更范围
         id: changes
         run: |
-          git fetch origin ${{ github.event.before }} 2>/dev/null || true
-          CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} 2>/dev/null || echo "all")
-          echo "changed=$CHANGED" >> $GITHUB_OUTPUT
+          CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "all")
+          echo "changed=$CHANGED"
 
           if echo "$CHANGED" | grep -q "^backend/api/"; then
             echo "api_changed=true" >> $GITHUB_OUTPUT
@@ -32,44 +33,45 @@ jobs:
             echo "web_changed=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: 配置 SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
       - name: 部署到服务器
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            set -e
-            cd ~/quantstock
+        run: |
+          API_CHANGED="${{ steps.changes.outputs.api_changed }}"
+          WEB_CHANGED="${{ steps.changes.outputs.web_changed }}"
 
-            echo ">>> 拉取最新代码"
-            git pull origin main
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'ENDSSH'
+          set -e
+          cd ~/quantstock
 
-            echo ">>> 安装依赖"
-            npm install
+          echo ">>> 拉取最新代码"
+          git pull origin main
 
-            API_CHANGED="${{ steps.changes.outputs.api_changed }}"
-            WEB_CHANGED="${{ steps.changes.outputs.web_changed }}"
+          echo ">>> 安装依赖"
+          npm install
+          ENDSSH
 
-            # 如果无法判断变更范围，两个都更新
-            if [ "$API_CHANGED" = "" ]; then
-              API_CHANGED="true"
-              WEB_CHANGED="true"
-            fi
+          if [ "$API_CHANGED" = "true" ]; then
+            echo ">>> 构建并重启 API"
+            ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+              ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+              "cd ~/quantstock/backend/api && npm run build && pm2 restart quantstock-api"
+          fi
 
-            if [ "$API_CHANGED" = "true" ]; then
-              echo ">>> 构建 Hono API"
-              cd backend/api && npm run build && cd ~/quantstock
-              echo ">>> 重启 API"
-              pm2 restart quantstock-api
-            fi
+          if [ "$WEB_CHANGED" = "true" ]; then
+            echo ">>> 构建并重启 Web"
+            ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+              ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+              "cd ~/quantstock/apps/web && npm run build && pm2 restart quantstock-web"
+          fi
 
-            if [ "$WEB_CHANGED" = "true" ]; then
-              echo ">>> 构建 Next.js"
-              cd apps/web && npm run build && cd ~/quantstock
-              echo ">>> 重启 Web"
-              pm2 restart quantstock-web
-            fi
-
-            echo ">>> 部署完成"
-            pm2 list
+          echo ">>> 部署完成"
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "pm2 list"
