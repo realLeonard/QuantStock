@@ -14,8 +14,11 @@ export interface NewsItem {
   url: string;
   published_at: number;
 }
-import { hashPassword, verifyPassword } from '@/lib/crypto';
+import { hashPassword } from '@/lib/crypto';
 import { uid } from '@/lib/utils';
+
+// Hono API 地址（部署后通过环境变量注入）
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001';
 
 type NavItem = 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao' | 'breadth' | 'news'
              | 'app-users' | 'app-feedback' | 'app-events' | 'app-version';
@@ -143,18 +146,25 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   toggleAppMenu: () => set((s) => ({ appMenuOpen: !s.appMenuOpen })),
 
-  // ===== 登录 =====
+  // ===== 登录（调 Hono API，password_hash 不再传到前端） =====
   login: async (username, password) => {
     set({ isLoading: true });
     try {
-      const user = await apiClient.findUserByUsername(username);
-      if (!user) return false;
-      const ok = await verifyPassword(password, user.password_hash);
-      if (!ok) return false;
-      const session: SessionUser = { username: user.username, role: user.role };
-      sessionStorage.setItem('session_user', JSON.stringify(session));
-      set({ isLoggedIn: true, currentUser: session });
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      if (!res.ok) return false;
+      const json = await res.json() as { data?: { token: string; user: SessionUser } };
+      if (!json.data) return false;
+      const { token, user } = json.data;
+      sessionStorage.setItem('session_user', JSON.stringify(user));
+      sessionStorage.setItem('admin_token', token);
+      set({ isLoggedIn: true, currentUser: user });
       return true;
+    } catch {
+      return false;
     } finally {
       set({ isLoading: false });
     }
@@ -163,6 +173,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   // ===== 退出登录 =====
   logout: () => {
     sessionStorage.removeItem('session_user');
+    sessionStorage.removeItem('admin_token');
     set({ isLoggedIn: false, currentUser: null, themes: [], users: [], reports: [], currentNav: 'dashboard' });
   },
 

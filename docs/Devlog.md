@@ -2,6 +2,138 @@
 
 ---
 
+## 2026-04-03
+
+### 阿里云迁移 + 安全加固
+
+---
+
+#### 一、功能概述
+
+将项目从纯 Vercel 部署迁移至「阿里云宝塔 + Vercel」双轨架构，并修复移动端安全隐患。
+
+#### 二、改造内容
+
+**Part 1：Hono API 安全加固**
+- 新建 `backend/api/src/server.ts`：Node.js 独立启动入口，支持 PM2 管理
+- 新建 `backend/api/src/middleware/auth.ts`：两个鉴权中间件
+  - `adminAuth`：验证管理后台 JWT（HS256，7天有效期）
+  - `mobileAuth`：验证移动端 Supabase JWT（调用 `supabase.auth.getUser()`）
+- 修复安全漏洞：管理员登录接口 `POST /api/auth/login`，密码比对移到服务端，`password_hash` 不再传给前端
+- 为 themes/stocks 路由接入 `adminAuth` 保护
+- 新增移动端路由 `/api/mobile/*`，受 `mobileAuth` 保护：
+  - `POST /api/mobile/user/sync`：首次登录同步用户（激活 3 天试用）
+  - `GET /api/mobile/user/me`：获取用户信息
+  - `PATCH /api/mobile/user/profile`：更新昵称/头像
+  - `POST /api/mobile/events`：上报行为事件
+  - `POST /api/mobile/feedback`：提交反馈
+  - `GET /api/mobile/version`：获取版本控制信息
+- CORS 新增 `ALLOWED_ORIGINS` 环境变量支持
+- 新增 `bcryptjs` + `@hono/zod-validator` 依赖，新增 `start` 脚本
+
+**Part 2：Web 前端登录改造**
+- 登录 action 改调 `POST /api/auth/login`，不再从前端拉取 `password_hash`
+- JWT token 存入 `sessionStorage('admin_token')`，退出登录时一并清除
+
+**Part 3：移动端改造**
+- 新建 `apps/mobile/api/backend.ts`：封装对 Hono API 的请求，自动携带 Supabase JWT
+- `user.ts` 改造：`getOrCreateAppUser`、`fetchAppUser`、`updateAppUser`、`trackEvent`、`submitFeedback`、`fetchAppVersion` 全部改走 Hono API
+- OTP 发送/验证保留直连 Supabase Auth
+- `.env.production` 新增 `VITE_API_BASE_URL`
+
+**Part 4：部署配置**
+- 新建 `ecosystem.config.js`：PM2 双进程配置（web:3000 + api:3001）
+- 新建 `docs/deploy-alicloud.md`：宝塔完整部署手册（环境变量、Nginx、验证、运维）
+
+#### 三、验证结果
+- `backend/api` TypeScript 编译通过（`npx tsc --noEmit`）
+- `apps/web` TypeScript 编译通过
+- API 本地启动测试通过：健康检查、无 token → 401、有 token → 正常
+
+#### 四、待办
+- [ ] 部署到阿里云：拉代码、安装依赖、build、配置 .env.server、PM2 启动
+- [ ] 替换 `apps/mobile/.env.production` 中的 `<服务器IP>`
+- [ ] 替换 `ecosystem.config.js` 中 `ALLOWED_ORIGINS` 注释为实际 IP
+- [ ] Web 前端：`NEXT_PUBLIC_API_BASE_URL` 在 Vercel 控制台配置（指向阿里云 IP）
+- [ ] 移动端重新打包 APK 并测试 OTP 登录 → sync → me 完整流程
+
+---
+
+## 2026-04-01
+
+### APP 管理模块上线
+
+---
+
+#### 一、功能概述
+
+在后台管理系统侧边栏新增"APP 管理"分组，包含4个子菜单，服务于 C 端 App 的运营管理需求：
+
+| 菜单 | 功能 |
+|------|------|
+| APP用户管理 | 查看 App 注册用户列表，支持编辑套餐类型和到期时间 |
+| 用户反馈 | 只读查看用户提交的反馈内容及联系方式 |
+| 用户行为 | 只读查看用户行为事件记录（最多200条） |
+| 管理控制 | 版本发布管理，支持新增/编辑版本号、强制升级策略、版本说明 |
+
+---
+
+#### 二、数据库变更
+
+新建 `appVersionControl` 表（需在 Supabase SQL Editor 手动执行）：
+
+```sql
+CREATE TABLE "appVersionControl" (
+  id              TEXT PRIMARY KEY,
+  version         TEXT NOT NULL,
+  is_force_update BOOLEAN NOT NULL DEFAULT false,
+  value_desc      TEXT NOT NULL DEFAULT '',
+  created_at      BIGINT NOT NULL
+);
+```
+
+已配置完整 RLS 策略（SELECT / INSERT / UPDATE / DELETE）。
+
+`appUser`、`userFeedback`、`userEvent` 三张表为 App 端已有表，本次仅新增后台读取接口。
+
+---
+
+#### 三、代码变更
+
+**packages/types**
+- 新增 `AppVersionControl` 接口
+
+**packages/api-client**
+- 新增7个方法：`listAppUsers`、`updateAppUserPlan`、`listUserFeedbacks`、`listUserEvents`、`listVersions`、`createVersion`、`updateVersion`
+
+**store/index.ts**
+- `NavItem` 扩展4项：`app-users`、`app-feedback`、`app-events`、`app-version`
+- 新增4组 state（`appUsers`、`userFeedbacks`、`userEvents`、`appVersions`）及对应 Actions
+- 新增 `appMenuOpen`（默认 `false`，折叠状态）/ `toggleAppMenu`
+
+**AdminLayout.tsx**
+- `handleNav` 加入4个新页面的数据加载分支
+- `NAV_LABEL` 补充4项面包屑映射
+- 侧边栏在"系统管理"上方插入"APP 管理"可折叠分组，仅 admin 可见
+
+**新建组件（6个）**
+- `components/app-users/AppUsersView.tsx` — 用户列表，含套餐类型/到期时间展示
+- `components/app-users/AppUserModal.tsx` — 编辑套餐弹窗，日期解析遵循北京时间规范（`+08:00`）
+- `components/app-feedback/AppFeedbackView.tsx` — 反馈只读列表
+- `components/app-events/AppEventsView.tsx` — 行为事件只读列表
+- `components/app-version/AppVersionView.tsx` — 版本列表，含发布/编辑入口
+- `components/app-version/AppVersionModal.tsx` — 版本新增/编辑弹窗
+
+---
+
+#### 四、注意事项
+
+- `appMenuOpen` 默认 `false`（折叠），避免侧边栏初始过长
+- `AppUserModal` 日期字段严格使用 `+08:00` 解析，避免跨时区偏差
+- 套餐到期日留空表示永久/无限制，保存时传 `null`
+
+---
+
 ## 2026-03-24
 
 ### 早报展示优化 + 时区 Bug 全面修复 + 数据采集清理

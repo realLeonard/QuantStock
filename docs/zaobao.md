@@ -36,9 +36,14 @@ uid:UID_fbyM7USUtlBiPrvLeBbmQJDmuEzh
 今日无重要事件：[维度名] [维度名]
 
 ━━━ 今日操作指引 ━━━
-🎯 重点关注板块：XXX（原因）
-⚠️  回避或谨慎：XXX（原因）
+🎯 重点关注板块：XXX（原因，列举代表性个股 2-3 只）
+⚠️  回避或谨慎：XXX（原因，列举代表性个股）
 📌 开盘注意：XXX
+
+| 类型 | 板块 | 重点个股（2-3只） | 理由 |
+|------|------|-----------------|------|
+| 🎯 关注 | | | |
+| ⚠️ 规避 | | | |
 ```
 
 ---
@@ -179,14 +184,20 @@ uid:UID_fbyM7USUtlBiPrvLeBbmQJDmuEzh
 
 ```
 Python 数据采集层（每日 07:00 定时）
-  akshare      → A股：涨停家数、北向资金、融资余额、机构调研、解禁日历
-  yfinance     → 美股三大指数、纳斯达克板块、原油/黄金/铜期货、港股
-  RSS 解析     → 财联社、新华社财经、华尔街见闻、36氪、路透中文
-  ↓ 全部写入 Supabase rawMarketData 表
+  akshare            → A股：涨停家数、北向资金、融资余额、机构调研、解禁日历
+  yfinance           → 美股三大指数、纳斯达克板块、原油/黄金/铜期货、港股
+  财联社直接 API 采集 → cls_news_collector.py，5个频道：
+    · 热门排行榜      /v2/article/hot/list
+    · A股深度(1003)   /v3/depth/home/assembled/1003  top_article + depth_list
+    · 头条深度(1000)  /v3/depth/home/assembled/1000  top_article + depth_list
+    · 环球深度(1007)  /v3/depth/home/assembled/1007  top_article + depth_list
+    · 科创深度(1111)  /v3/depth/home/assembled/1111  top_article + depth_list
+    · 快讯            /nodeapi/telegraphList
+  ↓ 新闻写入 newsItems_cls 表，行情写入 rawMarketData 表
 
-TypeScript 报告生成层（每日 07:30）
-  读取 Supabase 原始数据
-  调用 Claude API（Sonnet 4.6）生成七维度报告
+TypeScript 报告生成层（每日 08:20）
+  读取 Supabase 原始数据 + newsItems_cls 新闻
+  调用 Claude API（Opus 4.6）生成报告
   存入 dailyReport 表
   WxPusher 推送微信
 ```
@@ -228,15 +239,15 @@ CREATE TABLE "rawMarketData" (
 scripts/zaobao/
 ├── python/
 │   ├── fetchers/
-│   │   ├── akshare_fetcher.py    # A股行情数据采集
-│   │   ├── yfinance_fetcher.py   # 国际市场数据采集
-│   │   └── rss_fetcher.py        # RSS 新闻采集
-│   ├── main.py                   # 采集入口
-│   └── requirements.txt          # Python 依赖
-├── generate.ts                   # 读取原始数据，调 Claude API 生成报告
-├── notify.ts                     # WxPusher 推送
-├── prompts.ts                    # Claude 提示词模板
-└── index.ts                      # 入口，判断交易日/非交易日
+│   │   ├── akshare_fetcher.py      # A股行情数据采集
+│   │   └── yfinance_fetcher.py     # 国际市场数据采集
+│   ├── cls_news_collector.py       # 财联社新闻采集（5频道：热门/A股/头条/环球/科创 + 快讯）
+│   ├── main.py                     # 采集入口
+│   └── requirements.txt            # Python 依赖
+├── generate.ts                     # 读取原始数据，调 Claude Opus 4.6 生成报告
+├── notify.ts                       # WxPusher 推送
+├── prompts.ts                      # Claude 提示词模板
+└── index.ts                        # 入口，判断交易日/非交易日
 
 apps/web/components/zaobao/
 ├── ZaobaoView.tsx                # 早报列表页
