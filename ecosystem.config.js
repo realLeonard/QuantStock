@@ -9,7 +9,7 @@ module.exports = {
     {
       // ===== Next.js 管理后台 =====
       name: 'quantstock-web',
-      cwd: './apps/web',
+      cwd: '/www/wwwroot/quantstock/apps/web',
       script: 'node_modules/.bin/next',
       args: 'start',
       env: {
@@ -23,7 +23,7 @@ module.exports = {
     {
       // ===== Hono RESTful API =====
       name: 'quantstock-api',
-      cwd: './backend/api',
+      cwd: '/www/wwwroot/quantstock/backend/api',
       script: 'dist/server.js',
       env: {
         NODE_ENV: 'production',

@@ -48,7 +48,7 @@ jobs:
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'ENDSSH'
           set -e
-          cd ~/quantstock
+          cd /www/wwwroot/quantstock
 
           echo ">>> 拉取最新代码"
           git pull origin main
@@ -61,14 +61,14 @@ jobs:
             echo ">>> 构建并重启 API"
             ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
               ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-              "cd ~/quantstock/backend/api && npm run build && pm2 restart quantstock-api"
+              "cd /www/wwwroot/quantstock/backend/api && npm run build && pm2 restart quantstock-api"
           fi
 
           if [ "$WEB_CHANGED" = "true" ]; then
             echo ">>> 构建并重启 Web"
             ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
               ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-              "cd ~/quantstock/apps/web && npm run build && pm2 restart quantstock-web"
+              "cd /www/wwwroot/quantstock/apps/web && npm run build && pm2 restart quantstock-web"
           fi
 
           echo ">>> 部署完成"
