@@ -17,8 +17,9 @@ export interface NewsItem {
 import { hashPassword } from '@/lib/crypto';
 import { uid } from '@/lib/utils';
 
-// Hono API 地址（部署后通过环境变量注入）
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001';
+// Hono API 走 Next.js rewrites 同源代理（避免 Vercel HTTPS → 阿里云 HTTP 的 Mixed Content 拦截）
+// 实际转发目标在 apps/web/next.config.ts 里用 NEXT_PUBLIC_API_BASE_URL 配置
+const API_BASE = '/backend-api';
 
 type NavItem = 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao' | 'breadth' | 'news'
              | 'app-users' | 'app-feedback' | 'app-events' | 'app-version';
@@ -150,7 +151,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   login: async (username, password) => {
     set({ isLoading: true });
     try {
-      const res = await fetch(`${API_BASE}/api/auth/login`, {
+      const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
