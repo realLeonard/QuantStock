@@ -51,6 +51,7 @@ jobs:
           cd /www/wwwroot/quantstock
 
           echo ">>> 拉取最新代码"
+          git checkout -- package-lock.json 2>/dev/null || true
           git pull origin main
 
           echo ">>> 安装依赖"
