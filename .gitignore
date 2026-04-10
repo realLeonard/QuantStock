@@ -10,6 +10,10 @@
 .vscode/
 .idea/
 
+# Python
+__pycache__/
+*.pyc
+
 # 依赖
 node_modules/
 
