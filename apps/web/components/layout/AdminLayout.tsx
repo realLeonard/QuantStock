@@ -54,6 +54,9 @@ export default function AdminLayout({ children }: Props) {
     if (nav === 'app-version') {
       useAppStore.getState().loadAppVersions();
     }
+    if (nav === 'daily-review') {
+      useAppStore.getState().loadDailyReviews();
+    }
   }
 
   function handleLogout() {
@@ -147,6 +150,18 @@ export default function AdminLayout({ children }: Props) {
               </svg>
             </span>
             涨跌家数
+          </div>
+          <div
+            className={`nav-item${currentNav === 'daily-review' ? ' active' : ''}`}
+            onClick={() => handleNav('daily-review')}
+          >
+            <span className="nav-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
+            </span>
+            每日复盘
           </div>
         </nav>
 
@@ -373,6 +388,7 @@ const NAV_LABEL: Record<string, string> = {
   'app-feedback': '用户反馈',
   'app-events': '用户行为',
   'app-version': '管理控制',
+  'daily-review': '每日复盘',
 };
 
 function Topbar() {

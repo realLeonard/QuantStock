@@ -1,0 +1,218 @@
+"""模块1: 大盘概览 + 模块2: 市场情绪指标"""
+
+import akshare as ak
+
+from utils import safe_float, safe_int, date_to_yyyymmdd, get_recent_trade_dates
+
+
+def collect_market_overview(date_str: str) -> dict:
+    """
+    采集模块1: 大盘概览
+    返回: { indices, north_bound, margin, volume }
+    """
+    result = {
+        'indices': [],
+        'north_bound': {'today': None, 'recent_5d': None},
+        'margin': {'balance': None, 'change': None},
+        'volume': {'today': None, 'avg_5d': None, 'change_pct': None},
+    }
+
+    # ---- 1. A 股主要指数（按名称模糊匹配，兼容不同版本 akshare）----
+    target_names = ['上证指数', '深证成指', '创业板指', '科创50']
+    try:
+        df = ak.stock_zh_index_spot_em(symbol='沪深重要指数')
+        if df is not None and not df.empty:
+            for name in target_names:
+                # 先精确匹配名称
+                row = df[df['名称'] == name]
+                if row.empty:
+                    # 模糊匹配
+                    keyword = name.replace('指数', '').replace('指', '')
+                    row = df[df['名称'].str.contains(keyword, na=False)]
+                if not row.empty:
+                    r = row.iloc[0]
+                    amount_val = r.get('成交额')
+                    result['indices'].append({
+                        'name': name,
+                        'close': safe_float(r.get('最新价')),
+                        'change_pct': safe_float(r.get('涨跌幅')),
+                        'amount': round(safe_float(amount_val) / 1e8, 2) if amount_val else None,
+                    })
+    except Exception as e:
+        print(f'  [warn] 获取 A 股指数失败: {e}')
+
+    # ---- 2. 恒生指数 ----
+    try:
+        df = ak.stock_hk_index_spot_em()
+        if df is not None and not df.empty:
+            row = df[df['名称'].str.contains('恒生指数')]
+            if not row.empty:
+                r = row.iloc[0]
+                result['indices'].append({
+                    'name': '恒生指数',
+                    'close': safe_float(r.get('最新价')),
+                    'change_pct': safe_float(r.get('涨跌幅')),
+                    'amount': None,
+                })
+    except Exception as e:
+        print(f'  [warn] 获取恒生指数失败: {e}')
+
+    # ---- 3. 北向资金（使用 stock_hsgt_fund_flow_summary_em）----
+    try:
+        df = ak.stock_hsgt_fund_flow_summary_em()
+        if df is not None and not df.empty:
+            # 筛选北向（沪股通 + 深股通）
+            north_rows = df[df['资金方向'] == '北向']
+            if not north_rows.empty:
+                # 今日净买额：合计沪股通和深股通
+                today_flow = sum(safe_float(r.get('成交净买额', 0)) for _, r in north_rows.iterrows())
+                # 单位判断：如果 > 1e8 说明是元，转为亿
+                if abs(today_flow) > 1e6:
+                    result['north_bound']['today'] = round(today_flow / 1e8, 2)
+                else:
+                    result['north_bound']['today'] = round(today_flow, 2)
+
+        # 近5日累计：使用 stock_hsgt_hist_em 获取历史数据
+        try:
+            df_hist = ak.stock_hsgt_hist_em(symbol='沪股通')
+            if df_hist is not None and not df_hist.empty:
+                recent = df_hist.sort_values('日期', ascending=False).head(5)
+                total_5d = sum(safe_float(r.get('当日成交净买额', 0)) for _, r in recent.iterrows())
+                if abs(total_5d) > 1e6:
+                    result['north_bound']['recent_5d'] = round(total_5d / 1e8, 2)
+                else:
+                    result['north_bound']['recent_5d'] = round(total_5d, 2)
+        except Exception:
+            pass
+    except Exception as e:
+        print(f'  [warn] 获取北向资金失败: {e}')
+
+    # ---- 4. 融资余额 ----
+    try:
+        df = ak.stock_margin_account_info()
+        if df is not None and not df.empty:
+            df = df.sort_index(ascending=False).head(2)
+            rows = df.to_dict(orient='records')
+            if len(rows) >= 1:
+                # 融资余额字段名可能是 '融资余额' 或 'rzye'
+                balance_key = None
+                for key in ['融资余额(亿元)', '融资余额', 'rzye']:
+                    if key in rows[0]:
+                        balance_key = key
+                        break
+                if balance_key:
+                    today_balance = safe_float(rows[0].get(balance_key))
+                    result['margin']['balance'] = round(today_balance, 2)
+                    if len(rows) >= 2:
+                        prev_balance = safe_float(rows[1].get(balance_key))
+                        result['margin']['change'] = round(today_balance - prev_balance, 2)
+    except Exception as e:
+        print(f'  [warn] 获取融资余额失败: {e}')
+
+    # ---- 5. 量能趋势（两市合计成交额）----
+    try:
+        total_amount = 0
+        for idx_item in result['indices']:
+            if idx_item['name'] in ('上证指数', '深证成指') and idx_item.get('amount'):
+                total_amount += idx_item['amount']
+        if total_amount > 0:
+            result['volume']['today'] = round(total_amount, 2)
+
+        # 近5日均量：从指数历史数据获取
+        trade_dates = get_recent_trade_dates(6)  # 多取一天，排除今天可能的不完整数据
+        if len(trade_dates) >= 5:
+            amounts_5d = []
+            for td in trade_dates[1:6]:  # 跳过今天
+                try:
+                    start = td
+                    df_sh = ak.stock_zh_index_daily_em(symbol='sh000001', start_date=start, end_date=start)
+                    df_sz = ak.stock_zh_index_daily_em(symbol='sz399001', start_date=start, end_date=start)
+                    day_amount = 0
+                    if df_sh is not None and not df_sh.empty:
+                        day_amount += safe_float(df_sh.iloc[0].get('成交额', 0)) / 1e8
+                    if df_sz is not None and not df_sz.empty:
+                        day_amount += safe_float(df_sz.iloc[0].get('成交额', 0)) / 1e8
+                    if day_amount > 0:
+                        amounts_5d.append(day_amount)
+                except Exception:
+                    pass
+            if amounts_5d:
+                avg_5d = sum(amounts_5d) / len(amounts_5d)
+                result['volume']['avg_5d'] = round(avg_5d, 2)
+                if avg_5d > 0 and result['volume']['today']:
+                    change_pct = (result['volume']['today'] - avg_5d) / avg_5d * 100
+                    result['volume']['change_pct'] = round(change_pct, 2)
+    except Exception as e:
+        print(f'  [warn] 计算量能趋势失败: {e}')
+
+    return result
+
+
+def collect_market_sentiment(date_str: str) -> dict:
+    """
+    采集模块2: 市场情绪指标
+    返回: { up_count, down_count, limit_up, limit_down, broken_limit, broken_rate, strong_stocks, weak_stocks }
+    """
+    date_yyyymmdd = date_to_yyyymmdd(date_str)
+    result = {
+        'up_count': 0,
+        'down_count': 0,
+        'limit_up': 0,
+        'limit_down': 0,
+        'broken_limit': 0,
+        'broken_rate': 0,
+        'strong_stocks': 0,
+        'weak_stocks': 0,
+    }
+
+    # ---- 1. 涨跌家数 + 强弱股（从全市场行情计算）----
+    try:
+        df = ak.stock_zh_a_spot_em()
+        if df is not None and not df.empty:
+            changes = df['涨跌幅'].dropna()
+            result['up_count'] = int((changes > 0).sum())
+            result['down_count'] = int((changes < 0).sum())
+            result['strong_stocks'] = int((changes > 7).sum())
+            result['weak_stocks'] = int((changes < -7).sum())
+    except Exception as e:
+        print(f'  [warn] 获取全市场行情失败: {e}')
+
+    # ---- 2. 涨停数（非 ST）----
+    try:
+        df = ak.stock_zt_pool_em(date=date_yyyymmdd)
+        if df is not None and not df.empty:
+            # 排除 ST 股
+            if '名称' in df.columns:
+                non_st = df[~df['名称'].str.contains('ST', case=False, na=False)]
+                result['limit_up'] = len(non_st)
+            else:
+                result['limit_up'] = len(df)
+    except Exception as e:
+        print(f'  [warn] 获取涨停池失败: {e}')
+
+    # ---- 3. 跌停数（非 ST）----
+    try:
+        df = ak.stock_zt_pool_dtgc_em(date=date_yyyymmdd)
+        if df is not None and not df.empty:
+            if '名称' in df.columns:
+                non_st = df[~df['名称'].str.contains('ST', case=False, na=False)]
+                result['limit_down'] = len(non_st)
+            else:
+                result['limit_down'] = len(df)
+    except Exception as e:
+        print(f'  [warn] 获取跌停池失败: {e}')
+
+    # ---- 4. 炸板数 ----
+    try:
+        df = ak.stock_zt_pool_zbgc_em(date=date_yyyymmdd)
+        if df is not None and not df.empty:
+            result['broken_limit'] = len(df)
+    except Exception as e:
+        print(f'  [warn] 获取炸板池失败: {e}')
+
+    # ---- 5. 炸板率 ----
+    total_board = result['limit_up'] + result['broken_limit']
+    if total_board > 0:
+        result['broken_rate'] = round(result['broken_limit'] / total_board * 100, 2)
+
+    return result

@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import type { Theme, AdminUser, SessionUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl } from '@quantstock/types';
+import type { Theme, AdminUser, SessionUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview } from '@quantstock/types';
 import { apiClient, supabase } from '@/lib/supabase';
 
 export interface NewsItem {
@@ -22,7 +22,7 @@ import { uid } from '@/lib/utils';
 const API_BASE = '/backend-api';
 
 type NavItem = 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao' | 'breadth' | 'news'
-             | 'app-users' | 'app-feedback' | 'app-events' | 'app-version';
+             | 'app-users' | 'app-feedback' | 'app-events' | 'app-version' | 'daily-review';
 
 interface AppState {
   // 数据
@@ -31,6 +31,9 @@ interface AppState {
   reports: DailyReport[];
   breadthData: MarketBreadth[];
   breadthMonth: string; // 'recent30' 或 'YYYY-MM'
+  // 每日复盘
+  dailyReviews: DailyReview[];
+  currentDailyReviewId: string | null;
   // 当前聚焦的主题 ID（股票池视图使用）
   currentThemeId: string | null;
   // 当前早报 ID（详情页使用）
@@ -56,6 +59,7 @@ interface AppState {
   setCurrentNav: (nav: NavItem) => void;
   setCurrentThemeId: (id: string | null) => void;
   setCurrentReportId: (id: string | null) => void;
+  setCurrentDailyReviewId: (id: string | null) => void;
   toggleSystemMenu: () => void;
   toggleAppMenu: () => void;
 
@@ -71,6 +75,9 @@ interface AppState {
   createStock: (themeId: string, input: Omit<import('@quantstock/types').Stock, 'id' | 'theme_id'>) => Promise<void>;
   updateStock: (stockId: string, input: Omit<import('@quantstock/types').Stock, 'id' | 'theme_id'>) => Promise<void>;
   deleteStock: (stockId: string) => Promise<void>;
+
+  // 每日复盘 Actions
+  loadDailyReviews: () => Promise<void>;
 
   // 早报 Actions
   loadReports: () => Promise<void>;
@@ -116,6 +123,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   userFeedbacks: [],
   userEvents: [],
   appVersions: [],
+  dailyReviews: [],
+  currentDailyReviewId: null,
   currentThemeId: null,
   currentReportId: null,
   isLoading: false,
@@ -142,6 +151,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setCurrentThemeId: (id) => set({ currentThemeId: id }),
 
   setCurrentReportId: (id) => set({ currentReportId: id }),
+
+  setCurrentDailyReviewId: (id) => set({ currentDailyReviewId: id }),
 
   toggleSystemMenu: () => set((s) => ({ systemMenuOpen: !s.systemMenuOpen })),
 
@@ -274,6 +285,19 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().showToast('🗑️ 股票已删除');
     } catch (e) {
       get().showToast('❌ 删除失败：' + (e as Error).message);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ===== 加载每日复盘列表 =====
+  loadDailyReviews: async () => {
+    set({ isLoading: true });
+    try {
+      const dailyReviews = await apiClient.listDailyReviews(30);
+      set({ dailyReviews });
+    } catch (e) {
+      get().showToast('❌ 加载每日复盘失败：' + (e as Error).message);
     } finally {
       set({ isLoading: false });
     }

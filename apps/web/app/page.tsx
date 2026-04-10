@@ -15,6 +15,7 @@ import AppUsersView from '@/components/app-users/AppUsersView';
 import AppFeedbackView from '@/components/app-feedback/AppFeedbackView';
 import AppEventsView from '@/components/app-events/AppEventsView';
 import AppVersionView from '@/components/app-version/AppVersionView';
+import DailyReviewView from '@/components/daily-review/DailyReviewView';
 import type { SessionUser } from '@quantstock/types';
 
 export default function Home() {
@@ -54,6 +55,7 @@ export default function Home() {
       {currentNav === 'app-feedback' && <AppFeedbackView />}
       {currentNav === 'app-events' && <AppEventsView />}
       {currentNav === 'app-version' && <AppVersionView />}
+      {currentNav === 'daily-review' && <DailyReviewView />}
     </AdminLayout>
   );
 }

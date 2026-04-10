@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { Theme, Stock, StockInput, ThemeRow, StockRow, AdminUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl } from '@quantstock/types';
+import type { Theme, Stock, StockInput, ThemeRow, StockRow, AdminUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview } from '@quantstock/types';
 
 // ===== Supabase 客户端工厂 =====
 export function createSupabaseClient(url: string, anonKey: string): SupabaseClient {
@@ -284,6 +284,30 @@ export class QuantStockApiClient {
     return (data || []) as UserEvent[];
   }
 
+  // ===== 每日复盘 =====
+
+  // 获取复盘列表（按日期倒序）
+  async listDailyReviews(limit = 30): Promise<DailyReview[]> {
+    const { data, error } = await this.sb
+      .from('dailyReview')
+      .select('*')
+      .order('report_date', { ascending: false })
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    return (data || []) as DailyReview[];
+  }
+
+  // 获取单条复盘详情
+  async getDailyReview(id: string): Promise<DailyReview | null> {
+    const { data, error } = await this.sb
+      .from('dailyReview')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error) return null;
+    return data as DailyReview;
+  }
+
   // ===== App 版本管理 =====
 
   // 获取版本列表
@@ -312,4 +336,4 @@ export class QuantStockApiClient {
   }
 }
 
-export type { Theme, Stock, StockInput, AdminUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl };
+export type { Theme, Stock, StockInput, AdminUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview };

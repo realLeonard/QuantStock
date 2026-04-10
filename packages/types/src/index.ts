@@ -158,6 +158,24 @@ export interface AppConfig {
   updated_at: number;
 }
 
+// ===== 每日复盘 =====
+export interface DailyReview {
+  id: string;
+  report_date: string;                        // 'YYYY-MM-DD'
+  market_overview: Record<string, unknown> | null;
+  market_sentiment: Record<string, unknown> | null;
+  hot_stocks: Record<string, unknown>[] | null;
+  limit_up_ladder: Record<string, unknown>[] | null;
+  dragon_tiger: Record<string, unknown>[] | null;
+  industry_distribution: Record<string, unknown>[] | null;
+  limit_industry_distribution: Record<string, unknown>[] | null;
+  sector_fund_flow: Record<string, unknown> | null;
+  stock_fund_flow: Record<string, unknown> | null;
+  ai_summary: string | null;
+  status: string;                             // success / partial / failed
+  created_at: number;                         // UTC 毫秒
+}
+
 // ===== API 统一响应结构 =====
 export interface ApiResponse<T = void> {
   data?: T;
