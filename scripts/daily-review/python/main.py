@@ -24,6 +24,11 @@ from collectors.limit_stocks import collect_limit_up_ladder, collect_limit_indus
 from collectors.dragon_tiger import collect_dragon_tiger
 from collectors.fund_flow import collect_sector_fund_flow, collect_stock_fund_flow
 from collectors.industry import compute_industry_distribution
+from collectors.ths_hot import (
+    collect_ths_hot_stocks,
+    collect_ths_hot_concepts,
+    collect_ths_hot_industries,
+)
 
 
 def run(date_str: str, dry_run: bool = False) -> dict:
@@ -39,7 +44,7 @@ def run(date_str: str, dry_run: bool = False) -> dict:
     errors = []
 
     # ---- 模块1: 大盘概览 ----
-    print('[1/9] 采集大盘概览...')
+    print('[1/12] 采集大盘概览...')
     try:
         data['market_overview'] = collect_market_overview(date_str)
         print(f'  ✓ 指数 {len(data["market_overview"].get("indices", []))} 条')
@@ -49,7 +54,7 @@ def run(date_str: str, dry_run: bool = False) -> dict:
         print(f'  ✗ 失败: {e}')
 
     # ---- 模块2: 市场情绪 ----
-    print('[2/9] 采集市场情绪指标...')
+    print('[2/12] 采集市场情绪指标...')
     try:
         data['market_sentiment'] = collect_market_sentiment(date_str)
         print(f'  ✓ 涨停 {data["market_sentiment"].get("limit_up", 0)} / '
@@ -60,7 +65,7 @@ def run(date_str: str, dry_run: bool = False) -> dict:
         print(f'  ✗ 失败: {e}')
 
     # ---- 模块3: 热门股 TOP20 ----
-    print('[3/9] 采集热门股 TOP20...')
+    print('[3/12] 采集热门股 TOP20...')
     try:
         data['hot_stocks'] = collect_hot_stocks()
         print(f'  ✓ {len(data["hot_stocks"])} 条')
@@ -70,7 +75,7 @@ def run(date_str: str, dry_run: bool = False) -> dict:
         print(f'  ✗ 失败: {e}')
 
     # ---- 模块4: 连板天梯 ----
-    print('[4/9] 采集连板天梯...')
+    print('[4/12] 采集连板天梯...')
     try:
         data['limit_up_ladder'] = collect_limit_up_ladder(date_str)
         print(f'  ✓ {len(data["limit_up_ladder"])} 条')
@@ -80,7 +85,7 @@ def run(date_str: str, dry_run: bool = False) -> dict:
         print(f'  ✗ 失败: {e}')
 
     # ---- 模块5: 龙虎榜明细 ----
-    print('[5/9] 采集龙虎榜明细...')
+    print('[5/12] 采集龙虎榜明细...')
     try:
         data['dragon_tiger'] = collect_dragon_tiger(date_str)
         print(f'  ✓ {len(data["dragon_tiger"])} 条')
@@ -90,7 +95,7 @@ def run(date_str: str, dry_run: bool = False) -> dict:
         print(f'  ✗ 失败: {e}')
 
     # ---- 模块6: 行业分布统计（纯计算）----
-    print('[6/9] 计算行业分布统计...')
+    print('[6/12] 计算行业分布统计...')
     try:
         data['industry_distribution'] = compute_industry_distribution(
             data.get('hot_stocks', []),
@@ -104,7 +109,7 @@ def run(date_str: str, dry_run: bool = False) -> dict:
         print(f'  ✗ 失败: {e}')
 
     # ---- 模块7: 涨跌停行业分布 ----
-    print('[7/9] 采集涨跌停行业分布...')
+    print('[7/12] 采集涨跌停行业分布...')
     try:
         data['limit_industry_distribution'] = collect_limit_industry_distribution(date_str)
         print(f'  ✓ {len(data["limit_industry_distribution"])} 个行业')
@@ -114,7 +119,7 @@ def run(date_str: str, dry_run: bool = False) -> dict:
         print(f'  ✗ 失败: {e}')
 
     # ---- 模块8: 板块资金流向 ----
-    print('[8/9] 采集板块资金流向...')
+    print('[8/12] 采集板块资金流向...')
     try:
         data['sector_fund_flow'] = collect_sector_fund_flow(date_str)
         inflow_count = len(data['sector_fund_flow'].get('inflow', []))
@@ -126,7 +131,7 @@ def run(date_str: str, dry_run: bool = False) -> dict:
         print(f'  ✗ 失败: {e}')
 
     # ---- 模块9: 个股资金流向 ----
-    print('[9/9] 采集个股资金流向...')
+    print('[9/12] 采集个股资金流向...')
     try:
         data['stock_fund_flow'] = collect_stock_fund_flow(date_str)
         inflow_count = len(data['stock_fund_flow'].get('inflow', []))
@@ -135,6 +140,36 @@ def run(date_str: str, dry_run: bool = False) -> dict:
     except Exception as e:
         errors.append(f'模块9: {e}')
         data['stock_fund_flow'] = {'inflow': [], 'outflow': []}
+        print(f'  ✗ 失败: {e}')
+
+    # ---- 模块10: 同花顺热门个股 ----
+    print('[10/12] 采集同花顺热门个股...')
+    try:
+        data['ths_hot_stocks'] = collect_ths_hot_stocks()
+        print(f'  ✓ {len(data["ths_hot_stocks"])} 条')
+    except Exception as e:
+        errors.append(f'模块10: {e}')
+        data['ths_hot_stocks'] = []
+        print(f'  ✗ 失败: {e}')
+
+    # ---- 模块11: 同花顺热门概念 ----
+    print('[11/12] 采集同花顺热门概念...')
+    try:
+        data['ths_hot_concepts'] = collect_ths_hot_concepts()
+        print(f'  ✓ {len(data["ths_hot_concepts"])} 条')
+    except Exception as e:
+        errors.append(f'模块11: {e}')
+        data['ths_hot_concepts'] = []
+        print(f'  ✗ 失败: {e}')
+
+    # ---- 模块12: 同花顺热门行业 ----
+    print('[12/12] 采集同花顺热门行业...')
+    try:
+        data['ths_hot_industries'] = collect_ths_hot_industries()
+        print(f'  ✓ {len(data["ths_hot_industries"])} 条')
+    except Exception as e:
+        errors.append(f'模块12: {e}')
+        data['ths_hot_industries'] = []
         print(f'  ✗ 失败: {e}')
 
     # ---- AI 总结（由 TypeScript 脚本单独生成）----

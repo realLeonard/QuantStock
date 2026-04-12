@@ -171,6 +171,9 @@ export interface DailyReview {
   limit_industry_distribution: Record<string, unknown>[] | null;
   sector_fund_flow: Record<string, unknown> | null;
   stock_fund_flow: Record<string, unknown> | null;
+  ths_hot_stocks: Record<string, unknown>[] | null;
+  ths_hot_concepts: Record<string, unknown>[] | null;
+  ths_hot_industries: Record<string, unknown>[] | null;
   ai_summary: string | null;
   status: string;                             // success / partial / failed
   created_at: number;                         // UTC 毫秒

@@ -23,6 +23,9 @@ const TABS = [
   { key: 'limitIndustry', label: '涨跌停分布' },
   { key: 'sectorFlow', label: '板块资金' },
   { key: 'stockFlow', label: '个股资金' },
+  { key: 'thsHot', label: '同花顺热股' },
+  { key: 'thsConcept', label: '热门概念' },
+  { key: 'thsIndustry', label: '热门行业' },
   { key: 'summary', label: 'AI 总结' },
 ];
 
@@ -115,6 +118,9 @@ function DetailView({ review, onBack }: { review: DailyReview; onBack: () => voi
         {activeTab === 'limitIndustry' && <LimitIndustryPanel data={review.limit_industry_distribution} />}
         {activeTab === 'sectorFlow' && <FlowPanel data={review.sector_fund_flow} type="sector" />}
         {activeTab === 'stockFlow' && <FlowPanel data={review.stock_fund_flow} type="stock" />}
+        {activeTab === 'thsHot' && <ThsHotStocksPanel data={review.ths_hot_stocks} />}
+        {activeTab === 'thsConcept' && <ThsHotPlatePanel data={review.ths_hot_concepts} type="concept" />}
+        {activeTab === 'thsIndustry' && <ThsHotPlatePanel data={review.ths_hot_industries} type="industry" />}
         {activeTab === 'summary' && <SummaryPanel data={review.ai_summary} />}
       </div>
     </div>
@@ -434,7 +440,74 @@ function FlowPanel({ data, type }: { data: Record<string, unknown> | null; type:
   );
 }
 
-// 模块10: AI 总结
+// 模块10: 同花顺热门个股
+function ThsHotStocksPanel({ data }: { data: Record<string, unknown>[] | null }) {
+  if (!data?.length) return <p>暂无数据</p>;
+  return (
+    <table className={s.table}>
+      <thead>
+        <tr>
+          <th>#</th><th>代码</th><th>名称</th><th>热度</th><th>涨跌幅</th>
+          <th>热度变化</th><th>标签</th><th>概念</th><th>分析</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.map((item, i) => (
+          <tr key={i}>
+            <td>{item.order as number ?? i + 1}</td>
+            <td>{item.code as string}</td>
+            <td>{item.name as string}</td>
+            <td>{item.rate as number}</td>
+            <td className={changeCls(item.rise_and_fall as number)}>
+              {fmt(item.rise_and_fall as number)}%
+            </td>
+            <td>{item.hot_rank_chg as number ?? '-'}</td>
+            <td style={{ fontSize: 12 }}>{(item.popularity_tag as string) || '-'}</td>
+            <td style={{ fontSize: 12, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {(item.concepts as string[])?.join('、') ?? '-'}
+            </td>
+            <td style={{ fontSize: 12, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {(item.analyse_title as string) || '-'}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+// 模块11/12: 同花顺热门概念/行业（复用）
+function ThsHotPlatePanel({ data, type }: { data: Record<string, unknown>[] | null; type: 'concept' | 'industry' }) {
+  if (!data?.length) return <p>暂无数据</p>;
+  const label = type === 'concept' ? '概念' : '行业';
+  return (
+    <table className={s.table}>
+      <thead>
+        <tr>
+          <th>#</th><th>{label}名</th><th>热度</th><th>涨跌幅</th>
+          <th>标签</th><th>热度标签</th><th>关联ETF</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.map((item, i) => (
+          <tr key={i}>
+            <td>{item.order as number ?? i + 1}</td>
+            <td style={{ fontWeight: 600 }}>{item.name as string}</td>
+            <td>{item.rate as number}</td>
+            <td className={changeCls(item.rise_and_fall as number)}>
+              {fmt(item.rise_and_fall as number)}%
+            </td>
+            <td style={{ fontSize: 12 }}>{(item.tag as string) || '-'}</td>
+            <td style={{ fontSize: 12 }}>{(item.hot_tag as string) || '-'}</td>
+            <td style={{ fontSize: 12 }}>{(item.etf_name as string) || '-'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+// 模块13: AI 总结
 function SummaryPanel({ data }: { data: string | null }) {
   if (!data) return <p>AI 总结尚未生成</p>;
   return <div className={s.summaryBlock}>{data}</div>;
