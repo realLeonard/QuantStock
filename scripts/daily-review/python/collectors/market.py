@@ -17,32 +17,33 @@ def collect_market_overview(date_str: str) -> dict:
         'volume': {'today': None, 'avg_5d': None, 'change_pct': None},
     }
 
-    # ---- 1. A 股主要指数（按名称模糊匹配，兼容不同版本 akshare）----
-    target_names = ['上证指数', '深证成指', '创业板指', '科创50']
+    # ---- 1. A 股主要指数（数据源: 新浪）----
+    target_indices = {
+        'sh000001': '上证指数',
+        'sh000300': '沪深300',
+        'sz399001': '深证成指',
+        'sz399006': '创业板指',
+    }
     try:
-        df = ak.stock_zh_index_spot_em(symbol='沪深重要指数')
+        df = ak.stock_zh_index_spot_sina()
         if df is not None and not df.empty:
-            for name in target_names:
-                # 先精确匹配名称
-                row = df[df['名称'] == name]
-                if row.empty:
-                    # 模糊匹配
-                    keyword = name.replace('指数', '').replace('指', '')
-                    row = df[df['名称'].str.contains(keyword, na=False)]
+            for code, name in target_indices.items():
+                row = df[df['代码'] == code]
                 if not row.empty:
                     r = row.iloc[0]
-                    amount_val = r.get('成交额')
+                    amount_val = safe_float(r.get('成交额', 0))
                     result['indices'].append({
                         'name': name,
                         'close': safe_float(r.get('最新价')),
                         'change_pct': safe_float(r.get('涨跌幅')),
-                        'amount': round(safe_float(amount_val) / 1e8, 2) if amount_val else None,
+                        'amount': round(amount_val / 1e8, 2) if amount_val > 0 else None,
                     })
     except Exception as e:
         print(f'  [warn] 获取 A 股指数失败: {e}')
 
-    # ---- 2. 恒生指数 ----
+    # ---- 2. 恒生指数（新浪指数表中也有）----
     try:
+        # 新浪指数表里恒生代码为 hkHSI 或从港股指数获取
         df = ak.stock_hk_index_spot_em()
         if df is not None and not df.empty:
             row = df[df['名称'].str.contains('恒生指数')]
@@ -64,15 +65,13 @@ def collect_market_overview(date_str: str) -> dict:
             # 筛选北向（沪股通 + 深股通）
             north_rows = df[df['资金方向'] == '北向']
             if not north_rows.empty:
-                # 今日净买额：合计沪股通和深股通
                 today_flow = sum(safe_float(r.get('成交净买额', 0)) for _, r in north_rows.iterrows())
-                # 单位判断：如果 > 1e8 说明是元，转为亿
                 if abs(today_flow) > 1e6:
                     result['north_bound']['today'] = round(today_flow / 1e8, 2)
                 else:
                     result['north_bound']['today'] = round(today_flow, 2)
 
-        # 近5日累计：使用 stock_hsgt_hist_em 获取历史数据
+        # 近5日累计
         try:
             df_hist = ak.stock_hsgt_hist_em(symbol='沪股通')
             if df_hist is not None and not df_hist.empty:
@@ -94,7 +93,6 @@ def collect_market_overview(date_str: str) -> dict:
             df = df.sort_index(ascending=False).head(2)
             rows = df.to_dict(orient='records')
             if len(rows) >= 1:
-                # 融资余额字段名可能是 '融资余额' 或 'rzye'
                 balance_key = None
                 for key in ['融资余额(亿元)', '融资余额', 'rzye']:
                     if key in rows[0]:
@@ -109,7 +107,7 @@ def collect_market_overview(date_str: str) -> dict:
     except Exception as e:
         print(f'  [warn] 获取融资余额失败: {e}')
 
-    # ---- 5. 量能趋势（两市合计成交额）----
+    # ---- 5. 量能趋势（从新浪指数数据计算）----
     try:
         total_amount = 0
         for idx_item in result['indices']:
@@ -118,20 +116,26 @@ def collect_market_overview(date_str: str) -> dict:
         if total_amount > 0:
             result['volume']['today'] = round(total_amount, 2)
 
-        # 近5日均量：从指数历史数据获取
-        trade_dates = get_recent_trade_dates(6)  # 多取一天，排除今天可能的不完整数据
+        # 近5日均量：从新浪指数日线获取
+        trade_dates = get_recent_trade_dates(6)
         if len(trade_dates) >= 5:
             amounts_5d = []
-            for td in trade_dates[1:6]:  # 跳过今天
+            for td in trade_dates[1:6]:
                 try:
-                    start = td
-                    df_sh = ak.stock_zh_index_daily_em(symbol='sh000001', start_date=start, end_date=start)
-                    df_sz = ak.stock_zh_index_daily_em(symbol='sz399001', start_date=start, end_date=start)
+                    df_sh = ak.stock_zh_index_daily(symbol='sh000001')
+                    df_sz = ak.stock_zh_index_daily(symbol='sz399001')
                     day_amount = 0
                     if df_sh is not None and not df_sh.empty:
-                        day_amount += safe_float(df_sh.iloc[0].get('成交额', 0)) / 1e8
+                        # 按日期筛选
+                        td_dash = f'{td[:4]}-{td[4:6]}-{td[6:]}'
+                        sh_row = df_sh[df_sh['date'] == td_dash]
+                        if not sh_row.empty:
+                            day_amount += safe_float(sh_row.iloc[0].get('volume', 0)) / 1e8
                     if df_sz is not None and not df_sz.empty:
-                        day_amount += safe_float(df_sz.iloc[0].get('成交额', 0)) / 1e8
+                        td_dash = f'{td[:4]}-{td[4:6]}-{td[6:]}'
+                        sz_row = df_sz[df_sz['date'] == td_dash]
+                        if not sz_row.empty:
+                            day_amount += safe_float(sz_row.iloc[0].get('volume', 0)) / 1e8
                     if day_amount > 0:
                         amounts_5d.append(day_amount)
                 except Exception:
@@ -165,9 +169,9 @@ def collect_market_sentiment(date_str: str) -> dict:
         'weak_stocks': 0,
     }
 
-    # ---- 1. 涨跌家数 + 强弱股（从全市场行情计算）----
+    # ---- 1. 涨跌家数 + 强弱股（数据源: 同花顺）----
     try:
-        df = ak.stock_zh_a_spot_em()
+        df = ak.stock_zh_a_spot()
         if df is not None and not df.empty:
             changes = df['涨跌幅'].dropna()
             result['up_count'] = int((changes > 0).sum())
@@ -181,7 +185,6 @@ def collect_market_sentiment(date_str: str) -> dict:
     try:
         df = ak.stock_zt_pool_em(date=date_yyyymmdd)
         if df is not None and not df.empty:
-            # 排除 ST 股
             if '名称' in df.columns:
                 non_st = df[~df['名称'].str.contains('ST', case=False, na=False)]
                 result['limit_up'] = len(non_st)
