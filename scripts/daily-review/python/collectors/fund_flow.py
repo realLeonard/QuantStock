@@ -8,7 +8,9 @@ from utils import safe_float
 
 
 def _parse_amount(val) -> float:
-    """解析同花顺金额字符串，如 '12.79亿' → 12.79, '3456万' → 0.3456"""
+    """解析同花顺金额字符串，统一返回亿元单位。
+    '12.79亿' → 12.79, '3456万' → 0.3456, '6930.00'(元) → 0.0001
+    """
     if val is None:
         return 0.0
     s = str(val).strip()
@@ -16,7 +18,11 @@ def _parse_amount(val) -> float:
         return safe_float(s.replace('亿', ''))
     if '万' in s:
         return round(safe_float(s.replace('万', '')) / 10000, 4)
-    return safe_float(s)
+    # 纯数字视为元，转为亿
+    v = safe_float(s)
+    if v == 0:
+        return 0.0
+    return round(v / 1e8, 4)
 
 
 def collect_sector_fund_flow(date_str: str) -> dict:
@@ -36,8 +42,8 @@ def collect_sector_fund_flow(date_str: str) -> dict:
             print('  [warn] 板块资金流向数据为空')
             return result
 
-        # 解析净额并排序
-        df['_net'] = df['净额'].apply(_parse_amount)
+        # 板块资金净额已经是 float（亿元），直接排序
+        df['_net'] = df['净额'].apply(safe_float)
         df_sorted = df.sort_values('_net', ascending=False)
 
         top_inflow = df_sorted.head(10)
@@ -47,7 +53,7 @@ def collect_sector_fund_flow(date_str: str) -> dict:
             change_str = str(row.get('行业-涨跌幅', '0')).replace('%', '')
             return {
                 'sector': str(row.get('行业', '')),
-                'net_amount': round(_parse_amount(row.get('净额', 0)), 2),
+                'net_amount': round(safe_float(row.get('净额', 0)), 2),
                 'change_pct': safe_float(change_str),
                 'top_stocks': [str(row.get('领涨股', ''))],
                 'inflow_days_10': None,
@@ -90,8 +96,12 @@ def collect_stock_fund_flow(date_str: str) -> dict:
 
         def _build_stock_item(row):
             change_str = str(row.get('涨跌幅', '0')).replace('%', '')
+            code = str(row.get('股票代码', '')).strip()
+            # 补齐6位前导零
+            if code and len(code) < 6:
+                code = code.zfill(6)
             return {
-                'code': str(row.get('股票代码', '')).strip(),
+                'code': code,
                 'name': str(row.get('股票简称', '')).strip(),
                 'net_amount': round(_parse_amount(row.get('净额', 0)), 2),
                 'change_pct': safe_float(change_str),

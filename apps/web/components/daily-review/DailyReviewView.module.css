@@ -81,8 +81,10 @@
 }
 .tab:hover {
   background: var(--bg-hover, #f1f5f9);
+  color: var(--text-primary, #1e293b);
 }
-.tabActive {
+.tabActive,
+.tabActive:hover {
   background: var(--primary, #6366f1);
   color: #fff;
   border-color: var(--primary, #6366f1);
@@ -162,4 +164,80 @@
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+/* 连板天梯 — 合并单元格 */
+.ladderLevelCell {
+  font-size: 15px;
+  font-weight: 700;
+  color: #dc2626;
+  text-align: center;
+  vertical-align: middle;
+  background: var(--bg-hover, #f8fafc);
+  border-right: 2px solid var(--border, #e5e7eb);
+  border-left: 4px solid #dc2626;
+  white-space: nowrap;
+  padding: 8px 14px;
+}
+.ladderGroupFirst td {
+  border-top: 2px solid var(--border, #e5e7eb);
+}
+
+/* 全览报告 */
+.fullReport {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.fullSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.fullSectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary, #1e293b);
+  margin: 0 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--primary, #6366f1);
+}
+.fullSectionOrder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--primary, #6366f1);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* 展开/收起按钮 */
+.expandBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 0;
+  border: 1px dashed var(--border, #e5e7eb);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--primary, #6366f1);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.expandBtn:hover {
+  background: var(--bg-hover, #f1f5f9);
+  border-color: var(--primary, #6366f1);
 }

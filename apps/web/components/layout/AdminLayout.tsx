@@ -129,6 +129,18 @@ export default function AdminLayout({ children }: Props) {
             每日早报
           </div>
           <div
+            className={`nav-item${currentNav === 'daily-review' ? ' active' : ''}`}
+            onClick={() => handleNav('daily-review')}
+          >
+            <span className="nav-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
+            </span>
+            每日复盘
+          </div>
+          <div
             className={`nav-item${currentNav === 'news' ? ' active' : ''}`}
             onClick={() => handleNav('news')}
           >
@@ -150,18 +162,6 @@ export default function AdminLayout({ children }: Props) {
               </svg>
             </span>
             涨跌家数
-          </div>
-          <div
-            className={`nav-item${currentNav === 'daily-review' ? ' active' : ''}`}
-            onClick={() => handleNav('daily-review')}
-          >
-            <span className="nav-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <polyline points="12 6 12 12 16 14"/>
-              </svg>
-            </span>
-            每日复盘
           </div>
         </nav>
 

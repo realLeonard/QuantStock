@@ -45,29 +45,58 @@ def get_recent_trade_dates(n: int = 10) -> list[str]:
         return result
 
 
+# 模块级缓存：新浪行业板块 code→行业 全量映射（每次进程只构建一次）
+_INDUSTRY_CACHE: dict[str, str] | None = None
+
+
+def _build_industry_cache() -> dict[str, str]:
+    """遍历新浪行业板块，构建 股票代码(6位) → 行业名称 映射表"""
+    global _INDUSTRY_CACHE
+    if _INDUSTRY_CACHE is not None:
+        return _INDUSTRY_CACHE
+
+    mapping: dict[str, str] = {}
+    try:
+        sectors_df = ak.stock_sector_spot(indicator='新浪行业')
+        if sectors_df is None or sectors_df.empty:
+            print('  [warn] 获取新浪行业列表为空')
+            _INDUSTRY_CACHE = mapping
+            return mapping
+
+        for _, sector_row in sectors_df.iterrows():
+            label = str(sector_row.get('label', ''))
+            industry_name = str(sector_row.get('板块', ''))
+            if not label or not industry_name:
+                continue
+            try:
+                detail_df = ak.stock_sector_detail(sector=label)
+                if detail_df is not None and not detail_df.empty:
+                    for _, stock_row in detail_df.iterrows():
+                        code = str(stock_row.get('code', '')).strip()
+                        if code and len(code) == 6:
+                            mapping[code] = industry_name
+                time.sleep(0.1)
+            except Exception:
+                continue
+
+        print(f'  [info] 行业映射表已构建，覆盖 {len(mapping)} 只个股')
+    except Exception as e:
+        print(f'  [warn] 构建行业映射表失败: {e}')
+
+    _INDUSTRY_CACHE = mapping
+    return mapping
+
+
 def get_stock_industry_batch(codes: list[str]) -> dict[str, str]:
     """
-    批量获取个股所属行业
+    批量获取个股所属行业（数据源: 新浪行业板块）
     返回 {股票代码: 行业名称} 映射
     """
-    industry_map = {}
+    cache = _build_industry_cache()
+    result = {}
     for code in codes:
-        if code in industry_map:
-            continue
-        try:
-            df = ak.stock_individual_info_em(symbol=code)
-            for _, row in df.iterrows():
-                item = str(row.get('item', ''))
-                if item == '行业':
-                    industry_map[code] = str(row.get('value', '未知'))
-                    break
-            else:
-                industry_map[code] = '未知'
-        except Exception:
-            industry_map[code] = '未知'
-        # 避免请求过快
-        time.sleep(0.3)
-    return industry_map
+        result[code] = cache.get(code, '未知')
+    return result
 
 
 def safe_float(val, default=0.0) -> float:
