@@ -298,7 +298,7 @@ function renderPushMarkdown(data: DailyReviewData): string {
   lines.push(`> ${ai.headline}\n`);
   const filled = '█'.repeat(ai.sentiment_score);
   const empty = '░'.repeat(10 - ai.sentiment_score);
-  lines.push(`情绪: ${filled}${empty} **${ai.sentiment_stage}** ${ai.sentiment_score}/10\n`);
+  lines.push(`情绪: ${filled}${empty} *${ai.sentiment_stage}* ${ai.sentiment_score}/10\n`);
 
   // 核心指标一行流
   const metrics: string[] = [];
@@ -326,8 +326,7 @@ function renderPushMarkdown(data: DailyReviewData): string {
 
   // 主线分析
   if (ai.main_themes?.length) {
-    lines.push('---');
-    lines.push('## 🎯 主线分析\n');
+    lines.push('━━━ 🎯 主线分析 ━━━\n');
     for (const theme of ai.main_themes) {
       const leaders = theme.leader_stocks?.length
         ? `（${theme.leader_stocks.join('、')}）`
@@ -336,7 +335,7 @@ function renderPushMarkdown(data: DailyReviewData): string {
         '强': '🔴', '中': '🟡', '弱': '🔵',
       };
       const icon = strengthIcon[theme.strength] ?? '⚪';
-      lines.push(`${icon} **${theme.name}**【${theme.strength}】${leaders}`);
+      lines.push(`${icon} *${theme.name}*【${theme.strength}】${leaders}`);
       lines.push(`${theme.logic}`);
       if (theme.continuation) lines.push(`→ ${theme.continuation}`);
       lines.push('');
@@ -345,23 +344,21 @@ function renderPushMarkdown(data: DailyReviewData): string {
 
   // 异动信号
   if (ai.signals?.length) {
-    lines.push('---');
-    lines.push('## ⚡ 异动信号\n');
+    lines.push('━━━ ⚡ 异动信号 ━━━\n');
     for (const sig of ai.signals) {
       const icon: Record<string, string> = {
         '机构抢筹': '🏛', '游资接力': '🔥', '主力撤退': '📉',
         '新题材': '✨', '风险': '⚠',
       };
-      lines.push(`${icon[sig.type] ?? '📌'} **${sig.type}**: ${sig.content}`);
+      lines.push(`${icon[sig.type] ?? '📌'} *${sig.type}*: ${sig.content}`);
     }
     lines.push('');
   }
 
   // 明日展望
   if (ai.outlook) {
-    lines.push('---');
-    lines.push('## 🔮 明日展望\n');
-    lines.push(`方向: **${ai.outlook.direction}**\n`);
+    lines.push('━━━ 🔮 明日展望 ━━━\n');
+    lines.push(`方向: *${ai.outlook.direction}*\n`);
     if (ai.outlook.focus_areas?.length) {
       lines.push('关注:');
       for (const area of ai.outlook.focus_areas) {
