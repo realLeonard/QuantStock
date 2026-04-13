@@ -219,6 +219,294 @@
   flex-shrink: 0;
 }
 
+/* ===== AI 分层报告 ===== */
+
+/* 第一层：头部概览 */
+.aiHeader {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  padding: 24px;
+}
+.aiHeadline {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary, #1e293b);
+  margin: 0 0 16px;
+  line-height: 1.4;
+}
+.aiSentimentRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.sentimentLabel {
+  font-size: 13px;
+  color: var(--text-secondary, #64748b);
+  flex-shrink: 0;
+}
+.sentimentBarWrap {
+  flex: 1;
+  height: 10px;
+  background: var(--bg-hover, #f1f5f9);
+  border-radius: 5px;
+  overflow: hidden;
+  position: relative;
+}
+.sentimentBar {
+  height: 100%;
+  border-radius: 5px;
+  transition: width .3s ease;
+}
+.sentimentScore {
+  font-size: 18px;
+  font-weight: 700;
+  flex-shrink: 0;
+  min-width: 36px;
+  text-align: center;
+}
+.sentimentStage {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 4px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.stageCold { background: #dbeafe; color: #1d4ed8; }
+.stageRecover { background: #e0e7ff; color: #4338ca; }
+.stageWarm { background: #fef3c7; color: #92400e; }
+.stageHot { background: #fee2e2; color: #dc2626; }
+.stageCool { background: #d1fae5; color: #065f46; }
+
+.aiMetrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+.aiMetricCard {
+  background: var(--bg-hover, #f8fafc);
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+}
+.aiMetricLabel {
+  font-size: 11px;
+  color: var(--text-secondary, #64748b);
+  margin-bottom: 4px;
+}
+.aiMetricVal {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary, #1e293b);
+}
+
+/* 第二层：主线分析 */
+.aiSection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.aiSectionTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary, #1e293b);
+  margin: 0;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--primary, #6366f1);
+}
+.themeCard {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  padding: 18px;
+  border-left: 4px solid var(--primary, #6366f1);
+}
+.themeCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.themeName {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary, #1e293b);
+}
+.strengthTag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.strengthStrong { background: #fee2e2; color: #dc2626; border-left-color: #dc2626; }
+.strengthMedium { background: #fef3c7; color: #92400e; border-left-color: #f59e0b; }
+.strengthWeak { background: #dbeafe; color: #1d4ed8; border-left-color: #3b82f6; }
+.themeLogic {
+  font-size: 13px;
+  color: var(--text-primary, #1e293b);
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+.themeLeaders {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.leaderChip {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 4px;
+  background: #ede9fe;
+  color: #6d28d9;
+  font-weight: 500;
+}
+.themeRelated {
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+  margin-bottom: 6px;
+}
+.themeContinuation {
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+  padding: 8px 12px;
+  background: var(--bg-hover, #f8fafc);
+  border-radius: 6px;
+}
+
+/* 第三层：异动信号 */
+.signalList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.signalItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+}
+.signalIcon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+.signalInstitution { background: #dbeafe; color: #1d4ed8; }
+.signalHotMoney { background: #fef3c7; color: #92400e; }
+.signalRetreat { background: #fee2e2; color: #dc2626; }
+.signalNew { background: #d1fae5; color: #065f46; }
+.signalRisk { background: #fce7f3; color: #be185d; }
+.signalDefault { background: #f1f5f9; color: #64748b; }
+.signalType {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+  margin-bottom: 2px;
+}
+.signalContent {
+  font-size: 13px;
+  color: var(--text-primary, #1e293b);
+  line-height: 1.5;
+}
+
+/* 第四层：明日展望 */
+.outlookCard {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  padding: 20px;
+}
+.outlookDirection {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.directionTag {
+  font-size: 14px;
+  font-weight: 700;
+  padding: 4px 14px;
+  border-radius: 6px;
+}
+.dirBullish { background: #fee2e2; color: #dc2626; }
+.dirNeutral { background: #fef3c7; color: #92400e; }
+.dirBearish { background: #d1fae5; color: #065f46; }
+.outlookLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+  margin: 12px 0 6px;
+}
+.outlookList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.outlookList li {
+  font-size: 13px;
+  color: var(--text-primary, #1e293b);
+  padding: 6px 0 6px 16px;
+  position: relative;
+  line-height: 1.5;
+}
+.outlookList li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 12px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.focusList li::before { background: var(--primary, #6366f1); }
+.riskList li::before { background: #dc2626; }
+
+/* 第五层：原始数据折叠区 */
+.collapseSection {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.collapseHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: var(--bg-hover, #f8fafc);
+  cursor: pointer;
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+  transition: background .15s;
+}
+.collapseHeader:hover {
+  background: var(--border-light, #f1f5f9);
+}
+.collapseArrow {
+  transition: transform .2s;
+  color: var(--text-secondary, #64748b);
+}
+.collapseArrowOpen {
+  transform: rotate(180deg);
+}
+.collapseBody {
+  padding: 16px 18px;
+  border-top: 1px solid var(--border, #e5e7eb);
+  overflow-x: auto;
+}
+
 /* 展开/收起按钮 */
 .expandBtn {
   display: flex;

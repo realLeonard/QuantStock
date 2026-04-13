@@ -57,6 +57,7 @@ def save_daily_review(sb: Client, report_date: str, data: dict) -> None:
         'ths_hot_concepts': data.get('ths_hot_concepts'),
         'ths_hot_industries': data.get('ths_hot_industries'),
         'ai_summary': data.get('ai_summary'),
+        'ai_analysis': data.get('ai_analysis'),
         'status': data.get('status', 'success'),
         'created_at': now_utc_ms(),
     }

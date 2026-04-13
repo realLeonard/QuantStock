@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useAppStore } from '@/store';
 import PageHeader from '@/components/ui/PageHeader';
 import DetailBackBar from '@/components/ui/DetailBackBar';
-import type { DailyReview } from '@quantstock/types';
+import type { DailyReview, AiAnalysis } from '@quantstock/types';
 import s from './DailyReviewView.module.css';
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
@@ -132,7 +132,295 @@ function DetailView({ review, onBack }: { review: DailyReview; onBack: () => voi
 const FULL_COLLAPSE_LIMIT = 20;
 
 function FullReportPanel({ review }: { review: DailyReview }) {
-  // 需要折叠的模块各自维护展开状态
+  const ai = review.ai_analysis as AiAnalysis | null;
+
+  // 如果没有 ai_analysis，降级到旧版平铺展示
+  if (!ai) {
+    return <LegacyFullReportPanel review={review} />;
+  }
+
+  return (
+    <div className={s.fullReport}>
+      {/* 第一层：头部概览 */}
+      <AiHeaderSection ai={ai} review={review} />
+
+      {/* 第二层：主线分析 */}
+      {ai.main_themes?.length > 0 && (
+        <div className={s.aiSection}>
+          <h2 className={s.aiSectionTitle}>主线分析</h2>
+          {ai.main_themes.map((theme, i) => (
+            <ThemeCard key={i} theme={theme} />
+          ))}
+        </div>
+      )}
+
+      {/* 第三层：异动信号 */}
+      {ai.signals?.length > 0 && (
+        <div className={s.aiSection}>
+          <h2 className={s.aiSectionTitle}>异动信号</h2>
+          <div className={s.signalList}>
+            {ai.signals.map((sig, i) => (
+              <SignalItem key={i} signal={sig} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 第四层：明日展望 */}
+      {ai.outlook && <OutlookSection outlook={ai.outlook} />}
+
+      {/* 第五层：原始数据折叠区 */}
+      <div className={s.aiSection}>
+        <h2 className={s.aiSectionTitle}>原始数据</h2>
+        <CollapsePanel title="大盘总览">
+          <OverviewPanel
+            data={review.market_overview}
+            sentiment={review.market_sentiment}
+          />
+        </CollapsePanel>
+        <CollapsePanel title="热门股">
+          <ThsHotStocksPanel data={review.ths_hot_stocks} />
+        </CollapsePanel>
+        <CollapsePanel title="连板天梯">
+          <LadderPanel data={review.limit_up_ladder} />
+        </CollapsePanel>
+        <CollapsePanel title="龙虎榜">
+          <DragonPanel data={review.dragon_tiger} />
+        </CollapsePanel>
+        <CollapsePanel title="行业分布">
+          <IndustryPanel data={review.industry_distribution} />
+        </CollapsePanel>
+        <CollapsePanel title="涨跌停分布">
+          <LimitIndustryPanel data={review.limit_industry_distribution} />
+        </CollapsePanel>
+        <CollapsePanel title="板块资金">
+          <FlowPanel data={review.sector_fund_flow} type="sector" />
+        </CollapsePanel>
+        <CollapsePanel title="个股资金">
+          <FlowPanel data={review.stock_fund_flow} type="stock" />
+        </CollapsePanel>
+        <CollapsePanel title="热门概念">
+          <ThsHotPlatePanel data={review.ths_hot_concepts} type="concept" />
+        </CollapsePanel>
+        <CollapsePanel title="热门行业">
+          <ThsHotPlatePanel data={review.ths_hot_industries} type="industry" />
+        </CollapsePanel>
+        <CollapsePanel title="AI 完整文本">
+          <SummaryPanel data={review.ai_summary} />
+        </CollapsePanel>
+      </div>
+    </div>
+  );
+}
+
+// AI 头部概览区
+function AiHeaderSection({ ai, review }: { ai: AiAnalysis; review: DailyReview }) {
+  const sentiment = review.market_sentiment as Record<string, number> | null;
+  const overview = review.market_overview as Record<string, unknown> | null;
+  const volume = overview?.volume as Record<string, number> | null;
+  const nb = overview?.north_bound as Record<string, number> | null;
+
+  // 情绪温度计颜色
+  const scoreColor = ai.sentiment_score <= 3 ? '#16a34a'
+    : ai.sentiment_score <= 5 ? '#f59e0b'
+    : ai.sentiment_score <= 7 ? '#ea580c'
+    : '#dc2626';
+
+  const stageClsMap: Record<string, string> = {
+    '冰点': s.stageCold,
+    '修复': s.stageRecover,
+    '升温': s.stageWarm,
+    '高潮': s.stageHot,
+    '退潮': s.stageCool,
+  };
+
+  // 连板最高板数
+  const ladder = review.limit_up_ladder as Record<string, unknown>[] | null;
+  const maxBoard = ladder?.length
+    ? Math.max(...ladder.map(item => (item.continuous_limit as number) ?? 0))
+    : null;
+
+  return (
+    <div className={s.aiHeader}>
+      <h1 className={s.aiHeadline}>{ai.headline}</h1>
+
+      {/* 情绪温度计 */}
+      <div className={s.aiSentimentRow}>
+        <span className={s.sentimentLabel}>情绪温度</span>
+        <div className={s.sentimentBarWrap}>
+          <div
+            className={s.sentimentBar}
+            style={{
+              width: `${ai.sentiment_score * 10}%`,
+              background: scoreColor,
+            }}
+          />
+        </div>
+        <span className={s.sentimentScore} style={{ color: scoreColor }}>
+          {ai.sentiment_score}
+        </span>
+        <span className={`${s.sentimentStage} ${stageClsMap[ai.sentiment_stage] ?? s.stageWarm}`}>
+          {ai.sentiment_stage}
+        </span>
+      </div>
+
+      {/* 核心指标卡片 */}
+      <div className={s.aiMetrics}>
+        {sentiment?.up_count != null && sentiment?.down_count != null && (
+          <div className={s.aiMetricCard}>
+            <div className={s.aiMetricLabel}>涨/跌</div>
+            <div className={s.aiMetricVal}>
+              <span className={s.up}>{sentiment.up_count}</span>
+              {' / '}
+              <span className={s.down}>{sentiment.down_count}</span>
+            </div>
+          </div>
+        )}
+        {sentiment?.limit_up != null && (
+          <div className={s.aiMetricCard}>
+            <div className={s.aiMetricLabel}>涨停</div>
+            <div className={`${s.aiMetricVal} ${s.up}`}>{sentiment.limit_up}</div>
+          </div>
+        )}
+        {sentiment?.broken_rate != null && (
+          <div className={s.aiMetricCard}>
+            <div className={s.aiMetricLabel}>炸板率</div>
+            <div className={s.aiMetricVal}>{fmt(sentiment.broken_rate)}%</div>
+          </div>
+        )}
+        {volume?.today != null && (
+          <div className={s.aiMetricCard}>
+            <div className={s.aiMetricLabel}>成交额</div>
+            <div className={s.aiMetricVal}>{fmt(volume.today)}亿</div>
+          </div>
+        )}
+        {nb?.today != null && (
+          <div className={s.aiMetricCard}>
+            <div className={s.aiMetricLabel}>北向资金</div>
+            <div className={`${s.aiMetricVal} ${changeCls(nb.today)}`}>
+              {nb.today > 0 ? '+' : ''}{fmt(nb.today)}亿
+            </div>
+          </div>
+        )}
+        {maxBoard != null && (
+          <div className={s.aiMetricCard}>
+            <div className={s.aiMetricLabel}>最高连板</div>
+            <div className={`${s.aiMetricVal} ${s.up}`}>{maxBoard}板</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// 主线卡片
+function ThemeCard({ theme }: { theme: AiAnalysis['main_themes'][0] }) {
+  const strengthCls = theme.strength === '强' ? s.strengthStrong
+    : theme.strength === '中' ? s.strengthMedium
+    : s.strengthWeak;
+
+  return (
+    <div className={`${s.themeCard} ${strengthCls}`}>
+      <div className={s.themeCardHeader}>
+        <span className={s.themeName}>{theme.name}</span>
+        <span className={`${s.strengthTag} ${strengthCls}`}>{theme.strength}</span>
+      </div>
+      <div className={s.themeLogic}>{theme.logic}</div>
+      {theme.leader_stocks?.length > 0 && (
+        <div className={s.themeLeaders}>
+          {theme.leader_stocks.map((stock, i) => (
+            <span key={i} className={s.leaderChip}>{stock}</span>
+          ))}
+        </div>
+      )}
+      {theme.related_data && (
+        <div className={s.themeRelated}>{theme.related_data}</div>
+      )}
+      {theme.continuation && (
+        <div className={s.themeContinuation}>{theme.continuation}</div>
+      )}
+    </div>
+  );
+}
+
+// 异动信号项
+function SignalItem({ signal }: { signal: AiAnalysis['signals'][0] }) {
+  const iconMap: Record<string, { cls: string; icon: string }> = {
+    '机构抢筹': { cls: s.signalInstitution, icon: '🏛' },
+    '游资接力': { cls: s.signalHotMoney, icon: '🔥' },
+    '主力撤退': { cls: s.signalRetreat, icon: '📉' },
+    '新题材': { cls: s.signalNew, icon: '✨' },
+    '风险': { cls: s.signalRisk, icon: '⚠' },
+  };
+  const { cls, icon } = iconMap[signal.type] ?? { cls: s.signalDefault, icon: '📌' };
+
+  return (
+    <div className={s.signalItem}>
+      <div className={`${s.signalIcon} ${cls}`}>{icon}</div>
+      <div>
+        <div className={s.signalType}>{signal.type}</div>
+        <div className={s.signalContent}>{signal.content}</div>
+      </div>
+    </div>
+  );
+}
+
+// 明日展望区
+function OutlookSection({ outlook }: { outlook: AiAnalysis['outlook'] }) {
+  const dirCls = outlook.direction === '偏多' ? s.dirBullish
+    : outlook.direction === '偏空' ? s.dirBearish
+    : s.dirNeutral;
+
+  return (
+    <div className={s.aiSection}>
+      <h2 className={s.aiSectionTitle}>明日展望</h2>
+      <div className={s.outlookCard}>
+        <div className={s.outlookDirection}>
+          <span className={`${s.directionTag} ${dirCls}`}>{outlook.direction}</span>
+        </div>
+        {outlook.focus_areas?.length > 0 && (
+          <>
+            <div className={s.outlookLabel}>关注方向</div>
+            <ul className={`${s.outlookList} ${s.focusList}`}>
+              {outlook.focus_areas.map((area, i) => <li key={i}>{area}</li>)}
+            </ul>
+          </>
+        )}
+        {outlook.risk_warnings?.length > 0 && (
+          <>
+            <div className={s.outlookLabel}>风险提示</div>
+            <ul className={`${s.outlookList} ${s.riskList}`}>
+              {outlook.risk_warnings.map((warn, i) => <li key={i}>{warn}</li>)}
+            </ul>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// 折叠面板组件
+function CollapsePanel({ title, children }: { title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={s.collapseSection}>
+      <button className={s.collapseHeader} onClick={() => setOpen(v => !v)}>
+        {title}
+        <svg
+          width="16" height="16" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          className={`${s.collapseArrow} ${open ? s.collapseArrowOpen : ''}`}
+        >
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+      {open && <div className={s.collapseBody}>{children}</div>}
+    </div>
+  );
+}
+
+// 旧版平铺展示（降级用）
+function LegacyFullReportPanel({ review }: { review: DailyReview }) {
   const [expandDragon, setExpandDragon] = useState(false);
   const [expandIndustry, setExpandIndustry] = useState(false);
   const [expandLimitUp, setExpandLimitUp] = useState(false);

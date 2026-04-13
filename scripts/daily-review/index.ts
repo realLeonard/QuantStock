@@ -60,8 +60,36 @@ interface DailyReviewData {
   limit_industry_distribution: Record<string, unknown>[] | null;
   sector_fund_flow: Record<string, unknown> | null;
   stock_fund_flow: Record<string, unknown> | null;
+  ths_hot_stocks: Record<string, unknown>[] | null;
+  ths_hot_concepts: Record<string, unknown>[] | null;
+  ths_hot_industries: Record<string, unknown>[] | null;
   ai_summary: string | null;
+  ai_analysis: Record<string, unknown> | null;
   status: string;
+}
+
+interface AiAnalysis {
+  headline: string;
+  sentiment_stage: string;
+  sentiment_score: number;
+  main_themes: Array<{
+    name: string;
+    strength: string;
+    logic: string;
+    leader_stocks: string[];
+    related_data: string;
+    continuation: string;
+  }>;
+  signals: Array<{
+    type: string;
+    content: string;
+  }>;
+  outlook: {
+    direction: string;
+    focus_areas: string[];
+    risk_warnings: string[];
+  };
+  full_text: string;
 }
 
 async function loadReviewData(date: string): Promise<DailyReviewData | null> {
@@ -79,22 +107,47 @@ async function loadReviewData(date: string): Promise<DailyReviewData | null> {
 
 const SYSTEM_PROMPT = `你是一位资深 A 股投资分析师，每天收盘后需要为投资者撰写复盘报告。
 
-要求：
-1. 基于提供的市场数据（大盘指数、情绪指标、热门股、连板天梯、龙虎榜、行业分布、资金流向等），生成一份结构化的完整复盘分析
-2. 分析要有深度，不是简单罗列数据，而是解读数据背后的含义
-3. 融资余额趋势要给出解读（增加=杠杆资金看多入场，减少=去杠杆避险）
-4. 最后要给出明日关注方向和风险提示
+你必须返回严格的 JSON 格式，不要包含任何 JSON 之外的内容（不要包含 markdown 代码块标记）。
 
-输出格式（使用以下标题结构）：
-【大盘】指数表现、量能变化、关键支撑/压力位分析
-【资金】北向资金动向、融资余额趋势解读、内外资是否共振
-【主线】当日最强主线板块、连板高度、板块持续性分析
-【情绪】涨跌停数据解读、炸板率含义、赚钱效应强弱
-【龙虎榜】主力资金重点介入/撤离的方向
-【资金流向】板块和个股资金流向趋势、10日持续性分析
-【关注】明日重点观察方向、风险提示`;
+JSON 结构如下：
+{
+  "headline": "一句话概括今日市场（20字以内）",
+  "sentiment_stage": "升温 | 高潮 | 退潮 | 冰点 | 修复（选一个最匹配的）",
+  "sentiment_score": 1到10的整数（1=极度恐慌，5=中性，10=极度贪婪），
+  "main_themes": [
+    {
+      "name": "主线名称（如 CPO/光模块）",
+      "strength": "强 | 中 | 弱",
+      "logic": "该主线的核心驱动逻辑（1-2句）",
+      "leader_stocks": ["龙头股名称1", "龙头股名称2"],
+      "related_data": "关联数据佐证（如连板数、龙虎榜净买入等）",
+      "continuation": "持续性判断和明日操作建议"
+    }
+  ],
+  "signals": [
+    {
+      "type": "机构抢筹 | 游资接力 | 主力撤退 | 新题材 | 风险",
+      "content": "具体信号描述"
+    }
+  ],
+  "outlook": {
+    "direction": "偏多 | 中性 | 偏空",
+    "focus_areas": ["明日关注方向1", "明日关注方向2"],
+    "risk_warnings": ["风险提示1", "风险提示2"]
+  },
+  "full_text": "完整的文字版复盘分析报告（包含【大盘】【资金】【主线】【情绪】【龙虎榜】【资金流向】【关注】各段落，每个段落之间用换行分隔）"
+}
 
-async function generateAiSummary(data: DailyReviewData): Promise<string> {
+分析要求：
+1. main_themes 提取 2-3 条当日最强主线，结合同花顺热门概念/行业数据综合判断
+2. signals 提取 3-5 条关键异动信号，从龙虎榜、资金流向、热门股中挖掘
+3. full_text 要有深度分析，不是简单罗列数据，融资余额趋势要解读（增加=杠杆资金看多入场，减少=去杠杆避险）
+4. sentiment_score 要综合涨跌家数、涨停数、炸板率、成交量等多维度判断
+5. 所有字段必须填写，不能为空`;
+
+async function generateAiAnalysis(
+  data: DailyReviewData
+): Promise<{ analysis: AiAnalysis; fullText: string }> {
   const token = process.env.ANTHROPIC_AUTH_TOKEN ?? process.env.ANTHROPIC_API_KEY ?? '';
   const baseURL = process.env.ANTHROPIC_BASE_URL ?? undefined;
   if (!token) throw new Error('缺少 ANTHROPIC_AUTH_TOKEN 环境变量');
@@ -104,7 +157,7 @@ async function generateAiSummary(data: DailyReviewData): Promise<string> {
     baseURL,
   });
 
-  // 组装数据摘要给 Claude
+  // 组装数据摘要给 Claude（新增同花顺热门概念/行业）
   const userContent = JSON.stringify({
     date: data.report_date,
     market_overview: data.market_overview,
@@ -116,21 +169,37 @@ async function generateAiSummary(data: DailyReviewData): Promise<string> {
     limit_industry_distribution: data.limit_industry_distribution?.slice(0, 15),
     sector_fund_flow: data.sector_fund_flow,
     stock_fund_flow: data.stock_fund_flow,
+    ths_hot_concepts: data.ths_hot_concepts?.slice(0, 15),
+    ths_hot_industries: data.ths_hot_industries?.slice(0, 15),
   }, null, 2);
 
-  console.log('  [ai] 调用 Claude Opus 生成复盘总结...');
+  console.log('  [ai] 调用 Claude Opus 生成结构化复盘分析...');
 
   const res = await client.messages.create({
     model: 'claude-opus-4-20250514',
-    max_tokens: 4096,
+    max_tokens: 8192,
     system: SYSTEM_PROMPT,
     messages: [
-      { role: 'user', content: `以下是 ${data.report_date} 的 A 股收盘数据，请撰写完整的每日复盘分析：\n\n${userContent}` },
+      {
+        role: 'user',
+        content: `以下是 ${data.report_date} 的 A 股收盘数据，请返回结构化 JSON 分析：\n\n${userContent}`,
+      },
     ],
   });
 
   const textBlock = res.content.find(b => b.type === 'text');
-  return textBlock?.text ?? '';
+  const rawText = textBlock?.text ?? '';
+
+  // 解析 JSON（兼容 Claude 可能包裹 ```json ... ``` 的情况）
+  let jsonStr = rawText.trim();
+  const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (codeBlockMatch) {
+    jsonStr = codeBlockMatch[1].trim();
+  }
+
+  const analysis = JSON.parse(jsonStr) as AiAnalysis;
+
+  return { analysis, fullText: analysis.full_text };
 }
 
 // ===== WxPusher 推送 =====
@@ -259,29 +328,37 @@ async function main() {
   }
   console.log(`  ✓ 状态: ${data.status}`);
 
-  // 2. 生成 AI 总结
-  if (!data.ai_summary) {
-    console.log('[2/3] 生成 AI 复盘总结...');
+  // 2. 生成 AI 结构化分析
+  if (!data.ai_analysis) {
+    console.log('[2/3] 生成 AI 结构化复盘分析...');
     try {
-      const summary = await generateAiSummary(data);
-      data.ai_summary = summary;
+      const { analysis, fullText } = await generateAiAnalysis(data);
+      data.ai_analysis = analysis as unknown as Record<string, unknown>;
+      data.ai_summary = fullText;
 
-      // 回写到数据库
+      // 回写到数据库（同时写入 ai_analysis 和 ai_summary）
       const sb = getSupabase();
       const { error } = await sb
         .from('dailyReview')
-        .update({ ai_summary: summary })
+        .update({
+          ai_analysis: analysis,
+          ai_summary: fullText,
+        })
         .eq('id', data.id);
       if (error) {
-        console.error(`  [warn] 回写 ai_summary 失败: ${error.message}`);
+        console.error(`  [warn] 回写 ai_analysis 失败: ${error.message}`);
       } else {
-        console.log(`  ✓ AI 总结已生成并保存（${summary.length} 字）`);
+        console.log(`  ✓ AI 结构化分析已生成并保存`);
+        console.log(`    headline: ${analysis.headline}`);
+        console.log(`    情绪: ${analysis.sentiment_stage}（${analysis.sentiment_score}/10）`);
+        console.log(`    主线: ${analysis.main_themes.map(t => t.name).join('、')}`);
+        console.log(`    full_text: ${fullText.length} 字`);
       }
     } catch (e) {
-      console.error(`  ✗ AI 总结生成失败: ${(e as Error).message}`);
+      console.error(`  ✗ AI 分析生成失败: ${(e as Error).message}`);
     }
   } else {
-    console.log('[2/3] AI 总结已存在，跳过生成');
+    console.log('[2/3] AI 分析已存在，跳过生成');
   }
 
   // 3. WxPusher 推送

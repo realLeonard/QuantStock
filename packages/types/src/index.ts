@@ -158,6 +158,37 @@ export interface AppConfig {
   updated_at: number;
 }
 
+// ===== AI 结构化分析 =====
+export interface AiAnalysisMainTheme {
+  name: string;                // "CPO/光模块"
+  strength: '强' | '中' | '弱';
+  logic: string;               // 逻辑解读
+  leader_stocks: string[];     // 龙头股
+  related_data: string;        // 关联数据
+  continuation: string;        // 持续性判断
+}
+
+export interface AiAnalysisSignal {
+  type: string;                // "机构抢筹" | "游资接力" | "主力撤退" | "新题材" | "风险"
+  content: string;
+}
+
+export interface AiAnalysisOutlook {
+  direction: '偏多' | '中性' | '偏空';
+  focus_areas: string[];       // 关注方向
+  risk_warnings: string[];     // 风险提示
+}
+
+export interface AiAnalysis {
+  headline: string;            // 一句话结论
+  sentiment_stage: string;     // "升温" | "高潮" | "退潮" | "冰点" | "修复"
+  sentiment_score: number;     // 1-10 情绪温度
+  main_themes: AiAnalysisMainTheme[];
+  signals: AiAnalysisSignal[];
+  outlook: AiAnalysisOutlook;
+  full_text: string;           // 完整文字版（供推送）
+}
+
 // ===== 每日复盘 =====
 export interface DailyReview {
   id: string;
@@ -175,6 +206,7 @@ export interface DailyReview {
   ths_hot_concepts: Record<string, unknown>[] | null;
   ths_hot_industries: Record<string, unknown>[] | null;
   ai_summary: string | null;
+  ai_analysis: AiAnalysis | null;
   status: string;                             // success / partial / failed
   created_at: number;                         // UTC 毫秒
 }
