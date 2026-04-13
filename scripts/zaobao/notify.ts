@@ -57,10 +57,17 @@ export async function sendWxPush(date: string, content: string, summary: string)
   const pushContent = (body.replace(/\n---\n/g, '\n') + tail)
     .replace(/\*\*(.+?)\*\*/g, '_$1_');
 
+  // 从 summary 中提取市场基调一句话作为推送摘要
+  const cleanSummary = summary.replace(/\*\*/g, '');
+  const baseMatch = cleanSummary.match(/①\s*【市场基调】([^②\n]+)/);
+  const briefSummary = baseMatch
+    ? baseMatch[1].trim()
+    : cleanSummary.replace(/[📰\n━]/g, '').trim().slice(0, 60);
+
   const payload: WxPusherPayload = {
     appToken: token,
     content: pushContent,
-    summary: `📰 ${date} 投资早报 | ${summary.slice(0, 50)}`,
+    summary: `📰 ${date} 投资早报｜${briefSummary}`.slice(0, 100),
     contentType: 3, // Markdown
     uids,
   };

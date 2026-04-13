@@ -507,6 +507,14 @@
   overflow-x: auto;
 }
 
+/* 晋级个股标签 */
+.promotedChips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
 /* 展开/收起按钮 */
 .expandBtn {
   display: flex;

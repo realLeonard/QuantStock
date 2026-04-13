@@ -205,6 +205,7 @@ export interface DailyReview {
   ths_hot_stocks: Record<string, unknown>[] | null;
   ths_hot_concepts: Record<string, unknown>[] | null;
   ths_hot_industries: Record<string, unknown>[] | null;
+  limit_analysis: Record<string, unknown> | null;
   ai_summary: string | null;
   ai_analysis: AiAnalysis | null;
   status: string;                             // success / partial / failed

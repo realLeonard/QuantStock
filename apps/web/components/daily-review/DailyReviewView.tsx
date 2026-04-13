@@ -19,6 +19,7 @@ const TABS = [
   { key: 'thsHot', label: '热门股' },
   { key: 'ladder', label: '连板天梯' },
   { key: 'dragon', label: '龙虎榜' },
+  { key: 'limitAnalysis', label: '打板分析' },
   { key: 'industry', label: '行业分布' },
   { key: 'limitIndustry', label: '涨跌停分布' },
   { key: 'sectorFlow', label: '板块资金' },
@@ -115,6 +116,7 @@ function DetailView({ review, onBack }: { review: DailyReview; onBack: () => voi
           {activeTab === 'thsHot' && <ThsHotStocksPanel data={review.ths_hot_stocks} />}
           {activeTab === 'ladder' && <LadderPanel data={review.limit_up_ladder} />}
           {activeTab === 'dragon' && <DragonPanel data={review.dragon_tiger} />}
+          {activeTab === 'limitAnalysis' && <LimitAnalysisPanel data={review.limit_analysis} />}
           {activeTab === 'industry' && <IndustryPanel data={review.industry_distribution} />}
           {activeTab === 'limitIndustry' && <LimitIndustryPanel data={review.limit_industry_distribution} />}
           {activeTab === 'sectorFlow' && <FlowPanel data={review.sector_fund_flow} type="sector" />}
@@ -187,6 +189,9 @@ function FullReportPanel({ review }: { review: DailyReview }) {
         <CollapsePanel title="龙虎榜">
           <DragonPanel data={review.dragon_tiger} />
         </CollapsePanel>
+        <CollapsePanel title="打板分析">
+          <LimitAnalysisPanel data={review.limit_analysis} />
+        </CollapsePanel>
         <CollapsePanel title="行业分布">
           <IndustryPanel data={review.industry_distribution} />
         </CollapsePanel>
@@ -239,6 +244,12 @@ function AiHeaderSection({ ai, review }: { ai: AiAnalysis; review: DailyReview }
   const maxBoard = ladder?.length
     ? Math.max(...ladder.map(item => (item.continuous_limit as number) ?? 0))
     : null;
+
+  // 打板分析指标
+  const la = review.limit_analysis as Record<string, unknown> | null;
+  const premiumSummary = la?.premium_summary as Record<string, number> | null;
+  const promotion = la?.promotion as Record<string, unknown> | null;
+  const sealStats = la?.seal_stats as Record<string, number> | null;
 
   return (
     <div className={s.aiHeader}>
@@ -306,6 +317,28 @@ function AiHeaderSection({ ai, review }: { ai: AiAnalysis; review: DailyReview }
           <div className={s.aiMetricCard}>
             <div className={s.aiMetricLabel}>最高连板</div>
             <div className={`${s.aiMetricVal} ${s.up}`}>{maxBoard}板</div>
+          </div>
+        )}
+        {premiumSummary?.premium_rate != null && (
+          <div className={s.aiMetricCard}>
+            <div className={s.aiMetricLabel}>打板溢价率</div>
+            <div className={`${s.aiMetricVal} ${premiumSummary.premium_rate >= 50 ? s.up : s.down}`}>
+              {fmt(premiumSummary.premium_rate)}%
+            </div>
+          </div>
+        )}
+        {promotion?.rate != null && (
+          <div className={s.aiMetricCard}>
+            <div className={s.aiMetricLabel}>首板晋级率</div>
+            <div className={`${s.aiMetricVal} ${(promotion.rate as number) >= 20 ? s.up : s.down}`}>
+              {fmt(promotion.rate as number)}%
+            </div>
+          </div>
+        )}
+        {sealStats?.total_seal_fund != null && (
+          <div className={s.aiMetricCard}>
+            <div className={s.aiMetricLabel}>封单总额</div>
+            <div className={`${s.aiMetricVal} ${s.up}`}>{fmt(sealStats.total_seal_fund, 1)}亿</div>
           </div>
         )}
       </div>
@@ -1079,6 +1112,144 @@ function ThsHotPlatePanel({ data, type }: { data: Record<string, unknown>[] | nu
         ))}
       </tbody>
     </table>
+  );
+}
+
+// 打板分析（溢价率 + 晋级率 + 封单）
+function LimitAnalysisPanel({ data }: { data: Record<string, unknown> | null }) {
+  if (!data) return <p>暂无数据</p>;
+
+  const ps = data.premium_summary as Record<string, number> | null;
+  const premiumDetails = (data.premium_details ?? []) as Record<string, unknown>[];
+  const promotion = data.promotion as Record<string, unknown> | null;
+  const ss = data.seal_stats as Record<string, number> | null;
+  const sealDetails = (data.seal_details ?? []) as Record<string, unknown>[];
+
+  return (
+    <>
+      {/* 概览指标 */}
+      <div className={s.metricGrid}>
+        {ps && (
+          <>
+            <div className={s.metricCard}>
+              <div className={s.metricLabel}>昨日涨停数</div>
+              <div className={s.metricValue}>{ps.yesterday_limit_count ?? '-'}</div>
+            </div>
+            <div className={s.metricCard}>
+              <div className={s.metricLabel}>有溢价比例</div>
+              <div className={`${s.metricValue} ${(ps.premium_rate ?? 0) >= 50 ? s.up : s.down}`}>
+                {fmt(ps.premium_rate)}%
+              </div>
+            </div>
+            <div className={s.metricCard}>
+              <div className={s.metricLabel}>平均溢价率</div>
+              <div className={`${s.metricValue} ${changeCls(ps.avg_premium ?? 0)}`}>
+                {fmt(ps.avg_premium)}%
+              </div>
+            </div>
+          </>
+        )}
+        {promotion && (
+          <>
+            <div className={s.metricCard}>
+              <div className={s.metricLabel}>首板晋级率</div>
+              <div className={`${s.metricValue} ${(promotion.rate as number ?? 0) >= 20 ? s.up : s.down}`}>
+                {fmt(promotion.rate as number)}%
+              </div>
+            </div>
+            <div className={s.metricCard}>
+              <div className={s.metricLabel}>晋级数/昨日涨停</div>
+              <div className={s.metricValue}>
+                {promotion.promoted_count as number ?? 0}/{promotion.yesterday_count as number ?? 0}
+              </div>
+            </div>
+          </>
+        )}
+        {ss && (
+          <>
+            <div className={s.metricCard}>
+              <div className={s.metricLabel}>封单总额</div>
+              <div className={`${s.metricValue} ${s.up}`}>{fmt(ss.total_seal_fund, 1)}亿</div>
+            </div>
+            <div className={s.metricCard}>
+              <div className={s.metricLabel}>平均封单</div>
+              <div className={s.metricValue}>{fmt(ss.avg_seal_fund)}亿</div>
+            </div>
+            <div className={s.metricCard}>
+              <div className={s.metricLabel}>一字板数</div>
+              <div className={s.metricValue}>{ss.yizi_count ?? 0}</div>
+            </div>
+            <div className={s.metricCard}>
+              <div className={s.metricLabel}>早盘封板数</div>
+              <div className={s.metricValue}>{ss.early_seal_count ?? 0}</div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* 晋级个股 */}
+      {promotion && (promotion.promoted_stocks as string[])?.length > 0 && (
+        <>
+          <div className={s.subTitle}>晋级个股</div>
+          <div className={s.promotedChips}>
+            {(promotion.promoted_stocks as string[]).map((name, i) => (
+              <span key={i} className={s.leaderChip}>{name}</span>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* 溢价明细 */}
+      {premiumDetails.length > 0 && (
+        <>
+          <div className={s.subTitle}>昨日涨停今日表现</div>
+          <table className={s.table}>
+            <thead>
+              <tr><th>代码</th><th>名称</th><th>今日涨跌幅</th><th>连板数</th></tr>
+            </thead>
+            <tbody>
+              {premiumDetails.map((item, i) => (
+                <tr key={i}>
+                  <td>{item.code as string}</td>
+                  <td>{item.name as string}</td>
+                  <td className={changeCls(item.change_pct as number)}>
+                    {fmt(item.change_pct as number)}%
+                  </td>
+                  <td>{(item.continuous_limit as number) || '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {/* 封单明细 */}
+      {sealDetails.length > 0 && (
+        <>
+          <div className={s.subTitle}>封单明细</div>
+          <table className={s.table}>
+            <thead>
+              <tr>
+                <th>代码</th><th>名称</th><th>封板资金(亿)</th>
+                <th>首次封板</th><th>最后封板</th><th>炸板次数</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sealDetails.map((item, i) => (
+                <tr key={i}>
+                  <td>{item.code as string}</td>
+                  <td>{item.name as string}</td>
+                  <td className={s.up}>{fmt(item.seal_fund as number)}</td>
+                  <td>{(item.first_seal_time as string) || '-'}</td>
+                  <td>{(item.last_seal_time as string) || '-'}</td>
+                  <td>{(item.broken_count as number) ?? 0}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </>
   );
 }
 

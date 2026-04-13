@@ -13,30 +13,35 @@ const TYPE_LABEL: Record<string, string> = {
   weekly: '非交易日周报',
 };
 
-// 提取卡片摘要：去除 Markdown 符号，返回第一段有意义的纯文本
+// 提取卡片摘要：优先从市场基调提取一句话，否则降级到第一段有意义文本
 function cleanMarkdown(text: string): string {
-  const lines = text.split('\n');
+  const plain = text.replace(/\*\*/g, '');
+  // 优先匹配①【市场基调】后面的内容
+  const baseMatch = plain.match(/①\s*【市场基调】([^②\n]+)/);
+  if (baseMatch) return baseMatch[1].trim();
+
+  const lines = plain.split('\n');
   for (const line of lines) {
     const cleaned = line
-      .replace(/\*\*(.*?)\*\*/g, '$1')
       .replace(/\*(.*?)\*/g, '$1')
       .replace(/`(.*?)`/g, '$1')
       .replace(/#+\s*/g, '')
       .replace(/^[━─\-\s>]+/, '')
       .replace(/[━─]/g, '')
-      .replace(/^[①②③④⑤⑥⑦⑧⑨⑩【】]/g, '')
+      .replace(/^[①②③④⑤⑥⑦⑧⑨⑩]+\s*/g, '')
+      .replace(/【.*?】/g, '')
       .replace(/^📰\s*/, '')
       .trim();
-    // 跳过空行、分隔线、标题行、纯 emoji 行、报告日期行
     if (
       cleaned.length > 15 &&
       !/^[-|*#>]/.test(cleaned) &&
-      !/^投资早报\s+\d{4}/.test(cleaned)
+      !/^投资早报\s+\d{4}/.test(cleaned) &&
+      !/^今日核心/.test(cleaned)
     ) {
       return cleaned;
     }
   }
-  return text.slice(0, 80).replace(/\n/g, ' ');
+  return text.replace(/[*#━─📰\n]/g, ' ').trim().slice(0, 80);
 }
 
 export default function ZaobaoView() {

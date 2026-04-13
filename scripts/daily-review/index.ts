@@ -63,6 +63,7 @@ interface DailyReviewData {
   ths_hot_stocks: Record<string, unknown>[] | null;
   ths_hot_concepts: Record<string, unknown>[] | null;
   ths_hot_industries: Record<string, unknown>[] | null;
+  limit_analysis: Record<string, unknown> | null;
   ai_summary: string | null;
   ai_analysis: Record<string, unknown> | null;
   status: string;
@@ -143,7 +144,19 @@ JSON 结构如下：
 2. signals 提取 3-5 条关键异动信号，从龙虎榜、资金流向、热门股中挖掘
 3. full_text 要有深度分析，不是简单罗列数据，融资余额趋势要解读（增加=杠杆资金看多入场，减少=去杠杆避险）
 4. sentiment_score 要综合涨跌家数、涨停数、炸板率、成交量等多维度判断
-5. 所有字段必须填写，不能为空`;
+5. 所有字段必须填写，不能为空
+6. 打板分析数据（limit_analysis）的解读要点：
+   - 溢价率（premium_rate）：昨日涨停股今日有溢价的比例，>60% 表示情绪良好，<40% 表示亏钱效应显著
+   - 平均溢价（avg_premium）：>3% 说明打板盈利丰厚，<0 说明打板亏损
+   - 晋级率（promotion.rate）：昨日涨停→今日继续涨停的比例，>25% 说明连板接力氛围好，<15% 说明高度受限
+   - 封单总额（seal_stats.total_seal_fund）：反映做多资金决心，越大越好
+   - 一字板数（yizi_count）：反映市场一致性预期的强度
+   - 早盘封板数（early_seal_count）：早盘封板多说明资金抢筹意愿强
+7. 如果提供了 sentiment_history（近几日情绪分数），需要结合历史趋势判断情绪方向：
+   - 连续上升 → 情绪升温
+   - 高位回落 → 退潮信号
+   - 低位企稳 → 冰点修复
+   - 在 full_text 中要提及情绪趋势变化`;
 
 async function generateAiAnalysis(
   data: DailyReviewData
@@ -157,7 +170,35 @@ async function generateAiAnalysis(
     baseURL,
   });
 
-  // 组装数据摘要给 Claude（新增同花顺热门概念/行业）
+  // 查询最近 5 天情绪历史
+  let sentimentHistory: Array<{ date: string; score: number; stage: string }> = [];
+  try {
+    const sb = getSupabase();
+    const { data: recentRows } = await sb
+      .from('dailyReview')
+      .select('report_date, ai_analysis')
+      .lt('report_date', data.report_date)
+      .order('report_date', { ascending: false })
+      .limit(5);
+
+    if (recentRows?.length) {
+      sentimentHistory = recentRows
+        .filter((r: Record<string, unknown>) => r.ai_analysis)
+        .map((r: Record<string, unknown>) => {
+          const ai = r.ai_analysis as Record<string, unknown>;
+          return {
+            date: r.report_date as string,
+            score: ai.sentiment_score as number,
+            stage: ai.sentiment_stage as string,
+          };
+        })
+        .reverse(); // 按日期升序
+    }
+  } catch (e) {
+    console.warn(`  [warn] 查询情绪历史失败: ${(e as Error).message}`);
+  }
+
+  // 组装数据摘要给 Claude（含打板分析 + 情绪历史）
   const userContent = JSON.stringify({
     date: data.report_date,
     market_overview: data.market_overview,
@@ -171,6 +212,8 @@ async function generateAiAnalysis(
     stock_fund_flow: data.stock_fund_flow,
     ths_hot_concepts: data.ths_hot_concepts?.slice(0, 15),
     ths_hot_industries: data.ths_hot_industries?.slice(0, 15),
+    limit_analysis: data.limit_analysis,
+    sentiment_history: sentimentHistory.length ? sentimentHistory : undefined,
   }, null, 2);
 
   console.log('  [ai] 调用 Claude Opus 生成结构化复盘分析...');
@@ -213,8 +256,9 @@ async function sendWxPush(content: string, summary: string): Promise<void> {
   }
   const uids = uidsRaw.split(',').map(u => u.trim()).filter(Boolean);
 
-  // 粗体转斜体（黑色背景下粗体颜色不可见）
-  const pushContent = content.replace(/\*\*(.+?)\*\*/g, '_$1_');
+  // 标题全部降级为加粗（微信端 # ## 渲染字体过大）
+  const pushContent = content
+    .replace(/^#{1,3} (.+)$/gm, '**$1**');
 
   console.log(`  [notify] 推送到 ${uids.length} 位用户...`);
   const res = await axios.post('https://wxpusher.zjiecode.com/api/send/message', {
@@ -237,75 +281,101 @@ async function sendWxPush(content: string, summary: string): Promise<void> {
 
 function renderPushMarkdown(data: DailyReviewData): string {
   const lines: string[] = [];
-  lines.push(`# ${data.report_date} 每日复盘\n`);
+  const ai = data.ai_analysis as AiAnalysis | null;
 
-  // 大盘概览
-  const ov = data.market_overview as Record<string, unknown> | null;
-  if (ov) {
-    lines.push('## 大盘概览\n');
-    const indices = (ov.indices ?? []) as Record<string, unknown>[];
-    for (const idx of indices) {
-      const pct = Number(idx.change_pct ?? 0);
-      const arrow = pct > 0 ? '🔴' : pct < 0 ? '🟢' : '⚪';
-      lines.push(`${arrow} **${idx.name}** ${idx.close} (${pct > 0 ? '+' : ''}${pct.toFixed(2)}%)`);
+  // 没有 AI 分析时的降级展示
+  if (!ai) {
+    lines.push(`# ${data.report_date} 每日复盘\n`);
+    if (data.ai_summary) {
+      lines.push(data.ai_summary);
+    } else {
+      lines.push('AI 分析尚未生成');
     }
-    const nb = ov.north_bound as Record<string, number> | null;
-    if (nb?.today != null) lines.push(`\n北向资金: ${nb.today > 0 ? '+' : ''}${nb.today}亿 | 近5日: ${nb.recent_5d ?? '-'}亿`);
-    const margin = ov.margin as Record<string, number> | null;
-    if (margin?.balance != null) lines.push(`融资余额: ${margin.balance}亿 (${margin.change > 0 ? '+' : ''}${margin.change}亿)`);
-    lines.push('');
+    return lines.join('\n');
   }
 
-  // 市场情绪
+  // 情绪 + headline
+  lines.push(`> ${ai.headline}\n`);
+  const filled = '█'.repeat(ai.sentiment_score);
+  const empty = '░'.repeat(10 - ai.sentiment_score);
+  lines.push(`情绪: ${filled}${empty} **${ai.sentiment_stage}** ${ai.sentiment_score}/10\n`);
+
+  // 核心指标一行流
+  const metrics: string[] = [];
   const st = data.market_sentiment as Record<string, number> | null;
+  const ov = data.market_overview as Record<string, unknown> | null;
+  const volume = (ov?.volume ?? null) as Record<string, number> | null;
+  const nb = (ov?.north_bound ?? null) as Record<string, number> | null;
+  const la = data.limit_analysis as Record<string, unknown> | null;
+  const ps = (la?.premium_summary ?? null) as Record<string, number> | null;
+  const pm = (la?.promotion ?? null) as Record<string, unknown> | null;
+  const ss = (la?.seal_stats ?? null) as Record<string, number> | null;
+
   if (st) {
-    lines.push('## 市场情绪\n');
-    lines.push(`涨/跌: ${st.up_count}/${st.down_count} | 涨停 ${st.limit_up} 跌停 ${st.limit_down} | 炸板 ${st.broken_limit} (${st.broken_rate}%)`);
-    lines.push(`强势股(>7%): ${st.strong_stocks} | 弱势股(<-7%): ${st.weak_stocks}`);
+    metrics.push(`涨停 ${st.limit_up} | 跌停 ${st.limit_down} | 炸板率 ${st.broken_rate}%`);
+  }
+  if (volume?.today != null) metrics.push(`成交 ${volume.today}亿`);
+  if (nb?.today != null) metrics.push(`北向 ${nb.today > 0 ? '+' : ''}${nb.today}亿`);
+  if (ps?.premium_rate != null) metrics.push(`溢价率 ${ps.premium_rate}%`);
+  if (pm?.rate != null) metrics.push(`晋级率 ${pm.rate}%`);
+  if (ss?.total_seal_fund != null) metrics.push(`封单 ${ss.total_seal_fund}亿`);
+  if (metrics.length) {
+    lines.push(metrics.join(' | '));
     lines.push('');
   }
 
-  // 连板天梯
-  if (data.limit_up_ladder?.length) {
-    lines.push('## 连板天梯\n');
-    for (const item of data.limit_up_ladder as Record<string, unknown>[]) {
-      lines.push(`${item.continuous_limit}板 **${item.name}** (${item.code}) ${(item.industries as string[])?.join('/')}`);
-    }
-    lines.push('');
-  }
-
-  // 龙虎榜
-  if (data.dragon_tiger?.length) {
-    lines.push('## 龙虎榜\n');
-    for (const item of (data.dragon_tiger as Record<string, unknown>[]).slice(0, 10)) {
-      const net = Number(item.net_amount ?? 0);
-      lines.push(`**${item.name}** 净额${net > 0 ? '+' : ''}${net.toFixed(0)}万 | ${item.reason}`);
-    }
-    lines.push('');
-  }
-
-  // 板块资金流向
-  const sf = data.sector_fund_flow as Record<string, unknown> | null;
-  if (sf) {
-    const inflow = (sf.inflow ?? []) as Record<string, unknown>[];
-    const outflow = (sf.outflow ?? []) as Record<string, unknown>[];
-    if (inflow.length || outflow.length) {
-      lines.push('## 板块资金流向\n');
-      if (inflow.length) {
-        lines.push('**流入**: ' + inflow.slice(0, 5).map(i => `${i.sector}(${Number(i.net_amount).toFixed(1)}亿)`).join(' | '));
-      }
-      if (outflow.length) {
-        lines.push('**流出**: ' + outflow.slice(0, 5).map(i => `${i.sector}(${Number(i.net_amount).toFixed(1)}亿)`).join(' | '));
-      }
+  // 主线分析
+  if (ai.main_themes?.length) {
+    lines.push('---');
+    lines.push('## 🎯 主线分析\n');
+    for (const theme of ai.main_themes) {
+      const leaders = theme.leader_stocks?.length
+        ? `（${theme.leader_stocks.join('、')}）`
+        : '';
+      const strengthIcon: Record<string, string> = {
+        '强': '🔴', '中': '🟡', '弱': '🔵',
+      };
+      const icon = strengthIcon[theme.strength] ?? '⚪';
+      lines.push(`${icon} **${theme.name}**【${theme.strength}】${leaders}`);
+      lines.push(`${theme.logic}`);
+      if (theme.continuation) lines.push(`→ ${theme.continuation}`);
       lines.push('');
     }
   }
 
-  // AI 总结
-  if (data.ai_summary) {
-    lines.push('## AI 复盘总结\n');
-    lines.push(data.ai_summary);
+  // 异动信号
+  if (ai.signals?.length) {
+    lines.push('---');
+    lines.push('## ⚡ 异动信号\n');
+    for (const sig of ai.signals) {
+      const icon: Record<string, string> = {
+        '机构抢筹': '🏛', '游资接力': '🔥', '主力撤退': '📉',
+        '新题材': '✨', '风险': '⚠',
+      };
+      lines.push(`${icon[sig.type] ?? '📌'} **${sig.type}**: ${sig.content}`);
+    }
     lines.push('');
+  }
+
+  // 明日展望
+  if (ai.outlook) {
+    lines.push('---');
+    lines.push('## 🔮 明日展望\n');
+    lines.push(`方向: **${ai.outlook.direction}**\n`);
+    if (ai.outlook.focus_areas?.length) {
+      lines.push('关注:');
+      for (const area of ai.outlook.focus_areas) {
+        lines.push(`• ${area}`);
+      }
+      lines.push('');
+    }
+    if (ai.outlook.risk_warnings?.length) {
+      lines.push('风险:');
+      for (const warn of ai.outlook.risk_warnings) {
+        lines.push(`• ${warn}`);
+      }
+      lines.push('');
+    }
   }
 
   return lines.join('\n');
@@ -365,7 +435,17 @@ async function main() {
   console.log('[3/3] 推送到微信...');
   try {
     const markdown = renderPushMarkdown(data);
-    const pushSummary = `📊 ${date} 投资复盘 | 涨停${(data.market_sentiment as Record<string, number>)?.limit_up ?? '-'}家`;
+    const aiObj = data.ai_analysis as AiAnalysis | null;
+    let pushSummary = `📊 ${date} 投资复盘`;
+    if (aiObj) {
+      const stData = data.market_sentiment as Record<string, number> | null;
+      const parts = [aiObj.headline];
+      parts.push(`情绪${aiObj.sentiment_stage}(${aiObj.sentiment_score}/10)`);
+      if (stData) {
+        parts.push(`涨停${stData.limit_up}家 炸板率${stData.broken_rate}%`);
+      }
+      pushSummary = `📊 ${date} 投资复盘｜${parts.join('｜')}`;
+    }
     await sendWxPush(markdown, pushSummary);
     console.log('  ✓ 推送完成');
   } catch (e) {
