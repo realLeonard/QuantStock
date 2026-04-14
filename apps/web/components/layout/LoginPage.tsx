@@ -8,7 +8,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, loadThemes } = useAppStore();
+  const { login, loadThemes, loadReports, loadDailyReviews } = useAppStore();
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -19,6 +19,8 @@ export default function LoginPage() {
       const ok = await login(username.trim(), password);
       if (ok) {
         loadThemes();
+        loadReports();
+        loadDailyReviews();
       } else {
         setError('账号或密码错误，请重试');
         setPassword('');

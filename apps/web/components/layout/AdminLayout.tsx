@@ -17,11 +17,22 @@ const ROLE_LABEL: Record<string, string> = {
 
 export default function AdminLayout({ children }: Props) {
   const {
-    themes, currentNav, setCurrentNav, logout,
+    themes, reports, dailyReviews,
+    currentNav, setCurrentNav, logout,
     setCurrentThemeId, setCurrentReportId, currentUser,
     systemMenuOpen, toggleSystemMenu,
     appMenuOpen, toggleAppMenu,
   } = useAppStore();
+
+  // 把 'YYYY-MM-DD' 格式化为 'M/D'，无值返回空串
+  function fmtMMDD(dateStr: string | null | undefined): string {
+    if (!dateStr) return '';
+    const m = dateStr.match(/^\d{4}-(\d{2})-(\d{2})/);
+    if (!m) return '';
+    return `${Number(m[1])}/${Number(m[2])}`;
+  }
+  const latestReportDate = fmtMMDD(reports[0]?.report_date);
+  const latestReviewDate = fmtMMDD(dailyReviews[0]?.report_date);
 
   function handleNav(nav: Parameters<typeof setCurrentNav>[0]) {
     setCurrentThemeId(null);
@@ -56,6 +67,12 @@ export default function AdminLayout({ children }: Props) {
     }
     if (nav === 'daily-review') {
       useAppStore.getState().loadDailyReviews();
+    }
+    if (nav === 'gold') {
+      const s = useAppStore.getState();
+      s.loadRecentInsights();
+      s.loadDailyGoldPicks();
+      s.loadThemes();
     }
   }
 
@@ -114,6 +131,20 @@ export default function AdminLayout({ children }: Props) {
             <span className="nav-badge">{themes.length}</span>
           </div>
           <div
+            className={`nav-item${currentNav === 'gold' ? ' active' : ''}`}
+            onClick={() => handleNav('gold')}
+          >
+            <span className="nav-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 3h12l4 6-10 13L2 9Z"/>
+                <path d="M11 3 8 9l4 13 4-13-3-6"/>
+                <path d="M2 9h20"/>
+              </svg>
+            </span>
+            近期掘金
+            <span className="nav-badge">{themes.filter(t => t.title_color === 'red').length}</span>
+          </div>
+          <div
             className={`nav-item${currentNav === 'zaobao' ? ' active' : ''}`}
             onClick={() => handleNav('zaobao')}
           >
@@ -127,6 +158,7 @@ export default function AdminLayout({ children }: Props) {
               </svg>
             </span>
             每日早报
+            {latestReportDate && <span className="nav-badge">{latestReportDate}</span>}
           </div>
           <div
             className={`nav-item${currentNav === 'daily-review' ? ' active' : ''}`}
@@ -139,6 +171,7 @@ export default function AdminLayout({ children }: Props) {
               </svg>
             </span>
             每日复盘
+            {latestReviewDate && <span className="nav-badge">{latestReviewDate}</span>}
           </div>
           <div
             className={`nav-item${currentNav === 'news' ? ' active' : ''}`}
@@ -389,6 +422,7 @@ const NAV_LABEL: Record<string, string> = {
   'app-events': '用户行为',
   'app-version': '管理控制',
   'daily-review': '每日复盘',
+  gold: '近期掘金',
 };
 
 function Topbar() {

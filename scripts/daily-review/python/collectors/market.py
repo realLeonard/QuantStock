@@ -8,11 +8,11 @@ from utils import safe_float, safe_int, date_to_yyyymmdd, get_recent_trade_dates
 def collect_market_overview(date_str: str) -> dict:
     """
     采集模块1: 大盘概览
-    返回: { indices, north_bound, margin, volume }
+    返回: { indices, margin, volume }
+    北向资金：港交所 2024-08-19 起停止披露盘中实时净买数据，已下线
     """
     result = {
         'indices': [],
-        'north_bound': {'today': None, 'recent_5d': None},
         'margin': {'balance': None, 'change': None},
         'volume': {'today': None, 'avg_5d': None, 'change_pct': None},
     }
@@ -58,35 +58,7 @@ def collect_market_overview(date_str: str) -> dict:
     except Exception as e:
         print(f'  [warn] 获取恒生指数失败: {e}')
 
-    # ---- 3. 北向资金（使用 stock_hsgt_fund_flow_summary_em）----
-    try:
-        df = ak.stock_hsgt_fund_flow_summary_em()
-        if df is not None and not df.empty:
-            # 筛选北向（沪股通 + 深股通）
-            north_rows = df[df['资金方向'] == '北向']
-            if not north_rows.empty:
-                today_flow = sum(safe_float(r.get('成交净买额', 0)) for _, r in north_rows.iterrows())
-                if abs(today_flow) > 1e6:
-                    result['north_bound']['today'] = round(today_flow / 1e8, 2)
-                else:
-                    result['north_bound']['today'] = round(today_flow, 2)
-
-        # 近5日累计
-        try:
-            df_hist = ak.stock_hsgt_hist_em(symbol='沪股通')
-            if df_hist is not None and not df_hist.empty:
-                recent = df_hist.sort_values('日期', ascending=False).head(5)
-                total_5d = sum(safe_float(r.get('当日成交净买额', 0)) for _, r in recent.iterrows())
-                if abs(total_5d) > 1e6:
-                    result['north_bound']['recent_5d'] = round(total_5d / 1e8, 2)
-                else:
-                    result['north_bound']['recent_5d'] = round(total_5d, 2)
-        except Exception:
-            pass
-    except Exception as e:
-        print(f'  [warn] 获取北向资金失败: {e}')
-
-    # ---- 4. 融资余额 ----
+    # ---- 3. 融资余额 ----
     try:
         df = ak.stock_margin_account_info()
         if df is not None and not df.empty:
@@ -107,7 +79,7 @@ def collect_market_overview(date_str: str) -> dict:
     except Exception as e:
         print(f'  [warn] 获取融资余额失败: {e}')
 
-    # ---- 5. 量能趋势（从新浪指数数据计算）----
+    # ---- 4. 量能趋势（从新浪指数数据计算）----
     try:
         total_amount = 0
         for idx_item in result['indices']:

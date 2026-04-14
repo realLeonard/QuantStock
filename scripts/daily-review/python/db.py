@@ -59,6 +59,9 @@ def save_daily_review(sb: Client, report_date: str, data: dict) -> None:
         'ai_summary': data.get('ai_summary'),
         'limit_analysis': data.get('limit_analysis'),
         'ai_analysis': data.get('ai_analysis'),
+        'filtered_news': data.get('filtered_news') or [],
+        'hot_money_moves': data.get('hot_money_moves') or [],
+        'margin_data': data.get('margin_data'),
         'status': data.get('status', 'success'),
         'created_at': now_utc_ms(),
     }

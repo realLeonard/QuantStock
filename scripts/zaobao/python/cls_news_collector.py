@@ -17,9 +17,11 @@
 import os
 import sys
 import re
+import json
 import uuid
 import time
 import hashlib
+import subprocess
 import requests
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -550,6 +552,74 @@ def collect_market_breadth(sb: Client) -> None:
         print(f'  [marketBreadth] 采集失败: {e}')
 
 
+# ===== 韭研涨停原因采集 =====
+
+def collect_limit_up_reasons(sb: Client) -> None:
+    """
+    收盘后采集韭研公社「涨停简图」题材聚类数据，写入 limitUpReasons 表。
+    仅在北京时间 17:00-20:00 窗口内执行（A股 15:00 收盘后数据稳定）。
+    幂等：当日已有记录则跳过。
+
+    数据源：https://www.jiuyangongshe.com/action/{date}
+    通过 Node.js 脚本 scripts/daily-review/jiuyan-fetch.ts 解析 SSR NUXT 数据。
+    """
+    now_bj = datetime.now(ZoneInfo('Asia/Shanghai'))
+    if not (17 <= now_bj.hour < 20):
+        print(f'  [limitUpReasons] 当前 {now_bj.strftime("%H:%M")} BJ，不在 17:00-20:00 窗口，跳过')
+        return
+
+    pick_date = now_bj.strftime('%Y-%m-%d')
+
+    try:
+        # 幂等：已存在则跳过
+        existing = sb.table('limitUpReasons').select('id').eq('pick_date', pick_date).execute()
+        if existing.data:
+            print(f'  [limitUpReasons] {pick_date} 已存在，跳过')
+            return
+
+        # 调用 Node.js 提取脚本
+        script_path = project_root / 'scripts' / 'daily-review' / 'jiuyan-fetch.ts'
+        if not script_path.exists():
+            print(f'  [limitUpReasons] 提取脚本不存在: {script_path}')
+            return
+
+        proc = subprocess.run(
+            ['npx', '--yes', 'tsx', str(script_path), pick_date],
+            cwd=str(project_root / 'scripts' / 'daily-review'),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if proc.returncode != 0:
+            print(f'  [limitUpReasons] Node 脚本失败: {proc.stderr.strip()[:200]}')
+            return
+
+        data = json.loads(proc.stdout)
+        themes = data.get('themes', [])
+        if not themes:
+            print(f'  [limitUpReasons] {pick_date} 无题材数据（可能非交易日），跳过')
+            return
+
+        record = {
+            'id': str(uuid.uuid4()),
+            'pick_date': pick_date,
+            'themes': themes,
+            'raw_image_url': None,
+            'source': 'jiuyan',
+            'created_at': now_utc_ms(),
+        }
+        sb.table('limitUpReasons').insert(record).execute()
+        print(
+            f'  [limitUpReasons] 写入成功 {pick_date}：'
+            f'{data["theme_count"]} 个题材，{data["stock_count"]} 只股票'
+        )
+
+    except subprocess.TimeoutExpired:
+        print('  [limitUpReasons] Node 脚本超时（60s）')
+    except Exception as e:
+        print(f'  [limitUpReasons] 采集失败: {e}')
+
+
 # ===== 主流程 =====
 
 def run(mode: str = 'full'):
@@ -638,8 +708,13 @@ def run(mode: str = 'full'):
 
     # Step 6: 收盘后涨跌家数采集（仅 flash/full 模式，17:00-20:00 BJ 窗口）
     if mode in ('full', 'flash'):
-        print('\n[6/6] 采集涨跌家数（收盘窗口检查）...')
+        print('\n[6/7] 采集涨跌家数（收盘窗口检查）...')
         collect_market_breadth(sb)
+
+    # Step 7: 韭研涨停原因采集（仅 flash/full 模式，17:00-20:00 BJ 窗口）
+    if mode in ('full', 'flash'):
+        print('\n[7/7] 采集韭研涨停原因（收盘窗口检查）...')
+        collect_limit_up_reasons(sb)
 
     print(f'\n{"=" * 55}')
     print(f'采集完成！新增 {total_inserted} 条，跳过重复 {total_skipped} 条')

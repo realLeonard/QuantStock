@@ -187,6 +187,127 @@ export interface AiAnalysis {
   signals: AiAnalysisSignal[];
   outlook: AiAnalysisOutlook;
   full_text: string;           // 完整文字版（供推送）
+  // v2 兼容字段（v2 分析会带 version='v2'，此时可转为 AiAnalysisV2）
+  version?: 'v2';
+}
+
+// ===== AI v2 结构化分析（spec 6.2）=====
+export interface AiAnalysisV2Sentiment {
+  score: number;
+  stage: string;               // 升温/分歧/高潮/退潮/冰点/修复
+  width_conclusion: string;
+  ladder_conclusion: string;
+  profit_conclusion: string;
+  style_conclusion: string;
+  summary: string;
+}
+
+export interface AiAnalysisV2FundPicture {
+  dashboard_conclusion: string;
+  migration: string;
+  inst_summary: string;
+  hot_money_summary: string;
+  margin_summary?: string;          // 两融解读（融资余额 + 杠杆资金动向）
+}
+
+// 两融数据（dailyReview.margin_data）
+export interface MarginData {
+  trade_date: string;                // 'YYYY-MM-DD'（数据发布日，T-1）
+  sse_balance: number | null;        // 沪市融资余额（亿）
+  szse_balance: number | null;       // 深市融资余额（亿）
+  total_balance: number | null;      // 两市合计（亿）
+  daily_change: number | null;       // 日变化（亿）
+  change_5d: number[];               // 近5日变化（亿）
+  consecutive_days: number;          // 连续净增(+)或净减(-)天数
+  balance_percentile_1y: number | null;  // 1年历史分位（0-100）
+}
+
+export interface AiAnalysisV2ImportantNews {
+  segment: 'pre_market' | 'intraday' | 'post_market';
+  time: string;                // HH:MM
+  headline: string;
+  summary: string;
+  driven: string[];
+  level: string;               // A/B
+}
+
+export interface AiAnalysisV2NextDaySignals {
+  label: string;               // 延续概率高/分歧加剧/退潮概率高/信号不足
+  evidence: string[];
+  suggestion: string;
+}
+
+export interface AiAnalysisV2MainTheme {
+  name: string;
+  strength: string;            // 强/中/弱
+  stage: string;               // 启动/主升D2/主升D3/分歧/退潮
+  days: number;
+  leader_ladder: string;
+  catalyst: string;
+  today_performance: string;
+  divergence_signals: string[];
+  next_day_signals: AiAnalysisV2NextDaySignals;
+}
+
+export interface AiAnalysisV2LadderView {
+  height: string;
+  promotion: string;
+  broken: string;
+  new_promotions: string;
+}
+
+export interface AiAnalysisV2RiskAlert {
+  type: string;
+  content: string;
+}
+
+export interface AiAnalysisV2BattlePlan {
+  position_level: string;
+  mode: string;
+  focus_stocks: string[];
+  avoid_list: string[];
+  key_observations: string[];
+}
+
+export interface AiAnalysisV2YesterdayVerify {
+  summary: string;
+  hit_items: string[];
+  miss_items: string[];
+}
+
+export interface AiAnalysisV2 {
+  version: 'v2';
+  headline: string;
+  sentiment: AiAnalysisV2Sentiment;
+  fund_picture: AiAnalysisV2FundPicture;
+  important_news: AiAnalysisV2ImportantNews[];
+  main_themes: AiAnalysisV2MainTheme[];
+  ladder_view: AiAnalysisV2LadderView;
+  risk_alerts: AiAnalysisV2RiskAlert[];
+  battle_plan: AiAnalysisV2BattlePlan;
+  yesterday_verify: AiAnalysisV2YesterdayVerify;
+}
+
+// ===== 游资席位匹配动向（v2 新增）=====
+export interface HotMoneyMove {
+  nickname: string;            // 孙哥 / 章盟主 ...
+  tier: number;
+  stock_code: string;
+  stock_name: string;
+  direction: 'buy' | 'sell';
+  amount: number;
+}
+
+// ===== 资讯预筛项（v2 新增，AI 输入）=====
+export interface FilteredNewsItem {
+  cls_id: string | null;
+  title: string;
+  summary: string;
+  level: string;
+  url: string;
+  published_at: number;
+  published_bj: string;
+  segment: 'pre_market' | 'intraday' | 'post_market';
 }
 
 // ===== 每日复盘 =====
@@ -207,9 +328,63 @@ export interface DailyReview {
   ths_hot_industries: Record<string, unknown>[] | null;
   limit_analysis: Record<string, unknown> | null;
   ai_summary: string | null;
-  ai_analysis: AiAnalysis | null;
+  ai_analysis: AiAnalysis | AiAnalysisV2 | null;
+  filtered_news?: FilteredNewsItem[] | null;   // v2 新增：资讯预筛
+  hot_money_moves?: HotMoneyMove[] | null;     // v2 新增：游资动向
+  margin_data?: MarginData | null;             // v2 新增：两融数据
   status: string;                             // success / partial / failed
   created_at: number;                         // UTC 毫秒
+}
+
+// ===== 韭研公社涨停原因「今日异动」=====
+export interface LimitUpReasonStock {
+  board: string;                  // 板数文案："首板" / "5天4板" / "4连板" 等
+  code: string;                   // 6位代码
+  name: string;                   // 个股名
+  time: string;                   // 涨停时间 HH:MM
+  float_mv: number | null;        // 流通市值（亿元）
+  turnover_amt: number | null;    // 成交额（亿元）
+  keyword: string;                // 涨停关键词（个股独立）
+}
+export interface LimitUpReasonTheme {
+  name: string;              // 板块名（如 "算力"）
+  count: number;             // 板块涨停数（如 "算力*11" 的 11）
+  stocks: LimitUpReasonStock[];
+}
+export interface LimitUpReasons {
+  id: string;
+  pick_date: string;         // 'YYYY-MM-DD'
+  themes: LimitUpReasonTheme[];
+  raw_image_url: string | null;
+  source: string;            // 'jiuyan'
+  created_at: number;
+}
+
+// ===== 近期思路和方向（单条记录，id='singleton'）=====
+export interface RecentInsights {
+  id: string;
+  thoughts: string;
+  focus_direction: string;
+  updated_at: number;
+}
+
+// ===== 每日掘金板块个股 =====
+export interface GoldStock {
+  code: string;
+  name: string;
+  comment?: string;
+}
+export interface GoldSector {
+  name: string;
+  stocks: GoldStock[];
+}
+export interface DailyGoldPick {
+  id: string;
+  pick_date: string;           // 'YYYY-MM-DD'
+  sectors: GoldSector[];
+  source_type: 'auto' | 'manual';
+  created_at: number;
+  updated_at: number;
 }
 
 // ===== API 统一响应结构 =====

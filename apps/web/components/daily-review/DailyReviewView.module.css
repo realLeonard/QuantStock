@@ -38,11 +38,105 @@
 .statusPartial { background: #fef9c3; color: #854d0e; }
 .statusFailed { background: #fecaca; color: #991b1b; }
 
+.cardHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.cardStageTag {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  background: var(--bg-hover, #f1f5f9);
+  color: var(--text-secondary, #475569);
+}
+.stageHot { background: #fee2e2; color: #dc2626; }
+.stageDiverge { background: #fef3c7; color: #92400e; }
+.stageCold { background: #dbeafe; color: #1d4ed8; }
+.stageRecover { background: #dcfce7; color: #14532d; }
+.cardScore {
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+  font-weight: 500;
+}
+
+.cardHeadline {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+  line-height: 1.5;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #eef2ff 0%, #fdf2f8 100%);
+  border-left: 3px solid #6366f1;
+  border-radius: 6px;
+}
+
 .cardMeta {
   display: flex;
   gap: 16px;
+  flex-wrap: wrap;
   font-size: 13px;
   color: var(--text-secondary, #64748b);
+}
+.cardRed { color: #dc2626; font-weight: 600; }
+.cardGreen { color: #16a34a; font-weight: 600; }
+
+.cardThemes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+.cardThemesLabel {
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+  font-weight: 600;
+  margin-right: 2px;
+}
+.cardThemeChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-weight: 600;
+  background: var(--bg-hover, #f1f5f9);
+  color: var(--text-primary, #1e293b);
+}
+.cardThemeChipStrong { background: #fee2e2; color: #dc2626; }
+.cardThemeChipMid    { background: #fef3c7; color: #92400e; }
+.cardThemeChipWeak   { background: #dbeafe; color: #1d4ed8; }
+.cardThemeDays {
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.75;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.cardBattle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border, #e5e7eb);
+  font-size: 12px;
+}
+.cardBattleItem {
+  color: var(--text-primary, #1e293b);
+  font-weight: 500;
+}
+.cardBattleLabel {
+  color: var(--text-secondary, #64748b);
+  margin-right: 4px;
+  font-weight: 400;
 }
 
 .empty {

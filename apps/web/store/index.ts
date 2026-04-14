@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import type { Theme, AdminUser, SessionUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview } from '@quantstock/types';
+import type { Theme, AdminUser, SessionUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview, RecentInsights, DailyGoldPick } from '@quantstock/types';
 import { apiClient, supabase } from '@/lib/supabase';
 
 export interface NewsItem {
@@ -22,7 +22,7 @@ import { uid } from '@/lib/utils';
 const API_BASE = '/backend-api';
 
 type NavItem = 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao' | 'breadth' | 'news'
-             | 'app-users' | 'app-feedback' | 'app-events' | 'app-version' | 'daily-review';
+             | 'app-users' | 'app-feedback' | 'app-events' | 'app-version' | 'daily-review' | 'gold';
 
 interface AppState {
   // 数据
@@ -79,6 +79,13 @@ interface AppState {
   // 每日复盘 Actions
   loadDailyReviews: () => Promise<void>;
 
+  // 近期掘金
+  recentInsights: RecentInsights | null;
+  dailyGoldPicks: DailyGoldPick[];
+  loadRecentInsights: () => Promise<void>;
+  saveRecentInsights: (thoughts: string, focusDirection: string) => Promise<void>;
+  loadDailyGoldPicks: () => Promise<void>;
+
   // 早报 Actions
   loadReports: () => Promise<void>;
 
@@ -125,6 +132,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   appVersions: [],
   dailyReviews: [],
   currentDailyReviewId: null,
+  recentInsights: null,
+  dailyGoldPicks: [],
   currentThemeId: null,
   currentReportId: null,
   isLoading: false,
@@ -287,6 +296,40 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().showToast('❌ 删除失败：' + (e as Error).message);
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  // ===== 加载近期思路和方向 =====
+  loadRecentInsights: async () => {
+    try {
+      const recentInsights = await apiClient.fetchRecentInsights();
+      set({ recentInsights });
+    } catch (e) {
+      get().showToast('❌ 加载近期思路失败：' + (e as Error).message);
+    }
+  },
+
+  // ===== 保存近期思路和方向 =====
+  saveRecentInsights: async (thoughts, focusDirection) => {
+    set({ isLoading: true });
+    try {
+      await apiClient.updateRecentInsights(thoughts, focusDirection);
+      await get().loadRecentInsights();
+      get().showToast('✅ 已保存');
+    } catch (e) {
+      get().showToast('❌ 保存失败：' + (e as Error).message);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ===== 加载每日掘金板块 =====
+  loadDailyGoldPicks: async () => {
+    try {
+      const dailyGoldPicks = await apiClient.fetchDailyGoldPicks();
+      set({ dailyGoldPicks });
+    } catch (e) {
+      get().showToast('❌ 加载每日掘金失败：' + (e as Error).message);
     }
   },
 

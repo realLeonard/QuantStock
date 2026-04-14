@@ -16,6 +16,7 @@ import AppFeedbackView from '@/components/app-feedback/AppFeedbackView';
 import AppEventsView from '@/components/app-events/AppEventsView';
 import AppVersionView from '@/components/app-version/AppVersionView';
 import DailyReviewView from '@/components/daily-review/DailyReviewView';
+import GoldView from '@/components/gold/GoldView';
 import type { SessionUser } from '@quantstock/types';
 
 export default function Home() {
@@ -31,6 +32,8 @@ export default function Home() {
           useAppStore.getState().setLoggedIn(true);
           useAppStore.getState().setCurrentUser(session);
           useAppStore.getState().loadThemes();
+          useAppStore.getState().loadReports();
+          useAppStore.getState().loadDailyReviews();
         } catch {
           sessionStorage.removeItem('session_user');
         }
@@ -56,6 +59,7 @@ export default function Home() {
       {currentNav === 'app-events' && <AppEventsView />}
       {currentNav === 'app-version' && <AppVersionView />}
       {currentNav === 'daily-review' && <DailyReviewView />}
+      {currentNav === 'gold' && <GoldView />}
     </AdminLayout>
   );
 }

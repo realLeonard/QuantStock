@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppStore } from '@/store';
+import { apiClient } from '@/lib/supabase';
 import PageHeader from '@/components/ui/PageHeader';
 import DetailBackBar from '@/components/ui/DetailBackBar';
-import type { DailyReview, AiAnalysis } from '@quantstock/types';
+import type { DailyReview, AiAnalysis, AiAnalysisV2, LimitUpReasons, MarginData } from '@quantstock/types';
 import s from './DailyReviewView.module.css';
+import FullReportV2 from './FullReportV2';
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   success: { label: '完整', cls: s.statusSuccess },
@@ -16,16 +18,17 @@ const STATUS_MAP: Record<string, { label: string; cls: string }> = {
 const TABS = [
   { key: 'full', label: '全览' },
   { key: 'overview', label: '大盘总览' },
-  { key: 'thsHot', label: '热门股' },
+  { key: 'limitUp', label: '涨停简图' },
   { key: 'ladder', label: '连板天梯' },
+  { key: 'thsHot', label: '热门股' },
   { key: 'dragon', label: '龙虎榜' },
-  { key: 'limitAnalysis', label: '打板分析' },
   { key: 'industry', label: '行业分布' },
   { key: 'limitIndustry', label: '涨跌停分布' },
   { key: 'sectorFlow', label: '板块资金' },
   { key: 'stockFlow', label: '个股资金' },
   { key: 'thsConcept', label: '热门概念' },
   { key: 'thsIndustry', label: '热门行业' },
+  { key: 'limitAnalysis', label: '打板分析' },
   { key: 'summary', label: 'AI 总结' },
 ];
 
@@ -63,34 +66,150 @@ function ListView({ reviews, onSelect }: { reviews: DailyReview[]; onSelect: (id
     <>
       <PageHeader title="每日复盘" desc="A 股收盘后自动生成的市场复盘报告" />
       <div className={s.list}>
-        {reviews.map(r => {
-          const st = STATUS_MAP[r.status] ?? STATUS_MAP.success;
-          const sentiment = r.market_sentiment as Record<string, number> | null;
-          const overview = r.market_overview as Record<string, unknown> | null;
-          const volume = overview?.volume as Record<string, number> | null;
-          return (
-            <div key={r.id} className={s.card} onClick={() => onSelect(r.id)}>
-              <div className={s.cardHeader}>
-                <span className={s.cardDate}>{r.report_date}</span>
-                <span className={`${s.cardStatus} ${st.cls}`}>{st.label}</span>
-              </div>
-              <div className={s.cardMeta}>
-                {sentiment && <span>涨停 {sentiment.limit_up ?? '-'} / 跌停 {sentiment.limit_down ?? '-'}</span>}
-                {sentiment && <span>炸板率 {sentiment.broken_rate ?? '-'}%</span>}
-                {volume?.today != null && <span>成交额 {volume.today}亿</span>}
-                {r.ai_summary && <span>已生成 AI 总结</span>}
-              </div>
-            </div>
-          );
-        })}
+        {reviews.map(r => (
+          <ListCard key={r.id} review={r} onSelect={onSelect} />
+        ))}
       </div>
     </>
   );
 }
 
+// ===== 列表卡片 =====
+function ListCard({ review, onSelect }: { review: DailyReview; onSelect: (id: string) => void }) {
+  const st = STATUS_MAP[review.status] ?? STATUS_MAP.success;
+  const sentiment = review.market_sentiment as Record<string, number> | null;
+  const overview = review.market_overview as Record<string, unknown> | null;
+  const volume = overview?.volume as Record<string, number> | null;
+  const fundFlow = overview?.fund_flow as Record<string, number> | null;
+
+  const ai = review.ai_analysis as AiAnalysisV2 | AiAnalysis | null;
+  const aiV2 = ai && 'version' in ai && ai.version === 'v2' ? (ai as AiAnalysisV2) : null;
+
+  const limitAnalysis = review.limit_analysis as {
+    premium_summary?: { premium_rate?: number | string };
+    promotion?: { rate?: number | string };
+  } | null;
+
+  const stageClass = aiV2 ? stageColorClass(aiV2.sentiment.stage) : '';
+  const mainInflow = fundFlow?.main_inflow;
+  const premiumRate = limitAnalysis?.premium_summary?.premium_rate;
+  const promotionRate = limitAnalysis?.promotion?.rate;
+  const margin = (review.margin_data ?? null) as MarginData | null;
+  const marginChange = margin?.daily_change;
+
+  return (
+    <div className={s.card} onClick={() => onSelect(review.id)}>
+      <div className={s.cardHeader}>
+        <div className={s.cardHeaderLeft}>
+          <span className={s.cardDate}>{review.report_date}</span>
+          {aiV2 && (
+            <>
+              <span className={`${s.cardStageTag} ${stageClass}`}>{aiV2.sentiment.stage}</span>
+              <span className={s.cardScore}>情绪 {aiV2.sentiment.score}/10</span>
+            </>
+          )}
+        </div>
+        <span className={`${s.cardStatus} ${st.cls}`}>{st.label}</span>
+      </div>
+
+      {aiV2?.headline && <div className={s.cardHeadline}>{aiV2.headline}</div>}
+
+      <div className={s.cardMeta}>
+        {sentiment && (
+          <span>
+            涨停 <b className={s.cardRed}>{sentiment.limit_up ?? '-'}</b>
+            {' / '}跌停 <b className={s.cardGreen}>{sentiment.limit_down ?? '-'}</b>
+          </span>
+        )}
+        {sentiment?.broken_rate != null && <span>炸板率 {sentiment.broken_rate}%</span>}
+        {promotionRate != null && <span>晋级率 {promotionRate}%</span>}
+        {premiumRate != null && <span>溢价率 {premiumRate}%</span>}
+        {mainInflow != null && (
+          <span>
+            主力 <b className={mainInflow >= 0 ? s.cardRed : s.cardGreen}>
+              {mainInflow >= 0 ? '+' : ''}{mainInflow}亿
+            </b>
+          </span>
+        )}
+        {marginChange != null && (
+          <span>
+            两融 <b className={marginChange >= 0 ? s.cardRed : s.cardGreen}>
+              {marginChange >= 0 ? '+' : ''}{marginChange}亿
+            </b>
+          </span>
+        )}
+        {volume?.today != null && <span>成交 {volume.today}亿</span>}
+      </div>
+
+      {aiV2 && aiV2.main_themes.length > 0 && (
+        <div className={s.cardThemes}>
+          <span className={s.cardThemesLabel}>主线</span>
+          {aiV2.main_themes.slice(0, 4).map((t, i) => (
+            <span key={i} className={`${s.cardThemeChip} ${strengthChipClass(t.strength)}`}>
+              {t.name}
+              {t.days > 0 && <span className={s.cardThemeDays}>D{t.days}</span>}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {aiV2?.battle_plan && (aiV2.battle_plan.position_level || aiV2.battle_plan.mode) && (
+        <div className={s.cardBattle}>
+          {aiV2.battle_plan.position_level && (
+            <span className={s.cardBattleItem}>
+              <span className={s.cardBattleLabel}>仓位</span>
+              {aiV2.battle_plan.position_level}
+            </span>
+          )}
+          {aiV2.battle_plan.mode && (
+            <span className={s.cardBattleItem}>
+              <span className={s.cardBattleLabel}>模式</span>
+              {aiV2.battle_plan.mode}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function stageColorClass(stage: string): string {
+  if (!stage) return '';
+  if (stage.includes('高潮') || stage.includes('升温')) return s.stageHot;
+  if (stage.includes('分歧')) return s.stageDiverge;
+  if (stage.includes('退潮') || stage.includes('冰点')) return s.stageCold;
+  if (stage.includes('修复')) return s.stageRecover;
+  return '';
+}
+
+function strengthChipClass(strength: string): string {
+  if (!strength) return '';
+  if (strength.includes('强')) return s.cardThemeChipStrong;
+  if (strength.includes('弱')) return s.cardThemeChipWeak;
+  return s.cardThemeChipMid;
+}
+
 // ===== 详情页 =====
 function DetailView({ review, onBack }: { review: DailyReview; onBack: () => void }) {
   const [activeTab, setActiveTab] = useState('full');
+  const [limitUpReasons, setLimitUpReasons] = useState<LimitUpReasons | null>(null);
+  const [limitUpLoading, setLimitUpLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLimitUpLoading(true);
+    apiClient
+      .getLimitUpReasonsByDate(review.report_date)
+      .then(data => {
+        if (!cancelled) setLimitUpReasons(data);
+      })
+      .finally(() => {
+        if (!cancelled) setLimitUpLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [review.report_date]);
 
   return (
     <div className={s.detail}>
@@ -109,13 +228,16 @@ function DetailView({ review, onBack }: { review: DailyReview; onBack: () => voi
       </div>
 
       {activeTab === 'full' ? (
-        <FullReportPanel review={review} />
+        <FullReportPanel review={review} limitUpReasons={limitUpReasons} />
       ) : (
         <div className={s.panel}>
           {activeTab === 'overview' && <OverviewPanel data={review.market_overview} sentiment={review.market_sentiment} />}
           {activeTab === 'thsHot' && <ThsHotStocksPanel data={review.ths_hot_stocks} />}
-          {activeTab === 'ladder' && <LadderPanel data={review.limit_up_ladder} />}
+          {activeTab === 'ladder' && <LadderPanel data={review.limit_up_ladder} limitUpReasons={limitUpReasons} />}
           {activeTab === 'dragon' && <DragonPanel data={review.dragon_tiger} />}
+          {activeTab === 'limitUp' && (
+            <LimitUpReasonsPanel data={limitUpReasons} loading={limitUpLoading} />
+          )}
           {activeTab === 'limitAnalysis' && <LimitAnalysisPanel data={review.limit_analysis} />}
           {activeTab === 'industry' && <IndustryPanel data={review.industry_distribution} />}
           {activeTab === 'limitIndustry' && <LimitIndustryPanel data={review.limit_industry_distribution} />}
@@ -133,13 +255,32 @@ function DetailView({ review, onBack }: { review: DailyReview; onBack: () => voi
 // ===== 全览面板 =====
 const FULL_COLLAPSE_LIMIT = 20;
 
-function FullReportPanel({ review }: { review: DailyReview }) {
-  const ai = review.ai_analysis as AiAnalysis | null;
+function FullReportPanel({
+  review,
+  limitUpReasons,
+}: {
+  review: DailyReview;
+  limitUpReasons?: LimitUpReasons | null;
+}) {
+  const aiRaw = review.ai_analysis as (AiAnalysis | AiAnalysisV2) | null;
 
   // 如果没有 ai_analysis，降级到旧版平铺展示
-  if (!ai) {
+  if (!aiRaw) {
     return <LegacyFullReportPanel review={review} />;
   }
+
+  // v2 分析 → 新版全览面板
+  if ((aiRaw as { version?: string }).version === 'v2') {
+    return (
+      <FullReportV2
+        ai={aiRaw as AiAnalysisV2}
+        review={review}
+        limitUpReasons={limitUpReasons}
+      />
+    );
+  }
+
+  const ai = aiRaw as AiAnalysis;
 
   return (
     <div className={s.fullReport}>
@@ -223,7 +364,6 @@ function AiHeaderSection({ ai, review }: { ai: AiAnalysis; review: DailyReview }
   const sentiment = review.market_sentiment as Record<string, number> | null;
   const overview = review.market_overview as Record<string, unknown> | null;
   const volume = overview?.volume as Record<string, number> | null;
-  const nb = overview?.north_bound as Record<string, number> | null;
 
   // 情绪温度计颜色
   const scoreColor = ai.sentiment_score <= 3 ? '#16a34a'
@@ -303,14 +443,6 @@ function AiHeaderSection({ ai, review }: { ai: AiAnalysis; review: DailyReview }
           <div className={s.aiMetricCard}>
             <div className={s.aiMetricLabel}>成交额</div>
             <div className={s.aiMetricVal}>{fmt(volume.today)}亿</div>
-          </div>
-        )}
-        {nb?.today != null && (
-          <div className={s.aiMetricCard}>
-            <div className={s.aiMetricLabel}>北向资金</div>
-            <div className={`${s.aiMetricVal} ${changeCls(nb.today)}`}>
-              {nb.today > 0 ? '+' : ''}{fmt(nb.today)}亿
-            </div>
           </div>
         )}
         {maxBoard != null && (
@@ -708,12 +840,68 @@ function fmt(val: number | null | undefined, digits = 2): string {
 }
 
 // 模块1+2: 大盘总览（大盘概览 + 市场情绪）
+// 小问号提示：hover 立即显示深色气泡，支持多行
+export function InfoTip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 14,
+        height: 14,
+        borderRadius: '50%',
+        background: '#cbd5e1',
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: 700,
+        cursor: 'help',
+        marginLeft: 4,
+        verticalAlign: 'middle',
+        userSelect: 'none',
+      }}
+    >
+      ?
+      {open && (
+        <span
+          style={{
+            position: 'absolute',
+            bottom: 'calc(100% + 8px)',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: '#1e293b',
+            color: '#fff',
+            fontSize: 12,
+            fontWeight: 400,
+            lineHeight: 1.6,
+            padding: '8px 12px',
+            borderRadius: 6,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            whiteSpace: 'pre-line',
+            width: 260,
+            maxWidth: '80vw',
+            zIndex: 50,
+            textAlign: 'left',
+            pointerEvents: 'none',
+          }}
+        >
+          {text}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function OverviewPanel({ data, sentiment }: { data: Record<string, unknown> | null; sentiment: Record<string, unknown> | null }) {
   if (!data) return <p>暂无数据</p>;
   const indices = (data.indices ?? []) as Record<string, unknown>[];
-  const nb = data.north_bound as Record<string, number> | null;
   const margin = data.margin as Record<string, number> | null;
   const volume = data.volume as Record<string, number> | null;
+  const ff = data.fund_flow as Record<string, number | null> | null;
   const d = (sentiment ?? {}) as Record<string, number>;
 
   return (
@@ -735,20 +923,45 @@ function OverviewPanel({ data, sentiment }: { data: Record<string, unknown> | nu
       <div className={s.subTitle}>资金面</div>
       <div className={s.metricGrid}>
         <div className={s.metricCard}>
-          <div className={s.metricLabel}>北向资金今日</div>
-          <div className={`${s.metricValue} ${changeCls(nb?.today ?? 0)}`}>{fmt(nb?.today)}亿</div>
-        </div>
-        <div className={s.metricCard}>
-          <div className={s.metricLabel}>北向近5日累计</div>
-          <div className={`${s.metricValue} ${changeCls(nb?.recent_5d ?? 0)}`}>{fmt(nb?.recent_5d)}亿</div>
-        </div>
-        <div className={s.metricCard}>
           <div className={s.metricLabel}>融资余额</div>
           <div className={s.metricValue}>{fmt(margin?.balance)}亿</div>
         </div>
         <div className={s.metricCard}>
           <div className={s.metricLabel}>融资余额变化</div>
           <div className={`${s.metricValue} ${changeCls(margin?.change ?? 0)}`}>{fmt(margin?.change)}亿</div>
+        </div>
+      </div>
+      {/* 大盘资金（主力/超大单/中单/散户）— 单独一行 */}
+      <div className={s.metricGrid} style={{ marginTop: 8 }}>
+        <div className={s.metricCard}>
+          <div className={s.metricLabel}>
+            主力净流入 <InfoTip text={'主力净流入 =（超大单 + 大单）买入 − 卖出\n\n主力 = 机构 + 大游资，单笔成交 ≥ 20 万元的资金合计。\n正值=大资金净买，负值=大资金净卖。\n注意：与超大单有重叠，不要相加。'} />
+          </div>
+          <div className={`${s.metricValue} ${changeCls(ff?.main_inflow ?? 0)}`}>{fmt(ff?.main_inflow)}亿</div>
+        </div>
+        <div className={s.metricCard}>
+          <div className={s.metricLabel}>
+            超大单净流入(机构) <InfoTip text={'超大单净流入 = 超大单买入 − 超大单卖出\n\n顶级机构 / 大私募 / 顶级游资，单笔成交 ≥ 100 万元。\n是"主力"里最顶层的一档，更接近真正的机构动向。\n属于"主力"的子集。'} />
+          </div>
+          <div className={`${s.metricValue} ${changeCls(ff?.super_large_inflow ?? 0)}`}>{fmt(ff?.super_large_inflow)}亿</div>
+        </div>
+        <div className={s.metricCard}>
+          <div className={s.metricLabel}>
+            大单净流入(主力) <InfoTip text={'大单净流入 = 大单买入 − 大单卖出\n\n中型机构 / 中大游资，单笔成交 20-100 万元。\n属于"主力"的子集（主力 = 超大单 + 大单）。'} />
+          </div>
+          <div className={`${s.metricValue} ${changeCls(ff?.large_inflow ?? 0)}`}>{fmt(ff?.large_inflow)}亿</div>
+        </div>
+        <div className={s.metricCard}>
+          <div className={s.metricLabel}>
+            中单净流入(大户) <InfoTip text={'中单净流入 = 中单买入 − 中单卖出\n\n一般大户 / 小机构，单笔成交 4-20 万元。\n介于主力与散户之间的中等资金。'} />
+          </div>
+          <div className={`${s.metricValue} ${changeCls(ff?.mid_inflow ?? 0)}`}>{fmt(ff?.mid_inflow)}亿</div>
+        </div>
+        <div className={s.metricCard}>
+          <div className={s.metricLabel}>
+            散户净流入(散户) <InfoTip text={'散户净流入 = 小单买入 − 小单卖出\n\n散户，单笔成交 < 4 万元。\n小资金动向的代理指标。\n主力与散户对立方向，往往是出货/接盘信号。'} />
+          </div>
+          <div className={`${s.metricValue} ${changeCls(ff?.retail_inflow ?? 0)}`}>{fmt(ff?.retail_inflow)}亿</div>
         </div>
       </div>
 
@@ -810,7 +1023,13 @@ function OverviewPanel({ data, sentiment }: { data: Record<string, unknown> | nu
 }
 
 // 模块4: 连板天梯（按连板数分组，合并单元格）
-function LadderPanel({ data }: { data: Record<string, unknown>[] | null }) {
+function LadderPanel({
+  data,
+  limitUpReasons,
+}: {
+  data: Record<string, unknown>[] | null;
+  limitUpReasons?: LimitUpReasons | null;
+}) {
   if (!data?.length) return <p>暂无数据</p>;
 
   // 按连板数分组，降序排列
@@ -823,49 +1042,100 @@ function LadderPanel({ data }: { data: Record<string, unknown>[] | null }) {
   const sortedLevels = [...groups.keys()].sort((a, b) => b - a);
 
   const levelLabel = (n: number) => {
-    const map: Record<number, string> = { 1: '一', 2: '二', 3: '三', 4: '四', 5: '五', 6: '六', 7: '七', 8: '八', 9: '九', 10: '十' };
+    if (n === 1) return '首板';
+    const map: Record<number, string> = { 2: '二', 3: '三', 4: '四', 5: '五', 6: '六', 7: '七', 8: '八', 9: '九', 10: '十' };
     return `${map[n] ?? n}板`;
   };
+
+  // 涨停关键词映射：code → keyword（来自涨停简图）
+  const keywordMap = new Map<string, string>();
+  if (limitUpReasons?.themes) {
+    for (const theme of limitUpReasons.themes) {
+      for (const st of theme.stocks ?? []) {
+        if (st.code && st.keyword) keywordMap.set(st.code, st.keyword);
+      }
+    }
+  }
 
   // 交替色：每个连板级别用不同左边框颜色区分
   const groupColors = ['#dc2626', '#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899'];
 
   return (
-    <table className={s.table}>
-      <thead>
-        <tr><th>连板</th><th>代码</th><th>名称</th><th>涨幅</th><th>行业</th></tr>
-      </thead>
-      <tbody>
-        {sortedLevels.map((level, gi) => {
-          const items = groups.get(level)!;
-          const color = groupColors[gi % groupColors.length];
-          return items.map((item, i) => (
-            <tr
-              key={`${level}-${i}`}
-              className={i === 0 ? s.ladderGroupFirst : undefined}
-            >
-              {i === 0 && (
-                <td
-                  rowSpan={items.length}
-                  className={s.ladderLevelCell}
-                  style={{ borderLeftColor: color }}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 8,
+          padding: '8px 12px',
+          background: '#f8fafc',
+          border: '1px solid #e5e7eb',
+          borderRadius: 8,
+          fontSize: 13,
+          color: '#1e293b',
+        }}
+      >
+        <span style={{ fontWeight: 700 }}>合计 {data.length}</span>
+        {sortedLevels.map((level, gi) => (
+          <span key={level} style={{ color: groupColors[gi % groupColors.length] }}>
+            · {levelLabel(level)} {groups.get(level)!.length}
+          </span>
+        ))}
+      </div>
+
+      <table className={s.table}>
+        <thead>
+          <tr>
+            <th>连板</th>
+            <th>代码</th>
+            <th>名称</th>
+            <th>行业</th>
+            <th>涨幅</th>
+            <th>涨停原因</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sortedLevels.map((level, gi) => {
+            const items = groups.get(level)!;
+            const color = groupColors[gi % groupColors.length];
+            return items.map((item, i) => {
+              const code = item.code as string;
+              const keyword = keywordMap.get(code) ?? '';
+              return (
+                <tr
+                  key={`${level}-${i}`}
+                  className={i === 0 ? s.ladderGroupFirst : undefined}
                 >
-                  {levelLabel(level)}
-                </td>
-              )}
-              <td>{item.code as string}</td>
-              <td style={{ fontWeight: 600 }}>{item.name as string}</td>
-              <td className={changeCls(item.change_pct as number)}>
-                {fmt(item.change_pct as number)}%
-              </td>
-              <td style={{ fontSize: 12 }}>
-                {(item.industries as string[])?.join('/') ?? '-'}
-              </td>
-            </tr>
-          ));
-        })}
-      </tbody>
-    </table>
+                  {i === 0 && (
+                    <td
+                      rowSpan={items.length}
+                      className={s.ladderLevelCell}
+                      style={{ borderLeftColor: color }}
+                    >
+                      {levelLabel(level)}
+                      <div style={{ fontSize: 11, color: '#64748b', fontWeight: 400, marginTop: 2 }}>
+                        {items.length} 只
+                      </div>
+                    </td>
+                  )}
+                  <td>{code}</td>
+                  <td style={{ fontWeight: 600 }}>{item.name as string}</td>
+                  <td style={{ fontSize: 12 }}>
+                    {(item.industries as string[])?.join('/') ?? '-'}
+                  </td>
+                  <td className={changeCls(item.change_pct as number)}>
+                    {fmt(item.change_pct as number)}%
+                  </td>
+                  <td style={{ fontSize: 12, maxWidth: 320, whiteSpace: 'normal', lineHeight: 1.5 }}>
+                    {keyword || '-'}
+                  </td>
+                </tr>
+              );
+            });
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -896,11 +1166,175 @@ function DragonPanel({ data }: { data: Record<string, unknown>[] | null }) {
   );
 }
 
+// 今日异动（韭研公社涨停原因）
+function LimitUpReasonsPanel({
+  data,
+  loading,
+}: {
+  data: LimitUpReasons | null;
+  loading: boolean;
+}) {
+  if (loading) return <p>加载中…</p>;
+  if (!data || !data.themes?.length) {
+    return <p>暂无数据（韭研公社每日 17:00-20:00 采集）</p>;
+  }
+
+  const sectorId = (i: number) => `limit-up-sector-${i}`;
+  const jumpTo = (i: number) => {
+    const el = document.getElementById(sectorId(i));
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: 8,
+          padding: '10px 12px',
+          background: '#f8fafc',
+          border: '1px solid #e5e7eb',
+          borderRadius: 8,
+        }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginRight: 4 }}>
+          合计: {data.themes.reduce((sum, t) => sum + (t.stocks?.length ?? 0), 0)}
+        </span>
+        {data.themes.map((theme, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => jumpTo(i)}
+            style={{
+              fontSize: 12,
+              padding: '4px 10px',
+              borderRadius: 14,
+              border: '1px solid #cbd5e1',
+              background: '#fff',
+              color: '#1e293b',
+              cursor: 'pointer',
+              fontWeight: 600,
+            }}
+          >
+            {theme.name}
+            <span style={{ color: '#dc2626', marginLeft: 4 }}>*{theme.count}</span>
+          </button>
+        ))}
+      </div>
+
+      {data.themes.map((theme, i) => (
+        <div
+          key={i}
+          id={sectorId(i)}
+          style={{
+            border: '1px solid #e5e7eb',
+            borderRadius: 10,
+            padding: '14px 16px',
+            background: '#fff',
+            scrollMarginTop: 16,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              marginBottom: 8,
+              flexWrap: 'wrap',
+            }}
+          >
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>
+              {theme.name}
+            </span>
+            <span
+              style={{
+                fontSize: 11,
+                padding: '2px 8px',
+                borderRadius: 4,
+                background: '#fee2e2',
+                color: '#dc2626',
+                fontWeight: 600,
+              }}
+            >
+              涨停 {theme.count}
+            </span>
+          </div>
+          <table className={s.table}>
+            <thead>
+              <tr>
+                <th>板数</th>
+                <th>代码</th>
+                <th>名称</th>
+                <th>涨停时间</th>
+                <th>流通市值(亿)</th>
+                <th>成交额(亿)</th>
+                <th>涨停关键词</th>
+              </tr>
+            </thead>
+            <tbody>
+              {theme.stocks.map((st, j) => {
+                const isHighBoard = /连板|[3-9]板|\d{2,}板/.test(st.board || '');
+                return (
+                  <tr key={j}>
+                    <td>
+                      {st.board ? (
+                        <span
+                          style={{
+                            fontSize: 11,
+                            padding: '1px 6px',
+                            background: isHighBoard ? '#fee2e2' : '#fef3c7',
+                            color: isHighBoard ? '#dc2626' : '#92400e',
+                            borderRadius: 4,
+                            fontWeight: 700,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {st.board}
+                        </span>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
+                    <td>{st.code}</td>
+                    <td style={{ fontWeight: 600 }}>{st.name}</td>
+                    <td style={{ fontSize: 12 }}>{st.time || '-'}</td>
+                    <td>{st.float_mv != null ? st.float_mv.toFixed(2) : '-'}</td>
+                    <td>{st.turnover_amt != null ? st.turnover_amt.toFixed(2) : '-'}</td>
+                    <td style={{ fontSize: 12, maxWidth: 320, whiteSpace: 'normal', lineHeight: 1.5 }}>
+                      {st.keyword || '-'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // 模块6: 行业分布统计
 function IndustryPanel({ data }: { data: Record<string, unknown>[] | null }) {
   if (!data?.length) return <p>暂无数据</p>;
   return (
-    <table className={s.table}>
+    <>
+      <div
+        style={{
+          padding: '8px 12px',
+          background: '#f8fafc',
+          border: '1px solid #e5e7eb',
+          borderRadius: 8,
+          fontSize: 12,
+          color: '#475569',
+          marginBottom: 12,
+        }}
+      >
+        说明：来源于<b>连板天梯</b>、<b>热门股</b>、<b>龙虎榜</b> 三板块的行业聚合
+      </div>
+      <table className={s.table}>
       <thead>
         <tr><th>行业</th><th>热门</th><th>连板</th><th>龙虎榜</th><th>合计</th><th>代表个股</th></tr>
       </thead>
@@ -919,6 +1353,7 @@ function IndustryPanel({ data }: { data: Record<string, unknown>[] | null }) {
         ))}
       </tbody>
     </table>
+    </>
   );
 }
 
@@ -936,8 +1371,29 @@ function LimitIndustryPanel({ data }: { data: Record<string, unknown>[] | null }
     .filter(item => ((item.limit_down_count as number) ?? 0) > 0)
     .sort((a, b) => ((b.limit_down_count as number) ?? 0) - ((a.limit_down_count as number) ?? 0));
 
+  const totalUp = upList.reduce((sum, it) => sum + ((it.limit_up_count as number) ?? 0), 0);
+  const totalDown = downList.reduce((sum, it) => sum + ((it.limit_down_count as number) ?? 0), 0);
+
   return (
     <>
+      <div
+        style={{
+          display: 'flex',
+          gap: 16,
+          padding: '8px 12px',
+          background: '#f8fafc',
+          border: '1px solid #e5e7eb',
+          borderRadius: 8,
+          fontSize: 13,
+          fontWeight: 700,
+          color: '#1e293b',
+          marginBottom: 12,
+        }}
+      >
+        <span>合计:</span>
+        <span className={s.up}>涨停 {totalUp}</span>
+        <span className={s.down}>跌停 {totalDown}</span>
+      </div>
       <div className={s.subTitle}>涨停行业分布</div>
       {upList.length ? (
         <table className={s.table}>

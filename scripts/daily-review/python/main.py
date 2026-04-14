@@ -29,6 +29,14 @@ from collectors.ths_hot import (
     collect_ths_hot_concepts,
     collect_ths_hot_industries,
 )
+from collectors.index_yellow_white import collect_yellow_white
+from collectors.market_fund_flow import collect_market_fund_flow
+from collectors.margin import collect_margin_data
+from collectors.news_filter import (
+    filter_important_news,
+    build_market_anchors,
+    fetch_daily_report_anchors,
+)
 
 
 def run(date_str: str, dry_run: bool = False) -> dict:
@@ -36,6 +44,7 @@ def run(date_str: str, dry_run: bool = False) -> dict:
     执行全部采集流程
     返回完整的复盘数据字典
     """
+    # 更新总步数为 13
     print(f'====== 每日复盘数据采集 ======')
     print(f'  日期: {date_str}')
     print()
@@ -43,7 +52,7 @@ def run(date_str: str, dry_run: bool = False) -> dict:
     data = {}
     errors = []
 
-    # ---- 模块1: 大盘概览 ----
+    # ---- 模块1: 大盘概览（含黄白线 + 大盘资金流向，v2 新增）----
     print('[1/12] 采集大盘概览...')
     try:
         data['market_overview'] = collect_market_overview(date_str)
@@ -52,6 +61,44 @@ def run(date_str: str, dry_run: bool = False) -> dict:
         errors.append(f'模块1: {e}')
         data['market_overview'] = None
         print(f'  ✗ 失败: {e}')
+
+    # 模块1 扩展：上证黄白线
+    if data.get('market_overview') is not None:
+        try:
+            yw = collect_yellow_white(date_str)
+            data['market_overview']['yellow_white'] = yw
+            print(f'  ✓ 黄白线 黄 {yw["yellow_line_chg"]} / 白 {yw["white_line_chg"]} / {yw["style_bias"]}')
+        except Exception as e:
+            errors.append(f'模块1-黄白线: {e}')
+            data['market_overview']['yellow_white'] = None
+            print(f'  ✗ 黄白线失败: {e}')
+
+        # 模块1 扩展：大盘主力/散户资金
+        try:
+            ff = collect_market_fund_flow(date_str)
+            data['market_overview']['fund_flow'] = ff
+            print(f'  ✓ 资金流向 主力 {ff["main_inflow"]} / 散户 {ff["retail_inflow"]} 亿')
+        except Exception as e:
+            errors.append(f'模块1-资金流向: {e}')
+            data['market_overview']['fund_flow'] = None
+            print(f'  ✗ 资金流向失败: {e}')
+
+        # 模块1 扩展：两融余额（融资余额 + 日变化 + 分位）
+        try:
+            md = collect_margin_data(date_str)
+            data['margin_data'] = md
+            tb = md.get('total_balance')
+            dc = md.get('daily_change')
+            cd = md.get('consecutive_days')
+            pct = md.get('balance_percentile_1y')
+            cd_str = f'连续 {"+" if cd and cd > 0 else ""}{cd} 日' if cd else '-'
+            print(
+                f'  ✓ 两融 {tb}亿（1Y 分位 {pct}%） / 日变化 {"+" if dc and dc > 0 else ""}{dc}亿 / {cd_str}'
+            )
+        except Exception as e:
+            errors.append(f'模块1-两融: {e}')
+            data['margin_data'] = None
+            print(f'  ✗ 两融失败: {e}')
 
     # ---- 模块2: 市场情绪 ----
     print('[2/12] 采集市场情绪指标...')
@@ -176,6 +223,42 @@ def run(date_str: str, dry_run: bool = False) -> dict:
     except Exception as e:
         errors.append(f'模块12: {e}')
         data['ths_hot_industries'] = []
+        print(f'  ✗ 失败: {e}')
+
+    # ---- 模块13: 资讯预筛（v2，3 路径：关键词 / 市场锚点 / 早报）----
+    print('[13/13] 资讯预筛（3 路径打分）...')
+    try:
+        from db import get_supabase_client
+        sb_filter = get_supabase_client()
+        # 1) 市场锚点（来自已采集数据）
+        anchors = build_market_anchors(data)
+        print(
+            f'  · 锚点：股票 {len(anchors["stocks"])} / '
+            f'行业 {len(anchors["industries"])} / 概念 {len(anchors["concepts"])}'
+        )
+        # 2) 早报锚点
+        report = fetch_daily_report_anchors(sb_filter, date_str)
+        rpt_len = len(report.get('text') or '')
+        print(f'  · 早报：{"已读取" if rpt_len else "缺失"}（{rpt_len} 字符）')
+        # 3) 筛选
+        filtered = filter_important_news(
+            sb_filter, date_str, anchors=anchors, report=report, limit=50
+        )
+        data['filtered_news'] = filtered
+        seg_count = {'pre_market': 0, 'intraday': 0, 'post_market': 0}
+        multi_path = 0
+        for item in filtered:
+            seg_count[item.get('segment', 'intraday')] += 1
+            if item.get('paths_hit', 0) >= 2:
+                multi_path += 1
+        print(
+            f'  ✓ 候选 {len(filtered)} 条（盘前 {seg_count["pre_market"]} / '
+            f'盘中 {seg_count["intraday"]} / 盘后 {seg_count["post_market"]}），'
+            f'多路径命中 {multi_path} 条'
+        )
+    except Exception as e:
+        errors.append(f'模块13: {e}')
+        data['filtered_news'] = []
         print(f'  ✗ 失败: {e}')
 
     # ---- 废弃字段（保持向后兼容）----

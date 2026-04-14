@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { Theme, Stock, StockInput, ThemeRow, StockRow, AdminUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview } from '@quantstock/types';
+import type { Theme, Stock, StockInput, ThemeRow, StockRow, AdminUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview, RecentInsights, DailyGoldPick, LimitUpReasons } from '@quantstock/types';
 
 // ===== Supabase 客户端工厂 =====
 export function createSupabaseClient(url: string, anonKey: string): SupabaseClient {
@@ -308,6 +308,17 @@ export class QuantStockApiClient {
     return data as DailyReview;
   }
 
+  // 按日期获取韭研公社涨停原因「今日异动」
+  async getLimitUpReasonsByDate(date: string): Promise<LimitUpReasons | null> {
+    const { data, error } = await this.sb
+      .from('limitUpReasons')
+      .select('*')
+      .eq('pick_date', date)
+      .maybeSingle();
+    if (error) return null;
+    return (data as LimitUpReasons) ?? null;
+  }
+
   // ===== App 版本管理 =====
 
   // 获取版本列表
@@ -334,6 +345,54 @@ export class QuantStockApiClient {
       .eq('id', id);
     if (error) throw new Error(error.message);
   }
+
+  // ===== 近期掘金：近期思路和方向（单条，id='singleton'）=====
+
+  async fetchRecentInsights(): Promise<RecentInsights> {
+    const { data, error } = await this.sb
+      .from('recentInsights')
+      .select('*')
+      .eq('id', 'singleton')
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) {
+      return { id: 'singleton', thoughts: '', focus_direction: '', updated_at: 0 };
+    }
+    return data as RecentInsights;
+  }
+
+  async updateRecentInsights(thoughts: string, focusDirection: string): Promise<void> {
+    const { error } = await this.sb
+      .from('recentInsights')
+      .upsert({
+        id: 'singleton',
+        thoughts,
+        focus_direction: focusDirection,
+        updated_at: Date.now(),
+      }, { onConflict: 'id' });
+    if (error) throw new Error(error.message);
+  }
+
+  // ===== 近期掘金：每日掘金板块个股 =====
+
+  async fetchDailyGoldPicks(): Promise<DailyGoldPick[]> {
+    const { data, error } = await this.sb
+      .from('dailyGoldPicks')
+      .select('*')
+      .order('pick_date', { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data || []) as DailyGoldPick[];
+  }
+
+  async fetchDailyGoldPickByDate(date: string): Promise<DailyGoldPick | null> {
+    const { data, error } = await this.sb
+      .from('dailyGoldPicks')
+      .select('*')
+      .eq('pick_date', date)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return (data || null) as DailyGoldPick | null;
+  }
 }
 
-export type { Theme, Stock, StockInput, AdminUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview };
+export type { Theme, Stock, StockInput, AdminUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview, RecentInsights, DailyGoldPick };

@@ -33,10 +33,10 @@ def collect_limit_up_ladder(date_str: str) -> list:
             df['_连板数'] = 1
             limit_col = '_连板数'
 
-        # 排除 ST，只取连板 >= 2 的
+        # 排除 ST；保留首板（连板数 >= 1），让天梯覆盖所有涨停股
         if '名称' in df.columns:
             df = df[~df['名称'].str.contains('ST', case=False, na=False)]
-        df = df[df[limit_col].apply(lambda x: safe_int(x)) >= 2]
+        df = df[df[limit_col].apply(lambda x: safe_int(x)) >= 1]
 
         # 按连板数降序
         df = df.sort_values(limit_col, ascending=False)
