@@ -35,5 +35,6 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           BARK_KEY: ${{ secrets.BARK_KEY }}
+          JIUYAN_SESSION: ${{ secrets.JIUYAN_SESSION }}
         run: python cls_news_collector.py --mode flash
         working-directory: scripts/zaobao/python
