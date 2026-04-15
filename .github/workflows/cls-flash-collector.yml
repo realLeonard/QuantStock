@@ -31,6 +31,7 @@ jobs:
         working-directory: scripts/zaobao/python
 
       - name: 执行快讯采集
+        id: collect
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -38,5 +39,37 @@ jobs:
           JIUYAN_SESSION: ${{ secrets.JIUYAN_SESSION }}
           ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
           ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
-        run: python cls_news_collector.py --mode flash
+        shell: bash
+        run: |
+          set -o pipefail
+          python cls_news_collector.py --mode flash 2>&1 | tee /tmp/cls-log.txt
+          # Python 里 try/except 会吞掉子步骤异常，这里扫描日志回补 soft_fail 标记
+          if grep -qE "Node 脚本失败|Node 脚本超时|采集失败|写入失败" /tmp/cls-log.txt; then
+            echo "soft_fail=1" >> "$GITHUB_OUTPUT"
+            # 抓第一条失败行作为 Bark 推送内容
+            FAIL_LINE=$(grep -m1 -E "Node 脚本失败|Node 脚本超时|采集失败|写入失败" /tmp/cls-log.txt | head -c 200)
+            echo "fail_line=${FAIL_LINE}" >> "$GITHUB_OUTPUT"
+          fi
         working-directory: scripts/zaobao/python
+
+      - name: 失败推送 Bark
+        if: failure() || steps.collect.outputs.soft_fail == '1'
+        env:
+          BARK_KEY: ${{ secrets.BARK_KEY }}
+          FAIL_LINE: ${{ steps.collect.outputs.fail_line }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          TITLE="财联社快讯采集失败"
+          if [ -z "${FAIL_LINE}" ]; then
+            BODY="Workflow 异常，run=${{ github.run_id }}"
+          else
+            BODY="${FAIL_LINE}"
+          fi
+          curl -sSf -X POST "https://api.day.app/${BARK_KEY}" \
+            -H "Content-Type: application/json" \
+            --data "$(jq -n \
+              --arg t "$TITLE" \
+              --arg b "$BODY" \
+              --arg u "$RUN_URL" \
+              '{title:$t, body:$b, url:$u, group:"quantstock", level:"timeSensitive"}')"
