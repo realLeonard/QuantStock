@@ -52,7 +52,6 @@ def main() -> None:
         f' / 连续 {md.get("consecutive_days")} 日'
     )
     print(f'  trade_date={md.get("trade_date")}')
-    print(f'  SSE={md.get("sse_balance")}亿, SZSE={md.get("szse_balance")}亿')
     print(f'  change_5d={md.get("change_5d")}')
 
     # ---- 3. 回写 + 清空 ai_analysis ----

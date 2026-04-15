@@ -211,11 +211,10 @@ export interface AiAnalysisV2FundPicture {
 }
 
 // 两融数据（dailyReview.margin_data）
+// 数据源：akshare.stock_margin_account_info()（两市合计融资余额）
 export interface MarginData {
-  trade_date: string;                // 'YYYY-MM-DD'（数据发布日，T-1）
-  sse_balance: number | null;        // 沪市融资余额（亿）
-  szse_balance: number | null;       // 深市融资余额（亿）
-  total_balance: number | null;      // 两市合计（亿）
+  trade_date: string;                // 'YYYY-MM-DD'（实际取到的最新交易日，通常 T-1）
+  total_balance: number | null;      // 两市合计融资余额（亿）
   daily_change: number | null;       // 日变化（亿）
   change_5d: number[];               // 近5日变化（亿）
   consecutive_days: number;          // 连续净增(+)或净减(-)天数
