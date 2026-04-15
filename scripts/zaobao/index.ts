@@ -33,13 +33,12 @@ function getBeijingDateStr(): string {
   return bj.toISOString().slice(0, 10);
 }
 
-function parseArgs(): { date: string } {
+function parseArgs(): { date: string; noPush: boolean } {
   const args = process.argv.slice(2);
   const dateIdx = args.findIndex(a => a === '--date');
-  if (dateIdx !== -1 && args[dateIdx + 1]) {
-    return { date: args[dateIdx + 1] };
-  }
-  return { date: getBeijingDateStr() };
+  const date = dateIdx !== -1 && args[dateIdx + 1] ? args[dateIdx + 1] : getBeijingDateStr();
+  const noPush = args.includes('--no-push');
+  return { date, noPush };
 }
 
 async function getLatestReport(date: string) {
@@ -59,11 +58,11 @@ async function getLatestReport(date: string) {
 // ===== 主流程 =====
 
 async function main() {
-  const { date } = parseArgs();
+  const { date, noPush } = parseArgs();
 
   console.log('\n========================================');
   console.log(`  股海远洋 · 每日早报系统`);
-  console.log(`  日期: ${date}`);
+  console.log(`  日期: ${date}${noPush ? '（测试模式，跳过推送）' : ''}`);
   console.log('========================================\n');
 
   try {
@@ -72,7 +71,7 @@ async function main() {
 
     // 读取刚生成的报告内容用于推送
     const report = await getLatestReport(date);
-    if (report) {
+    if (report && !noPush) {
       await sendWxPush(date, report.content, report.summary);
     }
 

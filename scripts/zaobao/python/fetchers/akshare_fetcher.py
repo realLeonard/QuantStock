@@ -1,7 +1,23 @@
 """
-A股行情数据采集器
-数据来源：akshare
-采集内容：北向资金、融资余额、涨停家数、机构调研、解禁日历
+A股行情数据采集器（早报用）
+数据源：akshare
+
+定位：
+- 早报的"昨日盘面"主要用复盘 dailyReview 数据块（generate.ts 侧加载）
+- 本 fetcher 只负责早报**独有**的 A股实时/盘前硬数据：
+  * 三大指数近5日收盘（fetch_index_quotes）
+  * 国内期货主力现价（fetch_domestic_futures）
+  * 机构评级（fetch_institutional_research）
+  * 解禁日历（fetch_unlock_calendar）
+  * 跌停池 + 炸板池（风险维度）
+  * 隔夜外盘（美股/A50/汇率等）
+
+已删除（被复盘数据块替代）：
+- fetch_north_money（数据源已失效）
+- fetch_margin_balance → margin_data
+- fetch_limit_up_stats → limit_up_ladder + limit_analysis
+- fetch_sector_funds → sector_fund_flow
+- fetch_market_breadth → market_overview + market_sentiment
 """
 
 import akshare as ak
@@ -23,88 +39,11 @@ def get_yesterday_str() -> str:
     return (datetime.now(_BJ) - timedelta(days=1)).strftime('%Y%m%d')
 
 
-def fetch_north_money() -> dict[str, Any]:
-    """
-    北向资金数据（沪深港通资金流向）
-    返回近5日数据
-    """
-    try:
-        df = ak.stock_hsgt_fund_flow_summary_em()
-        # 取最新数据
-        if df is not None and not df.empty:
-            latest = df.tail(5)
-            records = latest.to_dict(orient='records')
-            return {
-                'success': True,
-                'data': records,
-                'description': '北向资金近5日流向',
-            }
-    except Exception as e:
-        return {'success': False, 'error': str(e), 'data': []}
-    return {'success': False, 'error': '无数据', 'data': []}
-
-
-def fetch_margin_balance() -> dict[str, Any]:
-    """
-    融资融券余额
-    返回近5日数据
-    """
-    try:
-        df = ak.stock_margin_account_info()
-        if df is not None and not df.empty:
-            latest = df.tail(5)
-            records = latest.to_dict(orient='records')
-            return {
-                'success': True,
-                'data': records,
-                'description': '融资融券余额近5日',
-            }
-    except Exception as e:
-        return {'success': False, 'error': str(e), 'data': []}
-    return {'success': False, 'error': '无数据', 'data': []}
-
-
-def fetch_limit_up_stats() -> dict[str, Any]:
-    """
-    涨停板统计（今日涨停家数、跌停家数、连板情况）
-    """
-    try:
-        today = get_today_str()
-        # 尝试获取今日涨停数据
-        df = ak.stock_zt_pool_em(date=today)
-        if df is not None and not df.empty:
-            total_limit_up = len(df)
-            # 连板晋级（连板天数 >= 2）
-            if '连板天数' in df.columns:
-                two_board = df[df['连板天数'] >= 2]
-                three_board = df[df['连板天数'] >= 3]
-            else:
-                two_board = pd.DataFrame()
-                three_board = pd.DataFrame()
-
-            return {
-                'success': True,
-                'data': {
-                    'total_limit_up': total_limit_up,
-                    'two_board_count': len(two_board),
-                    'three_board_count': len(three_board),
-                    'top_stocks': df.head(20).to_dict(orient='records'),
-                },
-                'description': '今日涨停板统计',
-            }
-    except Exception as e:
-        return {'success': False, 'error': str(e), 'data': {}}
-    return {'success': False, 'error': '无数据', 'data': {}}
-
-
 def fetch_institutional_research() -> dict[str, Any]:
-    """
-    机构调研动态（近3日被密集调研的标的）
-    """
+    """机构调研动态（近期机构评级报告）"""
     try:
         df = ak.stock_institute_recommend()
         if df is not None and not df.empty:
-            # 取评级变化列
             records = df.head(30).to_dict(orient='records')
             return {
                 'success': True,
@@ -117,13 +56,10 @@ def fetch_institutional_research() -> dict[str, Any]:
 
 
 def fetch_unlock_calendar() -> dict[str, Any]:
-    """
-    解禁减持日历（本周重要解禁）
-    """
+    """解禁减持日历（近期解禁计划）"""
     try:
         df = ak.stock_circulate_stock_holder()
         if df is not None and not df.empty:
-            # 取近7日解禁数据
             records = df.head(20).to_dict(orient='records')
             return {
                 'success': True,
@@ -135,33 +71,8 @@ def fetch_unlock_calendar() -> dict[str, Any]:
     return {'success': False, 'error': '无数据', 'data': []}
 
 
-def fetch_sector_funds() -> dict[str, Any]:
-    """
-    板块资金流向（行业板块 TOP10）
-    """
-    try:
-        df = ak.stock_sector_fund_flow_rank(indicator='今日', sector_type='行业资金流向')
-        if df is not None and not df.empty:
-            top10 = df.head(10).to_dict(orient='records')
-            bottom10 = df.tail(10).to_dict(orient='records')
-            return {
-                'success': True,
-                'data': {
-                    'top_inflow': top10,
-                    'top_outflow': bottom10,
-                },
-                'description': '今日板块资金流向 TOP/BOTTOM 10',
-            }
-    except Exception as e:
-        return {'success': False, 'error': str(e), 'data': {}}
-    return {'success': False, 'error': '无数据', 'data': {}}
-
-
 def fetch_index_quotes() -> dict[str, Any]:
-    """
-    A股三大指数近5日收盘行情（上证、深证、创业板）
-    是 Claude 判断市场趋势和情绪的基础数据
-    """
+    """A股三大指数近5日收盘行情（上证、深证、创业板）"""
     indices = {
         'sh000001': '上证综指',
         'sz399001': '深证成指',
@@ -181,51 +92,8 @@ def fetch_index_quotes() -> dict[str, Any]:
         return {'success': False, 'error': str(e), 'data': {}}
 
 
-def fetch_market_breadth() -> dict[str, Any]:
-    """
-    全市场涨跌家数（市场宽度）
-    上涨/下跌/平盘/涨停/跌停家数，判断赚钱效应的核心指标
-    同时返回结构化字段（rise/fall/flat/limit_up/limit_down）供 marketBreadth 表写入
-    """
-    try:
-        df = ak.stock_market_activity_legu()
-        if df is not None and not df.empty:
-            records = df.to_dict(orient='records')
-            # 提取结构化字段，精确匹配标签，避免"真实涨停"等子行覆盖主值
-            EXACT_MAP = {
-                '上涨': 'rise',
-                '下跌': 'fall',
-                '平盘': 'flat',
-                '涨停': 'limit_up',
-                '跌停': 'limit_down',
-            }
-            structured = {'rise': 0, 'fall': 0, 'flat': 0, 'limit_up': 0, 'limit_down': 0}
-            for row in records:
-                label = str(row.get('item') or row.get('类型') or '').strip()
-                raw_val = row.get('value') or row.get('数量') or 0
-                try:
-                    val = int(float(str(raw_val).replace('%', ''))) if '%' not in str(raw_val) else 0
-                except (ValueError, TypeError):
-                    val = 0
-                if label in EXACT_MAP:
-                    structured[EXACT_MAP[label]] = val
-            return {
-                'success': True,
-                'data': records,
-                'structured': structured,
-                'description': '全市场涨跌家数（上涨/下跌/平/涨停/跌停）',
-            }
-    except Exception as e:
-        return {'success': False, 'error': str(e), 'data': [], 'structured': {}}
-    return {'success': False, 'error': '无数据', 'data': [], 'structured': {}}
-
-
 def fetch_domestic_futures() -> dict[str, Any]:
-    """
-    国内期货主力合约现价（东方财富）
-    覆盖螺纹钢、铁矿石、铜、原油、豆粕、黄金等核心品种
-    """
-    # 重点关注的国内期货品种
+    """国内期货主力合约现价（核心品种）"""
     KEY_VARIETIES = {
         '螺纹钢', '铁矿石', '铜', '原油', '豆粕', '豆油',
         '黄金', '白银', '玻璃', '纯碱', '焦炭', '焦煤',
@@ -234,7 +102,6 @@ def fetch_domestic_futures() -> dict[str, Any]:
     try:
         df = ak.futures_zh_spot_em()
         if df is not None and not df.empty:
-            # 过滤关键品种
             if '品种' in df.columns:
                 df = df[df['品种'].isin(KEY_VARIETIES)]
             return {
@@ -247,23 +114,112 @@ def fetch_domestic_futures() -> dict[str, Any]:
     return {'success': False, 'error': '无数据', 'data': []}
 
 
+def fetch_limit_down_pool() -> dict[str, Any]:
+    """
+    今日跌停池（风险维度）
+    数据源：akshare stock_zt_pool_dtgc_em
+    """
+    try:
+        df = ak.stock_zt_pool_dtgc_em(date=get_today_str())
+        if df is not None and not df.empty:
+            # 排除 ST
+            if '名称' in df.columns:
+                df = df[~df['名称'].str.contains('ST', case=False, na=False)]
+            records = df.head(20).to_dict(orient='records')
+            return {
+                'success': True,
+                'data': {
+                    'total_count': len(df),
+                    'top_stocks': records,
+                },
+                'description': '今日跌停池（非 ST）TOP20',
+            }
+    except Exception as e:
+        return {'success': False, 'error': str(e), 'data': {}}
+    return {'success': False, 'error': '无数据', 'data': {}}
+
+
+def fetch_zhaban_pool() -> dict[str, Any]:
+    """
+    今日炸板池（情绪退潮先行信号）
+    数据源：akshare stock_zt_pool_zbgc_em
+    """
+    try:
+        df = ak.stock_zt_pool_zbgc_em(date=get_today_str())
+        if df is not None and not df.empty:
+            if '名称' in df.columns:
+                df = df[~df['名称'].str.contains('ST', case=False, na=False)]
+            records = df.head(20).to_dict(orient='records')
+            return {
+                'success': True,
+                'data': {
+                    'total_count': len(df),
+                    'top_stocks': records,
+                },
+                'description': '今日炸板池 TOP20',
+            }
+    except Exception as e:
+        return {'success': False, 'error': str(e), 'data': {}}
+    return {'success': False, 'error': '无数据', 'data': {}}
+
+
+def fetch_overseas_overnight() -> dict[str, Any]:
+    """
+    隔夜外盘 + 开盘前风向
+    - 美股三大指数（道指/纳指/标普）
+    - 富时中国 A50 期指
+    - 人民币汇率（USDCNY）
+    """
+    result: dict[str, Any] = {}
+
+    # 美股三大指数
+    try:
+        df_us = ak.index_us_stock_sina()
+        if df_us is not None and not df_us.empty:
+            target = {'.DJI': '道指', '.IXIC': '纳指', '.INX': '标普500'}
+            rows = []
+            for code, name in target.items():
+                m = df_us[df_us['symbol'] == code] if 'symbol' in df_us.columns else pd.DataFrame()
+                if not m.empty:
+                    r = m.iloc[0]
+                    rows.append({
+                        'name': name,
+                        'close': r.get('price'),
+                        'change_pct': r.get('percent'),
+                    })
+            result['us_index'] = rows
+    except Exception as e:
+        result['us_index_error'] = str(e)
+
+    # 富时 A50
+    try:
+        df_a50 = ak.futures_foreign_commodity_realtime(symbol='CN')
+        # akshare 不同版本接口可能不同，失败就跳过
+        if df_a50 is not None and not df_a50.empty:
+            result['a50_futures'] = df_a50.head(3).to_dict(orient='records')
+    except Exception as e:
+        result['a50_error'] = str(e)
+
+    # 人民币汇率
+    try:
+        df_fx = ak.currency_boc_sina(symbol='美元', start_date=get_yesterday_str(), end_date=get_today_str())
+        if df_fx is not None and not df_fx.empty:
+            result['usdcny'] = df_fx.tail(1).to_dict(orient='records')
+    except Exception as e:
+        result['fx_error'] = str(e)
+
+    return {
+        'success': bool(result) and not all(k.endswith('_error') for k in result),
+        'data': result,
+        'description': '隔夜外盘 + 汇率',
+    }
+
+
 def fetch_all() -> dict[str, Any]:
-    """执行全部 A 股数据采集，返回汇总结果"""
-    print('  [akshare] 开始采集 A 股数据...')
+    """执行全部 A 股数据采集（早报独有部分），返回汇总结果"""
+    print('  [akshare] 开始采集 A 股数据（早报独有部分）...')
 
     results = {}
-
-    print('  [akshare] 采集北向资金...')
-    results['north_money'] = fetch_north_money()
-
-    print('  [akshare] 采集融资余额...')
-    results['margin_balance'] = fetch_margin_balance()
-
-    print('  [akshare] 采集涨停板统计...')
-    results['limit_up_stats'] = fetch_limit_up_stats()
-
-    print('  [akshare] 采集全市场涨跌家数...')
-    results['market_breadth'] = fetch_market_breadth()
 
     print('  [akshare] 采集机构调研...')
     results['institutional_research'] = fetch_institutional_research()
@@ -271,14 +227,20 @@ def fetch_all() -> dict[str, Any]:
     print('  [akshare] 采集解禁日历...')
     results['unlock_calendar'] = fetch_unlock_calendar()
 
-    print('  [akshare] 采集板块资金流向...')
-    results['sector_funds'] = fetch_sector_funds()
-
     print('  [akshare] 采集三大指数近5日行情...')
     results['index_quotes'] = fetch_index_quotes()
 
     print('  [akshare] 采集国内期货主力合约...')
     results['domestic_futures'] = fetch_domestic_futures()
+
+    print('  [akshare] 采集跌停池...')
+    results['limit_down_pool'] = fetch_limit_down_pool()
+
+    print('  [akshare] 采集炸板池...')
+    results['zhaban_pool'] = fetch_zhaban_pool()
+
+    print('  [akshare] 采集隔夜外盘...')
+    results['overseas_overnight'] = fetch_overseas_overnight()
 
     success_count = sum(1 for v in results.values() if v.get('success'))
     print(f'  [akshare] 完成，{success_count}/{len(results)} 项成功')

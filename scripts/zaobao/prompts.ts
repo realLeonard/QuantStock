@@ -21,6 +21,14 @@ export const SYSTEM_PROMPT = `你是一位专业的 A 股投资顾问，擅长�
 
 **如果同一事件在重要资讯和快讯中都有出现，视为热点，必须选入。**
 
+**关于昨日盘面数据的使用：**
+- 盘面数据仅为"昨日客观事实背景"，不是今日预判的主导因素
+- 新闻是最新变量，当新闻与昨日盘面矛盾时，以新闻为准
+- 禁止直接复述昨日盘面数据，应将其作为推演今日方向的依据之一
+- 连板天梯/涨停题材聚合/资金延续性 是判断主线延续 vs 衰减的关键线索
+- 历史基线对比（涨停数/炸板率/晋级率）用于判断情绪"升温 or 退潮"
+- 两融数据是 T-1 披露（看 trade_date），只作趋势参考，不可当日描述
+
 **输出语言：** 中文
 **报告末尾格式：** 以"*本报告仅供参考，不构成投资建议*"结尾，禁止添加数据来源注释（如"数据来源：财联社、AKShare、YFinance"等）。`;
 
@@ -118,8 +126,22 @@ export function buildUserPrompt(params: {
   newsItems: { priority: Array<Record<string, unknown>>; flash: Array<Record<string, unknown>> };
   breadthHistory: Array<Record<string, unknown>>;
   previousSummary?: string;
+  /** 昨日复盘结构化数据块（formatReviewForZaobao 输出），为空时回退到 aShareData */
+  reviewMarkdown?: string;
+  /** 历史基线（近5日对比） */
+  historyBaseline?: string;
+  /** 板块资金近3日延续性 */
+  sectorContinuity?: string;
+  /** 昨日板块回测结果块（代码硬注入，AI 不得篡改数字） */
+  yesterdayReviewBlock?: string;
+  /** 近7日板块命中率字符串 */
+  recentHitRate?: string;
 }): string {
-  const { date, reportType, aShareData, intlData, macroData, newsItems, breadthHistory, previousSummary } = params;
+  const {
+    date, reportType, aShareData, intlData, macroData, newsItems,
+    breadthHistory, previousSummary, reviewMarkdown, historyBaseline, sectorContinuity,
+    yesterdayReviewBlock, recentHitRate,
+  } = params;
 
   // 新闻紧凑格式
   const newsSection = `
@@ -132,15 +154,23 @@ ${formatNews(newsItems.priority, true) || '（无数据）'}
 ${formatNews(newsItems.flash, false) || '（无数据）'}
 `.trim();
 
-  // 市场行情紧凑格式
+  // 市场行情紧凑格式：优先用复盘结构化数据块，无则回退到 akshare 原始 JSON
+  const aShareBlock = reviewMarkdown
+    ? reviewMarkdown
+    : `### A股（akshare 兜底，复盘数据缺失）\n\`\`\`json\n${JSON.stringify(aShareData, null, 2).slice(0, 5000)}\n\`\`\``;
+
+  const baselineBlock = historyBaseline
+    ? `\n### 情绪趋势（近5日基线对比）\n${historyBaseline}\n`
+    : '';
+  const continuityBlock = sectorContinuity
+    ? `\n### 板块延续性（近3日主力净流入）\n${sectorContinuity}\n`
+    : '';
+
   const marketSection = `
 ## 市场行情数据
 
-### A股（akshare）
-\`\`\`json
-${JSON.stringify(aShareData, null, 2).slice(0, 5000)}
-\`\`\`
-
+${aShareBlock}
+${baselineBlock}${continuityBlock}
 ### 国际市场（yfinance）
 \`\`\`json
 ${JSON.stringify(intlData, null, 2).slice(0, 3000)}
@@ -160,7 +190,17 @@ ${buildAsciiTrend(breadthHistory)}
 `.trim();
 
   const prevSection = previousSummary
-    ? `\n## 昨日预判（用于验证）\n${previousSummary}\n`
+    ? `\n## 昨日预判摘要（参考）\n${previousSummary}\n`
+    : '';
+
+  // 昨日板块回测（代码硬注入，AI 不得改动数字）
+  const reviewResultSection = yesterdayReviewBlock
+    ? `\n## 昨日板块判断回测（代码硬注入，下方数字**必须原样引用**，禁止修改、美化或隐藏未命中项）\n\`\`\`\n${yesterdayReviewBlock}\n\`\`\`\n`
+    : '';
+
+  // 近7日命中率
+  const hitRateLine = recentHitRate
+    ? `\n## 近7日滚动命中率\n${recentHitRate}\n`
     : '';
 
   const typeInstruction = reportType === 'weekly'
@@ -170,7 +210,7 @@ ${buildAsciiTrend(breadthHistory)}
   return `请根据以下 ${date} 的数据，生成投资早报。
 
 ${typeInstruction}
-${prevSection}
+${prevSection}${reviewResultSection}${hitRateLine}
 
 ${newsSection}
 
@@ -185,6 +225,14 @@ ${trendSection}
 请按以下格式输出：
 
 📰 投资早报  ${date}  08:00
+
+━━━ 30秒速读 ━━━
+⚡ 基调：（一句话概括今日市场预判，40 字以内，例："外盘强势提振但昨日资金分化，预计高开承压、结构分化加剧"）
+🎯 主攻：（板块1 / 板块2 / 板块3，最多3个，不解释）
+⚠️ 规避：（板块1 / 板块2，最多2个，不解释）
+📊 仓位：（进攻 / 均衡 / 防守 / 观望 四选一 + 一句话理由，50 字以内）
+🔑 关键变量：（今日盘中最需要盯的 1 个验证点，60 字以内，例："CPO 板块能否首日量价齐升站稳，若主力资金延续昨日流入则确认主线"）
+📈 近7日板块命中率：（**原样引用上方"近7日滚动命中率"一行，无数据则留空**）
 
 ━━━ 今日核心概述 ━━━
 ①【市场基调】今日整体市场情绪与风险偏好判断，依据是什么（外盘表现/资金面/情绪指标等）
@@ -207,22 +255,42 @@ ${trendSection}
 ━━━ 近7日情绪趋势 ━━━
 （直接复制下方 ASCII 趋势图，并加 1-2 句判断：情绪改善/恶化/横盘，与昨日对比）
 
-━━━ 昨日预判验证 ━━━
-（如有昨日预判则验证准确性，否则略去此节）
+━━━ 昨日命中回顾 ━━━
+（**第一行必须原样复制上方"昨日板块判断回测"数据块的全部内容，不得改动数字、不得省略未命中项**。
+之后用 2-3 句做简短归因，聚焦"误判原因"和"超预期原因"，不得美化结果。
+若无昨日回测数据，略去此节。）
 
 ━━━ 今日操作指引 ━━━
-🎯 重点关注板块：（列出板块，如有代表性个股可列出 2-3 只，注明关注理由）
-⚠️ 回避或谨慎：（列出需回避的板块或个股，并说明理由）
+🎯 重点关注板块：（列出板块，如有代表性个股可列出 2-3 只）
+⚠️ 回避或谨慎：（列出需回避的板块或个股）
 📌 开盘注意：
 
-| 类型 | 板块 | 重点个股（2-3只） | 理由 |
-|------|------|-----------------|------|
-| 🎯 关注 | | | |
-| 🎯 关注 | | | |
-| 🎯 关注 | | | |
-| ⚠️ 规避 | | | |
-| ⚠️ 规避 | | | |
+| 类　　型 | 板　　块 | 重点个股（2-3只） | 消息面 | 数据面(辅助) |
+|---------|---------|-----------------|--------|--------------|
+| 🎯 关注 | | | | |
+| 🎯 关注 | | | | |
+| 🎯 关注 | | | | |
+| ⚠️ 规避 | | | | |
+| ⚠️ 规避 | | | | |
+
+**两列填写规则：**
+- **消息面（主导，核心）**：必填。引用具体新闻要点，说清催化逻辑，长度不做硬限制但保持精炼。新闻是早报的核心数据源，代表最新变量，是决策的主要依据。
+- **数据面(辅助)**：尽量填。从昨日盘面客观数据中寻找验证信号，从以下类别任选：
+  * 板块资金延续性（近3日净流入趋势：放大/衰减/流出转向）
+  * 连板天梯高度（板块内最高板数、龙头名字）
+  * 情绪基线对比（晋级率/炸板率 vs 5日均值）
+  * 同花顺热度排名（TOP3/TOP10）
+  * 龙虎榜/游资动向（谁在买、买了什么）
+  * 两融杠杆水位（高位警示/低位企稳）
+
+**重要原则（次序不可颠倒）：**
+- **新闻优先**：若新闻足够强（A 级、政策、产业重磅催化），即使昨日数据未反应也保留该条，数据面可填 "—"、"首日待量能确认"、"昨日无沉淀" 等说明
+- 数据缺失不等于证伪，只是说明该主线昨日未被资金消化；强新闻完全可以成为进攻方向，保留新闻的主导地位
+- 数据与新闻相悖时（如资金持续流出但新闻利好），不强制降级，但必须在数据面里明确标出矛盾（如"资金净流出3日 → 谨慎高开低吸"）
+- 规避方向可以"纯数据驱动"（消息面填 "—"），如"高位连板获利回吐、晋级率低于均值"
 
 ---
-注意：新闻层要让用户看到你选取的原始信号，分析层要给出你的综合判断，两者都不可省略。`;
+注意：
+- 新闻层是早报的核心数据源，代表最新变量；昨日盘面数据是辅助验证，代表昨日客观状态
+- 两者都展示让用户看到完整证据链，但决策主导权在新闻，不因数据缺失而删除强新闻主线`;
 }

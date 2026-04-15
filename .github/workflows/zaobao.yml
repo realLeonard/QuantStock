@@ -57,5 +57,6 @@ jobs:
           ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
           WXPUSHER_TOKEN: ${{ secrets.WXPUSHER_TOKEN }}
           WXPUSHER_UID: ${{ secrets.WXPUSHER_UID }}
+          BARK_KEY: ${{ secrets.BARK_KEY }}
         run: npx tsx index.ts
         working-directory: scripts/zaobao

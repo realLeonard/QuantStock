@@ -7,6 +7,11 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
 import { SYSTEM_PROMPT, buildUserPrompt } from './prompts';
+import { formatReviewForZaobao, type DailyReviewRow, type LimitUpReasonsRow } from './formatters/review-data';
+import { loadHistoryBaseline, loadSectorContinuity } from './formatters/review-queries';
+import { loadYesterdayReviewBlock, loadRecentHitRate } from './formatters/review-result';
+import { reviewOneDay } from './review-picks';
+import { sendBarkAlert } from './utils/bark';
 
 // ===== 环境变量 =====
 function getEnv() {
@@ -170,6 +175,50 @@ async function loadMarketBreadth(): Promise<Array<Record<string, unknown>>> {
   return (data ?? []).reverse(); // 改为升序（旧→新）方便展示趋势
 }
 
+// ===== 读取昨日复盘数据 + 涨停简图（用于结构化数据块）=====
+async function loadReviewData(beforeDate: string): Promise<{
+  review: DailyReviewRow | null;
+  limitUp: LimitUpReasonsRow | null;
+  reviewDate: string | null;
+}> {
+  const sb = getSupabase();
+
+  // 1. 查 beforeDate（含）之前最近一条 status='success' 的复盘
+  const { data: reviewRow, error: reviewErr } = await sb
+    .from('dailyReview')
+    .select('report_date, market_overview, market_sentiment, limit_up_ladder, limit_analysis, sector_fund_flow, stock_fund_flow, ths_hot_concepts, ths_hot_industries, dragon_tiger, hot_money_moves, margin_data')
+    .lte('report_date', beforeDate)
+    .eq('status', 'success')
+    .order('report_date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (reviewErr) {
+    console.warn(`  [generate] 读取 dailyReview 失败: ${reviewErr.message}`);
+    return { review: null, limitUp: null, reviewDate: null };
+  }
+  if (!reviewRow) {
+    console.warn(`  [generate] 未找到 ${beforeDate} 之前的复盘数据`);
+    return { review: null, limitUp: null, reviewDate: null };
+  }
+
+  const reviewDate = reviewRow.report_date as string;
+  console.log(`  [generate] 使用 ${reviewDate} 的复盘数据`);
+
+  // 2. 查同日 limitUpReasons
+  const { data: lurRow } = await sb
+    .from('limitUpReasons')
+    .select('themes')
+    .eq('pick_date', reviewDate)
+    .maybeSingle();
+
+  return {
+    review: reviewRow as DailyReviewRow,
+    limitUp: (lurRow as LimitUpReasonsRow) ?? null,
+    reviewDate,
+  };
+}
+
 // ===== 读取昨日早报摘要（用于预判验证）=====
 async function loadPreviousSummary(date: string): Promise<string | undefined> {
   const sb = getSupabase();
@@ -201,6 +250,11 @@ async function generateReport(params: {
   newsItems: { priority: Array<Record<string, unknown>>; flash: Array<Record<string, unknown>> };
   breadthHistory: Array<Record<string, unknown>>;
   previousSummary?: string;
+  reviewMarkdown?: string;
+  historyBaseline?: string;
+  sectorContinuity?: string;
+  yesterdayReviewBlock?: string;
+  recentHitRate?: string;
 }): Promise<{ content: string; summary: string }> {
   const client = new Anthropic();
   const userPrompt = buildUserPrompt(params);
@@ -281,6 +335,27 @@ export async function generateDailyReport(date: string): Promise<void> {
   const reportType = isTradeDay(date) ? 'trading' : 'weekly';
   console.log(`  [generate] 报告类型: ${reportType === 'trading' ? '交易日早报' : '周日周报'}`);
 
+  // ===== Step 0: T-1 板块回测（失败不阻塞） =====
+  const yesterdayForReview = addDays(date, -1);
+  let yesterdayReviewBlock: string | undefined;
+  let recentHitRate: string | undefined;
+  try {
+    console.log(`  [generate] 执行 T-1 板块回测（${yesterdayForReview}）...`);
+    await reviewOneDay(yesterdayForReview, false);
+    const sb = getSupabase();
+    const [block, rate] = await Promise.all([
+      loadYesterdayReviewBlock(sb, date),
+      loadRecentHitRate(sb, date, 7),
+    ]);
+    yesterdayReviewBlock = block ?? undefined;
+    recentHitRate = rate ?? undefined;
+    if (recentHitRate) console.log(`  [generate] ${recentHitRate}`);
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.warn(`  [generate] T-1 回测失败（跳过注入，主流程继续）:`, errMsg);
+    await sendBarkAlert('早报板块回测失败', `${yesterdayForReview}: ${errMsg.slice(0, 200)}`);
+  }
+
   // 读取原始市场数据（周报取最近一个交易日数据）
   let dataDate = date;
   if (reportType === 'weekly') {
@@ -306,6 +381,25 @@ export async function generateDailyReport(date: string): Promise<void> {
   // 读取昨日摘要
   const previousSummary = await loadPreviousSummary(date);
 
+  // 读取昨日复盘数据 + 涨停简图（昨日客观盘面数据块主要来源）
+  console.log('  [generate] 读取昨日复盘数据...');
+  const { review, limitUp, reviewDate } = await loadReviewData(addDays(date, -1));
+
+  // 基于复盘数据生成结构化数据块
+  const reviewMarkdown = review ? formatReviewForZaobao(review, limitUp) : undefined;
+
+  // 实时聚合：历史基线 + 板块延续性（基于复盘实际日期向前追溯）
+  let historyBaseline: string | undefined;
+  let sectorContinuity: string | undefined;
+  if (reviewDate) {
+    const sb = getSupabase();
+    console.log('  [generate] 聚合历史基线 + 板块延续性...');
+    [historyBaseline, sectorContinuity] = await Promise.all([
+      loadHistoryBaseline(sb, reviewDate),
+      loadSectorContinuity(sb, reviewDate),
+    ]);
+  }
+
   // 生成报告
   const { content, summary } = await generateReport({
     date,
@@ -316,6 +410,11 @@ export async function generateDailyReport(date: string): Promise<void> {
     newsItems,
     breadthHistory,
     previousSummary,
+    reviewMarkdown,
+    historyBaseline,
+    sectorContinuity,
+    yesterdayReviewBlock,
+    recentHitRate,
   });
 
   // 保存
