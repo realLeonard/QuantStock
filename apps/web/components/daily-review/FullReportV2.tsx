@@ -197,12 +197,17 @@ function FundPicturePanel({
   const fp = ai.fund_picture;
   if (!fp) return null;
 
+  // 两融 T-1 披露，label 显示数据实际截至日
+  const marginLabel = marginData?.trade_date
+    ? `两融杠杆（截至 ${marginData.trade_date.slice(5)}）`
+    : '两融杠杆';
+
   const items = [
-    { label: '大盘资金', icon: '📊', content: fp.dashboard_conclusion },
-    { label: '资金迁徙', icon: '🔄', content: fp.migration },
-    { label: '机构动向', icon: '🏛', content: fp.inst_summary },
-    { label: '游资动向', icon: '🔥', content: fp.hot_money_summary },
-    { label: '两融杠杆', icon: '⚡', content: fp.margin_summary ?? '' },
+    { key: 'dashboard', label: '大盘资金', icon: '📊', content: fp.dashboard_conclusion },
+    { key: 'migration', label: '资金迁徙', icon: '🔄', content: fp.migration },
+    { key: 'inst', label: '机构动向', icon: '🏛', content: fp.inst_summary },
+    { key: 'hot_money', label: '游资动向', icon: '🔥', content: fp.hot_money_summary },
+    { key: 'margin', label: marginLabel, icon: '⚡', content: fp.margin_summary ?? '' },
   ].filter(x => x.content);
 
   return (
@@ -216,9 +221,9 @@ function FundPicturePanel({
               {it.label}
             </div>
             <div className={s.fundCardContent}>
-              {it.label === '两融杠杆' && marginData && <MarginMetricsRow data={marginData} />}
+              {it.key === 'margin' && marginData && <MarginMetricsRow data={marginData} />}
               {it.content}
-              {it.label === '游资动向' && hotMoneyMoves.length > 0 && (
+              {it.key === 'hot_money' && hotMoneyMoves.length > 0 && (
                 <div className={s.hotMoneyList}>
                   {hotMoneyMoves.slice(0, 12).map((m, idx) => (
                     <span
@@ -248,9 +253,12 @@ function MarginMetricsRow({ data }: { data: MarginData }) {
     if (yi >= 10000) return `${(yi / 10000).toFixed(2)}万亿`;
     return `${Math.round(yi)}亿`;
   };
-  const dc = data.daily_change;
   const cd = data.consecutive_days;
-  const dcColor = dc == null ? undefined : dc >= 0 ? UP : DOWN;
+  // 近 5 日累计变化（替代"日变化"，避免读者把 T-1 的单日数据误读为今日情绪）
+  const sum5d = data.change_5d?.length
+    ? Number(data.change_5d.reduce((a, b) => a + b, 0).toFixed(2))
+    : null;
+  const sumColor = sum5d == null ? undefined : sum5d >= 0 ? UP : DOWN;
   const cdStr = cd && cd !== 0 ? `连续 ${cd > 0 ? '+' : ''}${cd} 日` : '';
 
   return (
@@ -263,9 +271,9 @@ function MarginMetricsRow({ data }: { data: MarginData }) {
         )}
       </div>
       <div className={s.marginMetricItem}>
-        <span className={s.marginMetricLabel}>日变化</span>
-        <b className={s.marginMetricVal} style={dcColor ? { color: dcColor } : undefined}>
-          {dc == null ? '-' : `${dc >= 0 ? '+' : ''}${dc}亿`}
+        <span className={s.marginMetricLabel}>5日累计</span>
+        <b className={s.marginMetricVal} style={sumColor ? { color: sumColor } : undefined}>
+          {sum5d == null ? '-' : `${sum5d >= 0 ? '+' : ''}${Math.round(sum5d)}亿`}
         </b>
         {cdStr && <span className={s.marginMetricSub}>{cdStr}</span>}
       </div>

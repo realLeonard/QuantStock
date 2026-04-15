@@ -5,7 +5,7 @@ import { useAppStore } from '@/store';
 import { apiClient } from '@/lib/supabase';
 import PageHeader from '@/components/ui/PageHeader';
 import DetailBackBar from '@/components/ui/DetailBackBar';
-import type { DailyReview, AiAnalysis, AiAnalysisV2, LimitUpReasons, MarginData } from '@quantstock/types';
+import type { DailyReview, AiAnalysis, AiAnalysisV2, LimitUpReasons } from '@quantstock/types';
 import s from './DailyReviewView.module.css';
 import FullReportV2 from './FullReportV2';
 
@@ -94,8 +94,7 @@ function ListCard({ review, onSelect }: { review: DailyReview; onSelect: (id: st
   const mainInflow = fundFlow?.main_inflow;
   const premiumRate = limitAnalysis?.premium_summary?.premium_rate;
   const promotionRate = limitAnalysis?.promotion?.rate;
-  const margin = (review.margin_data ?? null) as MarginData | null;
-  const marginChange = margin?.daily_change;
+  // 两融 T-1 披露，日变化放列表摘要易被误读为当日，故不显示
 
   return (
     <div className={s.card} onClick={() => onSelect(review.id)}>
@@ -128,13 +127,6 @@ function ListCard({ review, onSelect }: { review: DailyReview; onSelect: (id: st
           <span>
             主力 <b className={mainInflow >= 0 ? s.cardRed : s.cardGreen}>
               {mainInflow >= 0 ? '+' : ''}{mainInflow}亿
-            </b>
-          </span>
-        )}
-        {marginChange != null && (
-          <span>
-            两融 <b className={marginChange >= 0 ? s.cardRed : s.cardGreen}>
-              {marginChange >= 0 ? '+' : ''}{marginChange}亿
             </b>
           </span>
         )}
@@ -231,7 +223,7 @@ function DetailView({ review, onBack }: { review: DailyReview; onBack: () => voi
         <FullReportPanel review={review} limitUpReasons={limitUpReasons} />
       ) : (
         <div className={s.panel}>
-          {activeTab === 'overview' && <OverviewPanel data={review.market_overview} sentiment={review.market_sentiment} />}
+          {activeTab === 'overview' && <OverviewPanel data={review.market_overview} sentiment={review.market_sentiment} marginTradeDate={(review.margin_data as { trade_date?: string } | null)?.trade_date ?? null} />}
           {activeTab === 'thsHot' && <ThsHotStocksPanel data={review.ths_hot_stocks} />}
           {activeTab === 'ladder' && <LadderPanel data={review.limit_up_ladder} limitUpReasons={limitUpReasons} />}
           {activeTab === 'dragon' && <DragonPanel data={review.dragon_tiger} />}
@@ -319,6 +311,7 @@ function FullReportPanel({
           <OverviewPanel
             data={review.market_overview}
             sentiment={review.market_sentiment}
+            marginTradeDate={(review.margin_data as { trade_date?: string } | null)?.trade_date ?? null}
           />
         </CollapsePanel>
         <CollapsePanel title="热门股">
@@ -592,7 +585,7 @@ function LegacyFullReportPanel({ review }: { review: DailyReview }) {
   const [expandLimitDown, setExpandLimitDown] = useState(false);
 
   const sections: { title: string; content: React.ReactNode }[] = [
-    { title: '大盘总览', content: <OverviewPanel data={review.market_overview} sentiment={review.market_sentiment} /> },
+    { title: '大盘总览', content: <OverviewPanel data={review.market_overview} sentiment={review.market_sentiment} marginTradeDate={(review.margin_data as { trade_date?: string } | null)?.trade_date ?? null} /> },
     { title: '热门股', content: <ThsHotStocksPanel data={review.ths_hot_stocks} /> },
     { title: '连板天梯', content: <LadderPanel data={review.limit_up_ladder} /> },
     {
@@ -896,7 +889,15 @@ export function InfoTip({ text }: { text: string }) {
   );
 }
 
-function OverviewPanel({ data, sentiment }: { data: Record<string, unknown> | null; sentiment: Record<string, unknown> | null }) {
+function OverviewPanel({
+  data,
+  sentiment,
+  marginTradeDate,
+}: {
+  data: Record<string, unknown> | null;
+  sentiment: Record<string, unknown> | null;
+  marginTradeDate?: string | null;
+}) {
   if (!data) return <p>暂无数据</p>;
   const indices = (data.indices ?? []) as Record<string, unknown>[];
   const margin = data.margin as Record<string, number> | null;
@@ -923,12 +924,11 @@ function OverviewPanel({ data, sentiment }: { data: Record<string, unknown> | nu
       <div className={s.subTitle}>资金面</div>
       <div className={s.metricGrid}>
         <div className={s.metricCard}>
-          <div className={s.metricLabel}>融资余额</div>
+          <div className={s.metricLabel}>
+            融资余额{marginTradeDate ? `（截至 ${marginTradeDate}）` : '（T-1）'}
+            <InfoTip text={'两融数据由交易所 T+1 披露，当日复盘里的融资余额实际反映的是上一交易日收盘后的数据。\n仅作为中期趋势参考，不宜直接用来解读当日涨跌。'} />
+          </div>
           <div className={s.metricValue}>{fmt(margin?.balance)}亿</div>
-        </div>
-        <div className={s.metricCard}>
-          <div className={s.metricLabel}>融资余额变化</div>
-          <div className={`${s.metricValue} ${changeCls(margin?.change ?? 0)}`}>{fmt(margin?.change)}亿</div>
         </div>
       </div>
       {/* 大盘资金（主力/超大单/中单/散户）— 单独一行 */}
