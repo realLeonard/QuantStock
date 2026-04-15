@@ -615,7 +615,7 @@ def collect_limit_up_reasons(sb: Client) -> None:
         )
 
     except subprocess.TimeoutExpired:
-        print('  [limitUpReasons] Node 脚本超时（60s）')
+        print('  [limitUpReasons] Node 脚本超时（180s）')
     except Exception as e:
         print(f'  [limitUpReasons] 采集失败: {e}')
 
