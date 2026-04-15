@@ -577,8 +577,8 @@ def collect_limit_up_reasons(sb: Client) -> None:
             print(f'  [limitUpReasons] {pick_date} 已存在，跳过')
             return
 
-        # 调用 Node.js 提取脚本
-        script_path = project_root / 'scripts' / 'daily-review' / 'jiuyan-fetch.ts'
+        # 调用 Node.js 提取脚本（涨停简图 PNG + Claude Vision 解析）
+        script_path = project_root / 'scripts' / 'daily-review' / 'jiuyan-image-fetch.ts'
         if not script_path.exists():
             print(f'  [limitUpReasons] 提取脚本不存在: {script_path}')
             return
@@ -588,7 +588,7 @@ def collect_limit_up_reasons(sb: Client) -> None:
             cwd=str(project_root / 'scripts' / 'daily-review'),
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=180,
         )
         if proc.returncode != 0:
             print(f'  [limitUpReasons] Node 脚本失败: {proc.stderr.strip()[:200]}')
@@ -604,8 +604,8 @@ def collect_limit_up_reasons(sb: Client) -> None:
             'id': str(uuid.uuid4()),
             'pick_date': pick_date,
             'themes': themes,
-            'raw_image_url': None,
-            'source': 'jiuyan',
+            'raw_image_url': data.get('raw_image_url'),
+            'source': 'jiuyan-image',
             'created_at': now_utc_ms(),
         }
         sb.table('limitUpReasons').insert(record).execute()
