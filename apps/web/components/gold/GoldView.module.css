@@ -47,6 +47,20 @@
   margin-left: 4px;
 }
 
+.moreLink {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--primary, #6366f1);
+  margin-left: 10px;
+  cursor: pointer;
+  transition: color .15s;
+}
+
+.moreLink:hover {
+  color: #4f46e5;
+  text-decoration: underline;
+}
+
 .cardActions {
   display: flex;
   gap: 8px;
@@ -93,10 +107,16 @@
 }
 
 .colLabel {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary, #64748b);
-  margin-bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary, #1e293b);
+  margin-bottom: 10px;
+  padding-left: 10px;
+  border-left: 3px solid var(--primary, #6366f1);
+  line-height: 1.25;
 }
 
 .colText {
@@ -104,7 +124,6 @@
   line-height: 1.7;
   color: var(--text-primary, #1e293b);
   white-space: pre-wrap;
-  min-height: 80px;
 }
 
 .emptyText {
@@ -139,8 +158,8 @@
 
 /* 近期主题子区 */
 .subSection {
-  margin-top: 18px;
-  padding-top: 16px;
+  margin-top: 10px;
+  padding-top: 10px;
   border-top: 1px dashed var(--border, #e5e7eb);
 }
 
@@ -148,7 +167,7 @@
   font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary, #64748b);
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 
 .themeChipList {
@@ -334,6 +353,60 @@
 .stockComment {
   font-size: 12.5px;
   color: var(--text-secondary, #64748b);
+}
+
+/* 「今日操作指引」表格 */
+.guidanceTableWrap {
+  overflow-x: auto;
+}
+
+.guidanceTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: var(--text-primary, #1e293b);
+}
+
+.guidanceTable th,
+.guidanceTable td {
+  padding: 10px 12px;
+  border: 1px solid var(--border, #e5e7eb);
+  vertical-align: top;
+  line-height: 1.55;
+  word-break: break-word;
+}
+
+.guidanceTable th {
+  background: #f8fafc;
+  font-weight: 700;
+  color: var(--text-secondary, #475569);
+  white-space: nowrap;
+}
+
+/* 前两列（类型 / 板块）不换行、给固定宽度；后三列可自由换行分配剩余空间 */
+.guidanceTable th:nth-child(1),
+.guidanceTable td:nth-child(1) {
+  white-space: nowrap;
+  width: 72px;
+  text-align: center;
+}
+
+.guidanceTable th:nth-child(2),
+.guidanceTable td:nth-child(2) {
+  white-space: nowrap;
+  width: 140px;
+}
+
+.guidanceTable tbody tr.rowWatch td:first-child {
+  color: #dc2626;
+  font-weight: 700;
+  background: #fef2f2;
+}
+
+.guidanceTable tbody tr.rowAvoid td:first-child {
+  color: #64748b;
+  font-weight: 700;
+  background: #f1f5f9;
 }
 
 .emptyPlaceholder {

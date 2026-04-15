@@ -4,6 +4,8 @@ import { useAppStore } from '@/store';
 import { fmtDate } from '@/lib/utils';
 import ThemeModal from '@/components/themes/ThemeModal';
 import PageHeader from '@/components/ui/PageHeader';
+import { RecentInsightsCard } from '@/components/gold/GoldPanels';
+import goldStyles from '@/components/gold/GoldView.module.css';
 import { useState } from 'react';
 import type { Theme } from '@quantstock/types';
 
@@ -11,13 +13,6 @@ export default function Dashboard() {
   const { themes, setCurrentThemeId, setCurrentNav, currentUser } = useAppStore();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTheme, setEditingTheme] = useState<Theme | null>(null);
-  const canEdit = currentUser?.role === 'admin' || currentUser?.role === 'editor';
-
-  const allStocks = themes.flatMap(t => t.stocks || []);
-  const highlightCount = allStocks.filter(s => s.highlight === 'red' || s.highlight === 'orange').length;
-  const avgStars = allStocks.length
-    ? (allStocks.reduce((s, x) => s + (x.stars || 0), 0) / allStocks.length).toFixed(1)
-    : '—';
 
   function openEdit(theme: Theme) {
     setEditingTheme(theme);
@@ -31,61 +26,11 @@ export default function Dashboard() {
 
   return (
     <>
-      <PageHeader title="仪表盘" desc={`欢迎回来，${currentUser?.username}！以下是您的股票池概览。`} />
+      <PageHeader title="仪表盘" desc={`欢迎回来，${currentUser?.username}！`} />
 
-      {/* 统计卡片 */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-icon blue">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="12 2 2 7 12 12 22 7 12 2"/>
-              <polyline points="2 17 12 22 22 17"/>
-              <polyline points="2 12 12 17 22 12"/>
-            </svg>
-          </div>
-          <div>
-            <div className="stat-label">主题总数</div>
-            <div className="stat-value">{themes.length}</div>
-            <div className="stat-sub">个投资主题</div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon green">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
-              <polyline points="16 7 22 7 22 13"/>
-            </svg>
-          </div>
-          <div>
-            <div className="stat-label">股票总数</div>
-            <div className="stat-value">{allStocks.length}</div>
-            <div className="stat-sub">条记录（含重复）</div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon red">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
-            </svg>
-          </div>
-          <div>
-            <div className="stat-label">重点标记</div>
-            <div className="stat-value">{highlightCount}</div>
-            <div className="stat-sub">红/橙高亮股票</div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon amber">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-            </svg>
-          </div>
-          <div>
-            <div className="stat-label">平均星级</div>
-            <div className="stat-value">{avgStars}</div>
-            <div className="stat-sub">综合重要性评分</div>
-          </div>
-        </div>
+      {/* 近期思路和方向（复用自近期掘金，标题附「更多」跳转） */}
+      <div className={goldStyles.wrap} style={{ marginBottom: 20 }}>
+        <RecentInsightsCard showMoreLink />
       </div>
 
       {/* 主题列表 */}

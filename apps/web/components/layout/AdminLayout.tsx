@@ -39,7 +39,11 @@ export default function AdminLayout({ children }: Props) {
     setCurrentReportId(null);
     setCurrentNav(nav);
     if (nav === 'dashboard') {
-      useAppStore.getState().loadThemes();
+      const s = useAppStore.getState();
+      s.loadThemes();
+      s.loadRecentInsights();
+      s.loadDailyGoldPicks();
+      s.loadReports();
     }
     if (nav === 'users') {
       useAppStore.getState().loadUsers();
@@ -73,6 +77,7 @@ export default function AdminLayout({ children }: Props) {
       s.loadRecentInsights();
       s.loadDailyGoldPicks();
       s.loadThemes();
+      s.loadReports();
     }
   }
 
