@@ -26,9 +26,20 @@ jobs:
           cache: 'pip'
           cache-dependency-path: scripts/zaobao/python/requirements.txt
 
-      - name: 安装依赖
+      - name: 安装 Python 依赖
         run: pip install -r requirements.txt
         working-directory: scripts/zaobao/python
+
+      # 第 7 步「采集韭研涨停原因」会通过 npx tsx 调用 scripts/daily-review/jiuyan-image-fetch.ts，
+      # 该脚本依赖 @anthropic-ai/sdk 做 Vision 解析，所以这里需要装 Node 依赖
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 安装 Node 依赖（韭研 Vision 解析需要）
+        run: npm ci --ignore-scripts
 
       - name: 执行快讯采集
         id: collect
