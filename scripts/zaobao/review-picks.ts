@@ -56,6 +56,8 @@ export interface SectorResult {
   stocks: StockResult[];
   stock_hit?: number;     // 该板块个股命中数
   stock_total?: number;   // 该板块有效个股数（不含 unmapped）
+  excess_pct?: number;    // 超额收益 = 板块涨跌 - 沪300（hs300 缺失时不计算）
+  hit_basis?: 'excess' | 'absolute'; // 命中判定依据：超额 / 绝对涨幅兜底
 }
 
 export interface ReviewResult {
@@ -314,6 +316,7 @@ function buildSectorResult(
   pick: SectorPick,
   pyItem: PythonSectorItem | undefined,
   side: 'watch' | 'avoid',
+  hs300Pct: number | null,
 ): SectorResult {
   // 板块部分
   const baseSector: SectorResult = {
@@ -336,9 +339,21 @@ function buildSectorResult(
   const sectorUnmapped = pyItem.unmapped === true;
   const pct = pyItem.change_pct;
   let sectorHit: boolean | undefined;
+  let excessPct: number | undefined;
+  let hitBasis: 'excess' | 'absolute' | undefined;
   if (!sectorUnmapped && pct !== undefined) {
-    if (side === 'watch') sectorHit = pct >= SECTOR_HIT_THRESHOLD;
-    else sectorHit = pct <= -SECTOR_HIT_THRESHOLD;
+    if (hs300Pct !== null && hs300Pct !== undefined) {
+      // 优先用超额收益判定（板块涨跌 - 沪300），剔除大盘普涨/普跌的假阳性
+      excessPct = Math.round((pct - hs300Pct) * 100) / 100;
+      hitBasis = 'excess';
+      if (side === 'watch') sectorHit = excessPct >= SECTOR_HIT_THRESHOLD;
+      else sectorHit = excessPct <= -SECTOR_HIT_THRESHOLD;
+    } else {
+      // hs300 缺失时回退到绝对涨幅
+      hitBasis = 'absolute';
+      if (side === 'watch') sectorHit = pct >= SECTOR_HIT_THRESHOLD;
+      else sectorHit = pct <= -SECTOR_HIT_THRESHOLD;
+    }
   }
 
   // 个股部分：按 pick.stocks 的顺序，从 pyItem.stocks 里取同名结果
@@ -380,6 +395,8 @@ function buildSectorResult(
     stocks: stocksOut,
     stock_hit: stockHitCount,
     stock_total: stockValid.length,
+    excess_pct: excessPct,
+    hit_basis: hitBasis,
   };
 }
 
@@ -427,8 +444,8 @@ export async function reviewOneDay(date: string, force = false, dryRun = false):
   const pyResult = await queryReturns(date, watch, avoid, codeMap);
 
   // 4. 合并 + 命中判定（按输入顺序一一对应 Python 返回，支持 matched 为空 / 重复）
-  const watchFinal = watch.map((w, i) => buildSectorResult(w, pyResult.watch[i], 'watch'));
-  const avoidFinal = avoid.map((a, i) => buildSectorResult(a, pyResult.avoid[i], 'avoid'));
+  const watchFinal = watch.map((w, i) => buildSectorResult(w, pyResult.watch[i], 'watch', pyResult.hs300_pct));
+  const avoidFinal = avoid.map((a, i) => buildSectorResult(a, pyResult.avoid[i], 'avoid', pyResult.hs300_pct));
 
   // 汇总
   const allSectors = [...watchFinal, ...avoidFinal];
