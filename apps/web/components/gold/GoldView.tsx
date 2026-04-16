@@ -1,7 +1,7 @@
 'use client';
 
 import PageHeader from '@/components/ui/PageHeader';
-import { RecentInsightsCard, DailyGuidanceCard } from './GoldPanels';
+import { RecentInsightsCard, DailyGuidanceCard, ReviewResultCard } from './GoldPanels';
 import styles from './GoldView.module.css';
 
 export default function GoldView() {
@@ -15,6 +15,7 @@ export default function GoldView() {
       <div className={styles.wrap}>
         <RecentInsightsCard />
         <DailyGuidanceCard />
+        <ReviewResultCard />
       </div>
     </div>
   );

@@ -8,11 +8,11 @@
  * 同时被 近期掘金 (GoldView) 和 仪表盘 (Dashboard) 复用
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAppStore } from '@/store';
 import GoldDayCard from './GoldDayCard';
 import styles from './GoldView.module.css';
-import type { DailyReport } from '@quantstock/types';
+import type { DailyReport, ReviewResult, ReviewSector, ReviewStock } from '@quantstock/types';
 
 /** 从早报 content 里切出「今日操作指引」那张 markdown 表格 */
 function extractGuidanceTable(
@@ -295,6 +295,179 @@ export function DailyGuidanceCard() {
             <GoldDayCard key={pick.id} pick={pick} />
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ===== 区块三：每日掘金回测结果（板块 + 个股双维度命中） =====
+function fmtPct(p: number | null | undefined): string {
+  if (p === null || p === undefined || Number.isNaN(p)) return '—';
+  return (p >= 0 ? '+' : '') + p.toFixed(2) + '%';
+}
+
+function pctClass(p: number | null | undefined): string {
+  if (p === null || p === undefined || Number.isNaN(p)) return styles.pctZero;
+  if (p > 0) return styles.pctPos;
+  if (p < 0) return styles.pctNeg;
+  return styles.pctZero;
+}
+
+function renderStockCell(stocks: ReviewStock[]): React.ReactNode {
+  if (!stocks || stocks.length === 0) return <span className={styles.reviewStockUnmapped}>—</span>;
+  return (
+    <div className={styles.reviewStockInline}>
+      {stocks.map((s, i) => {
+        const cls = s.unmapped
+          ? styles.reviewStockUnmapped
+          : s.hit
+            ? styles.reviewStockHit
+            : styles.reviewStockMiss;
+        const label = s.unmapped
+          ? `${s.name}（${s.error ?? '无数据'}）`
+          : `${s.name} ${fmtPct(s.change_pct)} ${s.hit ? '✅' : '❌'}`;
+        return (
+          <span key={i}>
+            {i > 0 && <span className={styles.reviewStockSep}>/</span>}
+            <span className={cls}>{label}</span>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function renderSectorRow(
+  sec: ReviewSector,
+  direction: 'watch' | 'avoid',
+  keyPrefix: string,
+): React.ReactNode {
+  const dirLabel = direction === 'watch' ? '🎯 关注' : '⚠️ 规避';
+  const rowClass = direction === 'watch' ? styles.rowWatch : styles.rowAvoid;
+
+  const sectorCell = (
+    <>
+      <div>{sec.text}</div>
+      {sec.matched && sec.matched !== sec.text && (
+        <span className={styles.reviewMatched}>→ {sec.matched}</span>
+      )}
+      {!sec.matched && <span className={styles.reviewMatched}>板块未匹配</span>}
+    </>
+  );
+
+  if (sec.unmapped) {
+    return (
+      <tr key={keyPrefix} className={rowClass}>
+        <td>{dirLabel}</td>
+        <td>{sectorCell}</td>
+        <td className={styles.pctZero}>—</td>
+        <td className={styles.pctZero}>—</td>
+        <td className={styles.pctZero}>—</td>
+        <td>{renderStockCell(sec.stocks)}</td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr key={keyPrefix} className={rowClass}>
+      <td>{dirLabel}</td>
+      <td>{sectorCell}</td>
+      <td className={pctClass(sec.change_pct)}>{fmtPct(sec.change_pct)}</td>
+      <td className={pctClass(sec.excess_pct)}>{fmtPct(sec.excess_pct)}</td>
+      <td>{sec.hit === undefined ? '—' : sec.hit ? '✅' : '❌'}</td>
+      <td>{renderStockCell(sec.stocks)}</td>
+    </tr>
+  );
+}
+
+/** 在 reports 里找最近一份 review_result 非空的 trading 报告 */
+function pickLatestReviewReport(reports: DailyReport[]): DailyReport | null {
+  if (!reports || reports.length === 0) return null;
+  const sorted = reports
+    .filter(r => r.report_type === 'trading' && r.review_result)
+    .sort((a, b) => (a.report_date < b.report_date ? 1 : -1));
+  return sorted[0] ?? null;
+}
+
+export function ReviewResultCard() {
+  const { reports, loadReports } = useAppStore();
+
+  useEffect(() => {
+    if (!reports || reports.length === 0) loadReports();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const latest = useMemo(() => pickLatestReviewReport(reports), [reports]);
+  const result: ReviewResult | null = latest?.review_result ?? null;
+
+  const allSectors = result ? [...(result.watch ?? []), ...(result.avoid ?? [])] : [];
+  const usesExcess = allSectors.some(s => s.hit_basis === 'excess');
+  const sectorBasisLabel = usesExcess ? '超额≥0.3%' : '绝对≥0.3%';
+
+  return (
+    <div className={styles.card}>
+      <div className={styles.cardHeader}>
+        <h3 className={styles.cardTitle}>
+          🎯 T-1 板块 / 个股回测
+          {result && (
+            <span className={styles.titleDate}>
+              （{result.target_date}，与早报「今日操作指引」对比当日实际行情）
+            </span>
+          )}
+        </h3>
+      </div>
+
+      {!result ? (
+        <div className={styles.emptyPlaceholder}>
+          <div className={styles.emptyIcon}>📊</div>
+          <div>
+            {reports.length === 0
+              ? '早报加载中...'
+              : '最近一份早报尚未完成 T-1 板块/个股回测'}
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className={styles.reviewSummary}>
+            <span className={styles.reviewSummaryItem}>
+              <span className={styles.reviewSummaryLabel}>沪深300</span>
+              <span className={`${styles.reviewSummaryValue} ${pctClass(result.hs300_pct)}`}>
+                {fmtPct(result.hs300_pct)}
+              </span>
+            </span>
+            <span className={styles.reviewSummaryItem}>
+              <span className={styles.reviewSummaryLabel}>板块命中</span>
+              <span className={styles.reviewSummaryValue}>{result.hit_rate}</span>
+              <span className={styles.reviewSummaryNote}>（{sectorBasisLabel}）</span>
+            </span>
+            <span className={styles.reviewSummaryItem}>
+              <span className={styles.reviewSummaryLabel}>个股命中</span>
+              <span className={styles.reviewSummaryValue}>
+                {result.stock_hit_rate ?? `${result.stock_hit_count ?? 0}/${result.stock_total ?? 0}`}
+              </span>
+              <span className={styles.reviewSummaryNote}>（绝对≥1%）</span>
+            </span>
+          </div>
+
+          <div className={styles.reviewTableWrap}>
+            <table className={styles.reviewTable}>
+              <thead>
+                <tr>
+                  <th>方向</th>
+                  <th>板块</th>
+                  <th>板块涨跌</th>
+                  <th>超额</th>
+                  <th>命中</th>
+                  <th>重点个股</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(result.watch ?? []).map((s, i) => renderSectorRow(s, 'watch', `w-${i}`))}
+                {(result.avoid ?? []).map((s, i) => renderSectorRow(s, 'avoid', `a-${i}`))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );

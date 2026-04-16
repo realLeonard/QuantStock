@@ -91,6 +91,56 @@ export interface DailyReport {
   content: string;          // 完整报告 Markdown
   summary: string;          // 今日一句话
   created_at: number;       // UTC 毫秒
+  review_result?: ReviewResult | null;              // T-1 板块 + 个股回测结果
+  recommended_sectors?: ReviewSectorPick[] | null;  // Claude 抽取的关注板块（原始）
+  avoid_sectors?: ReviewSectorPick[] | null;        // Claude 抽取的规避板块（原始）
+}
+
+// ===== 早报板块回测结果 =====
+export interface ReviewStock {
+  name: string;
+  code?: string | null;
+  change_pct?: number;
+  close?: number;
+  unmapped?: boolean;
+  hit?: boolean;
+  error?: string;
+}
+
+export interface ReviewSectorPick {
+  text: string;
+  matched: string;
+  stocks: string[];
+}
+
+export interface ReviewSector {
+  text: string;
+  matched: string | null;
+  type?: 'concept' | 'industry';
+  change_pct?: number;
+  close?: number;
+  unmapped?: boolean;
+  hit?: boolean;
+  error?: string;
+  stocks: ReviewStock[];
+  stock_hit?: number;
+  stock_total?: number;
+  excess_pct?: number;
+  hit_basis?: 'excess' | 'absolute';
+}
+
+export interface ReviewResult {
+  target_date: string;
+  hs300_pct: number | null;
+  watch: ReviewSector[];
+  avoid: ReviewSector[];
+  hit_count: number;
+  total_mapped: number;
+  hit_rate: string;
+  stock_hit_count?: number;
+  stock_total?: number;
+  stock_hit_rate?: string;
+  thresholds?: { sector: number; stock: number };
 }
 
 // ===== 市场涨跌家数 =====
