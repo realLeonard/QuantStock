@@ -51,7 +51,7 @@ async function main() {
   const top15 = allItems.slice(0, 15);
   const posMap = new Map(allItems.map((i, idx) => [i.industry_id, idx + 1]));
 
-  // 新增：id 不在 DB（全量扫描，不限前15）
+  // 新增：id 不在 DB（fetchAllItems 已限制为第一页 50 条，故新增最多 ~50 条）
   const filteredNew = allItems.filter(i => !existingThemes.has(i.industry_id));
   const newItems = isTest ? filteredNew.slice(0, 1) : filteredNew;
 
@@ -312,23 +312,18 @@ function classifyError(reason: string): string {
 
 // ─── 工具函数 ─────────────────────────────────────────────────────────────────
 
+// 只拉第一页 50 条，降低被源站风控的概率：
+// - 前15 sort_order 必在第一页
+// - 新增/有更新的主题因 update_time 变化，源站大概率会重排到靠前位置
+// - 漏掉的长尾新增可通过观察 Actions 日志「新增 N 个」是否归零来判断风险
 async function fetchAllItems(): Promise<ThemeItem[]> {
-  const all: ThemeItem[] = [];
-  let start = 1;
-  const limit = 50;
-  while (true) {
-    const data = await fetchList(start, limit);
-    // 过滤用户贡献主题（author 非 null 且非空字符串），只保留官方内容
-    const official = data.result.filter((i: ThemeItem) => i.author === null || i.author === '');
-    all.push(...official);
-    console.log(`  拉取列表 start=${start}，本页 ${data.result.length} 条，官方 ${official.length} 条，已获取 ${all.length}`);
-    if (!data.hasNext || data.result.length === 0) break;
-    start = data.nextPage;
-    await sleep(500);
-  }
-  const filtered = all.filter(i => !SKIP_IDS.has(i.industry_id));
-  if (filtered.length < all.length) {
-    console.log(`  跳过 ${all.length - filtered.length} 个永久排除主题（SKIP_IDS）`);
+  const data = await fetchList(1, 50);
+  // 过滤用户贡献主题（author 非 null 且非空字符串），只保留官方内容
+  const official = data.result.filter((i: ThemeItem) => i.author === null || i.author === '');
+  console.log(`  拉取列表 start=1，本页 ${data.result.length} 条，官方 ${official.length} 条`);
+  const filtered = official.filter(i => !SKIP_IDS.has(i.industry_id));
+  if (filtered.length < official.length) {
+    console.log(`  跳过 ${official.length - filtered.length} 个永久排除主题（SKIP_IDS）`);
   }
   return filtered;
 }
