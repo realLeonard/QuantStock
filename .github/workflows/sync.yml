@@ -1,9 +1,7 @@
 name: 概念主题每日同步
 
 on:
-  schedule:
-    - cron: '0 1,4,13 * * *'   # 北京时间 09:00、12:00、21:00（UTC+8）
-  workflow_dispatch:           # 支持手动触发
+  workflow_dispatch:  # 由 cron-job.org 外部触发（北京时间 09:00 / 12:00 / 21:00）
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
