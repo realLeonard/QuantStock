@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAppStore } from '@/store';
 import { starStr } from '@/lib/utils';
 import StockModal from './StockModal';
 import DetailBackBar from '@/components/ui/DetailBackBar';
+import styles from './StocksView.module.css';
 import type { Stock } from '@quantstock/types';
 
 export default function StocksView() {
@@ -12,9 +13,20 @@ export default function StocksView() {
   const canEdit = currentUser?.role === 'admin' || currentUser?.role === 'editor';
   const [modalOpen, setModalOpen] = useState(false);
   const [editingStock, setEditingStock] = useState<Stock | null>(null);
+  const [overviewExpanded, setOverviewExpanded] = useState(false);
 
   const theme = themes.find(t => t.id === currentThemeId);
   const stocks = theme ? [...(theme.stocks || [])] : [];
+
+  // 主题描述按行拆分（过滤空行），默认只展示第 1 条，多余的折叠
+  const overviewLines = useMemo(() => {
+    return (theme?.overview || '')
+      .split(/\r?\n/)
+      .map(l => l.trim())
+      .filter(Boolean);
+  }, [theme?.overview]);
+  const hasMoreOverview = overviewLines.length > 1;
+  const visibleOverview = overviewExpanded ? overviewLines : overviewLines.slice(0, 1);
 
   function openCreate() {
     setEditingStock(null);
@@ -120,6 +132,28 @@ export default function StocksView() {
           </button>
         ) : undefined}
       />
+
+      {/* 主题描述（默认只显示第 1 条，多余的做展开/收起） */}
+      <div className={styles.overviewBar}>
+        <span className={styles.overviewLabel}>📝 主题描述</span>
+        <div className={styles.overviewContent}>
+          {overviewLines.length === 0 ? (
+            <span className={styles.overviewEmpty}>暂无描述</span>
+          ) : (
+            visibleOverview.map((line, i) => (
+              <div key={i} className={styles.overviewLine}>{line}</div>
+            ))
+          )}
+        </div>
+        {hasMoreOverview ? (
+          <button
+            className={styles.overviewToggle}
+            onClick={() => setOverviewExpanded(x => !x)}
+          >
+            {overviewExpanded ? '收起 ▲' : `展开 ▼（共 ${overviewLines.length} 条）`}
+          </button>
+        ) : <span />}
+      </div>
 
       {/* 股票表格 */}
       <div className="table-wrap">
