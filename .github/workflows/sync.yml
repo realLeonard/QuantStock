@@ -1,13 +1,36 @@
 name: 概念主题每日同步
 
 on:
-  workflow_dispatch:  # 由 cron-job.org 外部触发（北京时间 09:00 / 12:00 / 21:00）
+  workflow_dispatch:  # 由 cron-job.org 外部触发（每天 09:15 / 11:15 / 13:15 / 17:15 / 23:15 BJ）
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  # cron-job.org 每天触发 5 次；工作日全部放行，周末只放行 09:XX 和 17:XX
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - id: check
+        shell: bash
+        run: |
+          BJ_DOW=$(TZ=Asia/Shanghai date +%u)    # 1..7 (6=Sat, 7=Sun)
+          BJ_HOUR=$(TZ=Asia/Shanghai date +%-H)
+          echo "BJ dow=$BJ_DOW hour=$BJ_HOUR"
+          if [ "$BJ_DOW" -le 5 ]; then
+            echo "run=1" >> "$GITHUB_OUTPUT"
+          elif [ "$BJ_HOUR" = "9" ] || [ "$BJ_HOUR" = "17" ]; then
+            echo "run=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=0" >> "$GITHUB_OUTPUT"
+            echo "::notice::周末非 09:15/17:15 时段，跳过本次同步（BJ 周${BJ_DOW} ${BJ_HOUR}:15）"
+          fi
+
   sync:
+    needs: gate
+    if: needs.gate.outputs.run == '1'
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
