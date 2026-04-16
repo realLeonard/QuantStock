@@ -88,8 +88,8 @@ async function main() {
   console.log(
     `线上 ${allItems.length} 个主题，DB 已有 ${existingThemes.size} 个，` +
     `新增 ${newItems.length} 个，` +
-    `前15更新(重抓) ${fullUpdateItemsToProcess.length} 个，` +
-    `前15元数据变更 ${metaOnlyToProcess.length} 个`
+    `前15更新 ${fullUpdateItemsToProcess.length} 个，` +
+    `前15排序变化 ${metaOnlyToProcess.length} 个`
   );
 
   if (newItems.length === 0 && fullUpdateItemsToProcess.length === 0 && metaOnlyToProcess.length === 0) {
@@ -97,9 +97,9 @@ async function main() {
   } else {
     const results: ItemResult[] = [];
 
-    // 元数据变更（排位/标色变化，无需 Vision）
+    // 排序变化（排位/标色变化，无需 Vision）
     if (metaOnlyToProcess.length > 0) {
-      console.log(`\n处理 ${metaOnlyToProcess.length} 个元数据变更...`);
+      console.log(`\n处理 ${metaOnlyToProcess.length} 个排序变化...`);
       for (const item of metaOnlyToProcess) {
         const pos = posMap.get(item.industry_id)!;
         try {
@@ -109,9 +109,9 @@ async function main() {
             pos,
             item.title_red === 1 ? 'red' : null,
           );
-          console.log(`  [元数据] ${item.title}`);
+          console.log(`  [排序] ${item.title}`);
         } catch (e) {
-          console.error(`  [元数据失败] ${item.title}: ${(e as Error).message}`);
+          console.error(`  [排序失败] ${item.title}: ${(e as Error).message}`);
         }
         await sleep(200);
       }
