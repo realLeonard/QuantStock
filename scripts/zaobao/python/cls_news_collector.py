@@ -493,14 +493,17 @@ def collect_flash() -> list:
 def collect_market_breadth(sb: Client) -> None:
     """
     收盘后采集全市场涨跌家数，写入 marketBreadth 表。
-    仅在北京时间 17:00-20:00 窗口内执行（A股 15:00 收盘后数据稳定）。
+    仅在北京时间 17:00-18:00 窗口内执行（A股 15:00 收盘后数据稳定）。
     幂等：当日已有记录则跳过。
     """
     import akshare as ak
 
     now_bj = datetime.now(ZoneInfo('Asia/Shanghai'))
-    if not (17 <= now_bj.hour < 20):
-        print(f'  [marketBreadth] 当前 {now_bj.strftime("%H:%M")} BJ，不在 17:00-20:00 窗口，跳过')
+    if now_bj.weekday() >= 5:
+        print(f'  [marketBreadth] 周末非交易日，跳过')
+        return
+    if not (17 <= now_bj.hour < 18):
+        print(f'  [marketBreadth] 当前 {now_bj.strftime("%H:%M")} BJ，不在 17:00-18:00 窗口，跳过')
         return
 
     trade_date = now_bj.strftime('%Y-%m-%d')
@@ -557,15 +560,18 @@ def collect_market_breadth(sb: Client) -> None:
 def collect_limit_up_reasons(sb: Client) -> None:
     """
     收盘后采集韭研公社「涨停简图」题材聚类数据，写入 limitUpReasons 表。
-    仅在北京时间 17:00-20:00 窗口内执行（A股 15:00 收盘后数据稳定）。
+    仅在北京时间 17:00-18:00 窗口内执行（A股 15:00 收盘后数据稳定）。
     幂等：当日已有记录则跳过。
 
     数据源：韭研公社「涨停简图」PNG（每日收盘后生成）
     通过 Node.js 脚本 scripts/daily-review/jiuyan-image-fetch.ts 下载图片并调 Claude Opus 4.6 Vision 解析。
     """
     now_bj = datetime.now(ZoneInfo('Asia/Shanghai'))
-    if not (17 <= now_bj.hour < 20):
-        print(f'  [limitUpReasons] 当前 {now_bj.strftime("%H:%M")} BJ，不在 17:00-20:00 窗口，跳过')
+    if now_bj.weekday() >= 5:
+        print(f'  [limitUpReasons] 周末非交易日，跳过')
+        return
+    if not (17 <= now_bj.hour < 18):
+        print(f'  [limitUpReasons] 当前 {now_bj.strftime("%H:%M")} BJ，不在 17:00-18:00 窗口，跳过')
         return
 
     pick_date = now_bj.strftime('%Y-%m-%d')

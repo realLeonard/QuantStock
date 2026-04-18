@@ -80,7 +80,7 @@ function fetchDiagramUrl(date: string, session: string): Promise<string> {
         res.on('end', () => {
           try {
             const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8')) as DiagramUrlResp;
-            if (parsed.errCode !== '0' || !parsed.data) {
+            if (String(parsed.errCode) !== '0' || !parsed.data) {
               reject(new Error(`diagram-url 异常 errCode=${parsed.errCode} msg=${parsed.msg}`));
               return;
             }
