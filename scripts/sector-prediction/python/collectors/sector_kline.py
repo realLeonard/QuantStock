@@ -5,6 +5,7 @@
 """
 
 import math
+import random
 import time
 import uuid
 
@@ -15,10 +16,17 @@ from db import now_utc_ms
 
 # 连接错误最大重试次数
 MAX_RETRIES = 3
-RETRY_WAIT = [5, 15, 30]
+RETRY_WAIT = [3, 8, 15]
 
-KLINE_URL = 'https://push2his.eastmoney.com/api/qt/stock/kline/get'
+# 东财有多个 push2his 节点（1-99），随机选择避免单节点风控
+_PUSH2_NODES = list(range(1, 100))
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+
+
+def _get_kline_url() -> str:
+    """随机选择一个东财 push2his 节点"""
+    node = random.choice(_PUSH2_NODES)
+    return f'https://{node}.push2his.eastmoney.com/api/qt/stock/kline/get'
 
 
 def _safe_float(val, default=0.0) -> float:
@@ -62,7 +70,8 @@ def _fetch_kline_direct(bk_code: str, days: int) -> list[dict] | None:
 
     for attempt in range(MAX_RETRIES):
         try:
-            r = requests.get(KLINE_URL, params=params, headers=HEADERS, timeout=10)
+            url = _get_kline_url()
+            r = requests.get(url, params=params, headers=HEADERS, timeout=10)
             data = r.json()
             if data.get('data') and data['data'].get('klines'):
                 return data['data']['klines']
