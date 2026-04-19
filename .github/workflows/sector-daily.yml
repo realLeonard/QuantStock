@@ -19,6 +19,10 @@ on:
         options:
           - 'false'
           - 'true'
+      init_days:
+        description: '初始化拉取天数（默认60）'
+        required: false
+        default: '60'
 
 jobs:
   collect:
@@ -45,6 +49,8 @@ jobs:
             python scripts/sector-prediction/python/main.py
           fi
         env:
+          PYTHONUNBUFFERED: '1'
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SKIP_MASTER: ${{ inputs.skip_master }}
+          INIT_DAYS: ${{ inputs.init_days }}

@@ -38,11 +38,13 @@ def main():
         print('[error] 未获取到任何板块，终止')
         sys.exit(1)
 
-    # 拉取 60 日历史 K 线
+    # 拉取历史 K 线（通过环境变量控制天数，默认 60）
+    import os
+    days = int(os.environ.get('INIT_DAYS', '60'))
     result = collect_kline_batch(
         sb,
         sectors,
-        days=60,
+        days=days,
         batch_size=30,
         sleep_between_batches=15.0,
         sleep_between_sectors=1.5,
