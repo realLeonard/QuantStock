@@ -4,12 +4,13 @@
 触发东财 push2 接口风控）。直接用 BK 代码请求 push2his.eastmoney.com。
 """
 
+import json
 import math
 import random
+import subprocess
 import time
 import uuid
 
-import requests
 from supabase import Client
 
 from db import now_utc_ms
@@ -20,17 +21,6 @@ RETRY_WAIT = [3, 8, 15]
 
 # 东财有多个 push2his 节点（1-99），随机选择避免单节点风控
 _PUSH2_NODES = list(range(1, 100))
-HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-
-# 创建不走系统代理的 session（macOS/代理环境下 requests 默认走系统代理会断连）
-_session = requests.Session()
-_session.trust_env = False
-
-
-def _get_kline_url() -> str:
-    """随机选择一个东财 push2his 节点"""
-    node = random.choice(_PUSH2_NODES)
-    return f'https://{node}.push2his.eastmoney.com/api/qt/stock/kline/get'
 
 
 def _safe_float(val, default=0.0) -> float:
@@ -74,21 +64,32 @@ def _fetch_kline_direct(bk_code: str, days: int) -> list[dict] | None:
 
     for attempt in range(MAX_RETRIES):
         try:
-            url = _get_kline_url()
-            r = _session.get(url, params=params, headers=HEADERS, timeout=10)
-            data = r.json()
+            node = random.choice(_PUSH2_NODES)
+            url = f'https://{node}.push2his.eastmoney.com/api/qt/stock/kline/get'
+            # 构建查询字符串
+            qs = '&'.join(f'{k}={v}' for k, v in params.items())
+            full_url = f'{url}?{qs}'
+
+            # 用 curl 替代 requests（东财检测 Python urllib3 TLS 指纹会拒绝连接）
+            result = subprocess.run(
+                ['curl', '-s', '--connect-timeout', '10', '-H', 'User-Agent: Mozilla/5.0',
+                 full_url],
+                capture_output=True, text=True, timeout=15,
+            )
+            if result.returncode != 0:
+                raise ConnectionError(f'curl 返回码 {result.returncode}')
+
+            data = json.loads(result.stdout)
             if data.get('data') and data['data'].get('klines'):
                 return data['data']['klines']
             return []
+        except (ConnectionError, subprocess.TimeoutExpired, json.JSONDecodeError) as e:
+            wait = RETRY_WAIT[min(attempt, len(RETRY_WAIT) - 1)]
+            print(f'    [retry] {bk_code} 连接异常，等待 {wait}s ({attempt + 1}/{MAX_RETRIES})')
+            time.sleep(wait)
         except Exception as e:
-            err_str = str(e)
-            if 'RemoteDisconnected' in err_str or 'Connection' in err_str:
-                wait = RETRY_WAIT[min(attempt, len(RETRY_WAIT) - 1)]
-                print(f'    [retry] {bk_code} 连接异常，等待 {wait}s ({attempt + 1}/{MAX_RETRIES})')
-                time.sleep(wait)
-            else:
-                print(f'    [error] {bk_code}: {e}')
-                return None
+            print(f'    [error] {bk_code}: {e}')
+            return None
     return None
 
 
