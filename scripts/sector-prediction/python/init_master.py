@@ -39,7 +39,6 @@ def main():
         sys.exit(1)
 
     # 拉取历史 K 线（通过环境变量控制天数，默认 60）
-    import os
     days = int(os.environ.get('INIT_DAYS', '60'))
     result = collect_kline_batch(
         sb,
