@@ -10,6 +10,11 @@ from supabase import Client
 
 from db import now_utc_ms
 
+# 连接错误最大重试次数
+MAX_RETRIES = 3
+# 重试等待秒数（逐次递增）
+RETRY_WAIT = [10, 30, 60]
+
 
 def _safe_float(val, default=0.0) -> float:
     try:
@@ -55,13 +60,39 @@ def _parse_kline_row(sector_name: str, row: pd.Series) -> dict:
     }
 
 
+def _fetch_kline_with_retry(name: str) -> pd.DataFrame | None:
+    """带重试的 K 线请求，遇到连接断开时等待后重试"""
+    for attempt in range(MAX_RETRIES):
+        try:
+            df = ak.stock_board_concept_hist_em(
+                symbol=name,
+                period='daily',
+                adjust='',
+            )
+            return df
+        except (ConnectionError, ConnectionResetError, ConnectionAbortedError) as e:
+            wait = RETRY_WAIT[min(attempt, len(RETRY_WAIT) - 1)]
+            print(f'    [retry] {name} 连接断开，等待 {wait}s 后重试 ({attempt + 1}/{MAX_RETRIES})')
+            time.sleep(wait)
+        except Exception as e:
+            # 非连接类错误，检查是否是 requests 库的连接错误
+            err_str = str(e)
+            if 'RemoteDisconnected' in err_str or 'Connection aborted' in err_str:
+                wait = RETRY_WAIT[min(attempt, len(RETRY_WAIT) - 1)]
+                print(f'    [retry] {name} 远端断连，等待 {wait}s 后重试 ({attempt + 1}/{MAX_RETRIES})')
+                time.sleep(wait)
+            else:
+                raise
+    return None
+
+
 def collect_kline_batch(
     sb: Client,
     sectors: list[dict],
     days: int = 5,
-    batch_size: int = 50,
-    sleep_between_batches: float = 5.0,
-    sleep_between_sectors: float = 0.3,
+    batch_size: int = 30,
+    sleep_between_batches: float = 10.0,
+    sleep_between_sectors: float = 1.0,
 ) -> dict:
     """
     批量采集板块 K 线并 upsert 到 sector_daily。
@@ -90,13 +121,9 @@ def collect_kline_batch(
         for sector in batch:
             name = sector['name']
             try:
-                df = ak.stock_board_concept_hist_em(
-                    symbol=name,
-                    period='daily',
-                    adjust='',
-                )
-                if df is None or df.empty:
-                    print(f'    [warn] {name} K 线为空')
+                df = _fetch_kline_with_retry(name)
+                if df is None or (hasattr(df, 'empty') and df.empty):
+                    print(f'    [warn] {name} K 线为空（重试后仍失败）')
                     failed += 1
                     failed_names.append(name)
                     time.sleep(sleep_between_sectors)
@@ -125,6 +152,7 @@ def collect_kline_batch(
 
         # 批间暂停（最后一批不用等）
         if batch_idx + batch_size < len(sectors):
+            print(f'  批间暂停 {sleep_between_batches}s...')
             time.sleep(sleep_between_batches)
 
     print(f'  K 线采集完成: 成功 {success}，失败 {failed}')

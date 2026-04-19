@@ -1,9 +1,10 @@
 """
 板块预测系统 — 初始化入口
-1. 刷新板块列表 → sector_master
+1. 刷新板块列表 → sector_master（可跳过）
 2. 拉取 60 日历史 K 线 → sector_daily
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -21,24 +22,33 @@ def main():
     print('=' * 60)
 
     sb = get_supabase_client()
+    skip_master = os.environ.get('SKIP_MASTER', '').lower() in ('1', 'true', 'yes')
 
-    # 1. 刷新板块列表
-    sectors = sync_sector_master(sb)
+    if skip_master:
+        # 直接从 DB 读取 active 板块列表
+        print('[1/2] 跳过板块列表同步，从 DB 读取...')
+        result = sb.table('sector_master').select('name,bk_code').eq('is_active', True).execute()
+        sectors = result.data
+        print(f'  DB 中 active 板块: {len(sectors)}')
+    else:
+        # 刷新板块列表
+        sectors = sync_sector_master(sb)
+
     if not sectors:
         print('[error] 未获取到任何板块，终止')
         sys.exit(1)
 
-    # 2. 拉取 60 日历史 K 线
+    # 拉取 60 日历史 K 线
     result = collect_kline_batch(
         sb,
         sectors,
         days=60,
-        batch_size=50,
-        sleep_between_batches=5.0,
-        sleep_between_sectors=0.3,
+        batch_size=30,
+        sleep_between_batches=15.0,
+        sleep_between_sectors=1.5,
     )
 
-    # 3. 汇总
+    # 汇总
     print()
     print('=' * 60)
     print('初始化完成')
