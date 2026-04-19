@@ -40,13 +40,13 @@ def main():
 
     # 拉取历史 K 线（通过环境变量控制天数，默认 60）
     days = int(os.environ.get('INIT_DAYS', '60'))
-    result = collect_kline_batch(
+    kline_result = collect_kline_batch(
         sb,
         sectors,
         days=days,
-        batch_size=30,
-        sleep_between_batches=15.0,
-        sleep_between_sectors=1.5,
+        batch_size=50,
+        sleep_between_batches=5.0,
+        sleep_between_sectors=0.5,
     )
 
     # 汇总
@@ -54,11 +54,12 @@ def main():
     print('=' * 60)
     print('初始化完成')
     print(f'  板块总数: {len(sectors)}')
-    print(f'  K 线成功: {result["success"]}')
-    print(f'  K 线失败: {result["failed"]}')
+    print(f'  K 线成功: {kline_result["success"]}')
+    print(f'  K 线跳过: {kline_result["skipped"]}')
+    print(f'  K 线失败: {kline_result["failed"]}')
     print('=' * 60)
 
-    if result['failed'] > len(sectors) * 0.1:
+    if kline_result['failed'] > len(sectors) * 0.1:
         print('[warn] K 线失败率超过 10%，请检查日志')
         sys.exit(1)
 
