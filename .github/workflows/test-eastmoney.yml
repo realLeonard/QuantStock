@@ -1,0 +1,68 @@
+name: 测试东财概念板块资金流
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 安装 AKShare
+        run: pip install akshare
+
+      - name: 测试东财概念板块资金流接口
+        run: |
+          python3 -c "
+          import akshare as ak
+          import inspect
+
+          # 1. 东财概念板块历史资金流（单个板块）
+          print('=== 东财概念历史资金流（CPO概念）===')
+          try:
+              df = ak.stock_concept_fund_flow_hist(symbol='CPO概念')
+              print(f'成功! 行数: {len(df)}')
+              print(f'列名: {list(df.columns)}')
+              print(df.tail(5).to_string())
+          except Exception as e:
+              print(f'失败: {e}')
+
+          print()
+
+          # 2. 试机器人概念
+          print('=== 东财概念历史资金流（机器人概念）===')
+          try:
+              df2 = ak.stock_concept_fund_flow_hist(symbol='机器人概念')
+              print(f'成功! 行数: {len(df2)}')
+              print(f'列名: {list(df2.columns)}')
+              print(df2.tail(5).to_string())
+          except Exception as e:
+              print(f'失败: {e}')
+
+          print()
+
+          # 3. 看看东财板块列表里是否已包含资金流字段
+          print('=== 板块列表 spot 接口 ===')
+          try:
+              sig = inspect.signature(ak.stock_board_concept_spot_em)
+              print(f'签名: {sig}')
+              df3 = ak.stock_board_concept_spot_em()
+              print(f'行数: {len(df3)}')
+              print(f'列名: {list(df3.columns)}')
+              print(df3.head(5).to_string())
+          except Exception as e:
+              print(f'失败: {e}')
+
+          print()
+
+          # 4. name_em 接口返回的完整列名（上次只看了前10行）
+          print('=== name_em 完整列名 ===')
+          try:
+              df4 = ak.stock_board_concept_name_em()
+              print(f'列名: {list(df4.columns)}')
+              # 看看有没有资金流相关列
+              for col in df4.columns:
+                  if '资金' in str(col) or '流' in str(col) or 'fund' in str(col).lower():
+                      print(f'  发现资金相关列: {col}')
+          except Exception as e:
+              print(f'失败: {e}')
+          "
