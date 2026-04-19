@@ -1,4 +1,4 @@
-name: 测试东财概念板块资金流
+name: 测试东财连通性
 
 on:
   workflow_dispatch:
@@ -6,63 +6,32 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 3
+
     steps:
-      - name: 安装 AKShare
-        run: pip install akshare
-
-      - name: 测试东财概念板块资金流接口
+      - name: curl 和 Python 测试东财 K 线 API
         run: |
+          echo "=== curl push2his（无前缀）==="
+          curl -s -o /dev/null -w "HTTP %{http_code}\n" \
+            "https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=90.BK0927&fields1=f1&fields2=f51&klt=101&fqt=0&lmt=1&end=20500101&ut=fa5fd1943c7b386f172d6893dbfba10b" \
+            -H "User-Agent: Mozilla/5.0" --connect-timeout 5 || echo "FAILED"
+
+          echo "=== curl 33.push2his ==="
+          curl -s -w "\nHTTP %{http_code}\n" \
+            "https://33.push2his.eastmoney.com/api/qt/stock/kline/get?secid=90.BK0927&fields1=f1,f2,f3&fields2=f51,f52,f53,f54,f55&klt=101&fqt=0&lmt=1&end=20500101&ut=fa5fd1943c7b386f172d6893dbfba10b" \
+            -H "User-Agent: Mozilla/5.0" --connect-timeout 5 || echo "FAILED"
+
+          echo "=== Python requests ==="
           python3 -c "
-          import akshare as ak
-          import inspect
-
-          # 1. 东财概念板块历史资金流（单个板块）
-          print('=== 东财概念历史资金流（CPO概念）===')
-          try:
-              df = ak.stock_concept_fund_flow_hist(symbol='CPO概念')
-              print(f'成功! 行数: {len(df)}')
-              print(f'列名: {list(df.columns)}')
-              print(df.tail(5).to_string())
-          except Exception as e:
-              print(f'失败: {e}')
-
-          print()
-
-          # 2. 试机器人概念
-          print('=== 东财概念历史资金流（机器人概念）===')
-          try:
-              df2 = ak.stock_concept_fund_flow_hist(symbol='机器人概念')
-              print(f'成功! 行数: {len(df2)}')
-              print(f'列名: {list(df2.columns)}')
-              print(df2.tail(5).to_string())
-          except Exception as e:
-              print(f'失败: {e}')
-
-          print()
-
-          # 3. 看看东财板块列表里是否已包含资金流字段
-          print('=== 板块列表 spot 接口 ===')
-          try:
-              sig = inspect.signature(ak.stock_board_concept_spot_em)
-              print(f'签名: {sig}')
-              df3 = ak.stock_board_concept_spot_em()
-              print(f'行数: {len(df3)}')
-              print(f'列名: {list(df3.columns)}')
-              print(df3.head(5).to_string())
-          except Exception as e:
-              print(f'失败: {e}')
-
-          print()
-
-          # 4. name_em 接口返回的完整列名（上次只看了前10行）
-          print('=== name_em 完整列名 ===')
-          try:
-              df4 = ak.stock_board_concept_name_em()
-              print(f'列名: {list(df4.columns)}')
-              # 看看有没有资金流相关列
-              for col in df4.columns:
-                  if '资金' in str(col) or '流' in str(col) or 'fund' in str(col).lower():
-                      print(f'  发现资金相关列: {col}')
-          except Exception as e:
-              print(f'失败: {e}')
+          import requests
+          for node in ['', '33', '67']:
+              prefix = f'{node}.' if node else ''
+              url = f'https://{prefix}push2his.eastmoney.com/api/qt/stock/kline/get'
+              params = {'secid':'90.BK0927','fields1':'f1','fields2':'f51','klt':'101','fqt':'0','lmt':'1','end':'20500101','ut':'fa5fd1943c7b386f172d6893dbfba10b'}
+              headers = {'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+              try:
+                  r = requests.get(url, params=params, headers=headers, timeout=10)
+                  print(f'{prefix}push2his: OK {r.status_code} {r.text[:100]}')
+              except Exception as e:
+                  print(f'{prefix}push2his: FAIL {e}')
           "
