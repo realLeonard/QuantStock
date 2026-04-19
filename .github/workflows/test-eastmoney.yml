@@ -28,14 +28,29 @@ jobs:
 
           print()
 
-          # 2. 概念板块K线
-          print('=== 机器人概念 K线 ===')
+          # 2. 概念板块K线 - 测试多种 period 参数格式
+          for period in ['日k', 'daily', '每日']:
+              print(f'=== 机器人概念 K线 (period={period}) ===')
+              try:
+                  df2 = ak.stock_board_concept_hist_em(symbol='机器人概念', period=period, start_date='20260414', end_date='20260418', adjust='')
+                  print(f'成功! 列名: {list(df2.columns)}')
+                  print(df2.to_string())
+                  break
+              except Exception as e:
+                  print(f'失败: {e}')
+              print()
+
+          # 2b. 不传 period 参数试试默认值
+          print('=== 机器人概念 K线 (默认参数) ===')
           try:
-              df2 = ak.stock_board_concept_hist_em(symbol='机器人概念', period='日k', start_date='20260414', end_date='20260418', adjust='')
-              print(f'列名: {list(df2.columns)}')
-              print(df2.to_string())
+              import inspect
+              sig = inspect.signature(ak.stock_board_concept_hist_em)
+              print(f'函数签名: {sig}')
+              df2b = ak.stock_board_concept_hist_em(symbol='机器人概念')
+              print(f'成功! 行数: {len(df2b)}, 列名: {list(df2b.columns)}')
+              print(df2b.tail(5).to_string())
           except Exception as e:
-              print(f'错误: {e}')
+              print(f'失败: {e}')
 
           print()
 
