@@ -90,10 +90,9 @@ def collect_kline_batch(
         for sector in batch:
             name = sector['name']
             try:
-                # period="日k" 是东财概念板块 K 线的参数
                 df = ak.stock_board_concept_hist_em(
                     symbol=name,
-                    period='日k',
+                    period='daily',
                     adjust='',
                 )
                 if df is None or df.empty:
