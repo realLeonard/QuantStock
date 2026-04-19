@@ -22,6 +22,10 @@ RETRY_WAIT = [3, 8, 15]
 _PUSH2_NODES = list(range(1, 100))
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
+# 创建不走系统代理的 session（macOS/代理环境下 requests 默认走系统代理会断连）
+_session = requests.Session()
+_session.trust_env = False
+
 
 def _get_kline_url() -> str:
     """随机选择一个东财 push2his 节点"""
@@ -71,7 +75,7 @@ def _fetch_kline_direct(bk_code: str, days: int) -> list[dict] | None:
     for attempt in range(MAX_RETRIES):
         try:
             url = _get_kline_url()
-            r = requests.get(url, params=params, headers=HEADERS, timeout=10)
+            r = _session.get(url, params=params, headers=HEADERS, timeout=10)
             data = r.json()
             if data.get('data') and data['data'].get('klines'):
                 return data['data']['klines']
