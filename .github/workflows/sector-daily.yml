@@ -30,27 +30,43 @@ jobs:
     timeout-minutes: 25
 
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: 安装依赖
-        run: pip install -r scripts/sector-prediction/python/requirements.txt
-
-      - name: 运行采集
+      - name: 配置 SSH
         run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" | base64 -d > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: 执行板块数据采集（阿里云）
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'ENDSSH'
+          set -e
+          cd /www/wwwroot/quantstock
+
+          # 加载环境变量
+          set -a && source .env.server && set +a
+
+          echo "====== 拉取最新代码 ======"
+          git checkout -- package-lock.json 2>/dev/null || true
+          git pull origin main
+
+          echo "====== 安装 Python 依赖 ======"
+          pip3.11 install -q -r scripts/sector-prediction/python/requirements.txt
+
+          echo "====== 运行采集 ======"
+          export PYTHONUNBUFFERED=1
+          export SKIP_MASTER="${{ inputs.skip_master }}"
+          export INIT_DAYS="${{ inputs.init_days }}"
+
+          cd scripts/sector-prediction/python
           if [ "${{ inputs.mode }}" = "init" ]; then
             echo "=== 初始化模式 ==="
-            python scripts/sector-prediction/python/init_master.py
+            python3.11 init_master.py
           else
             echo "=== 每日增量模式 ==="
-            python scripts/sector-prediction/python/main.py
+            python3.11 main.py
           fi
-        env:
-          PYTHONUNBUFFERED: '1'
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          SKIP_MASTER: ${{ inputs.skip_master }}
-          INIT_DAYS: ${{ inputs.init_days }}
+
+          echo "====== 完成 ======"
+          ENDSSH
