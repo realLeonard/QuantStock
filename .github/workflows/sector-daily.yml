@@ -1,0 +1,41 @@
+name: 板块数据每日采集
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '运行模式'
+        required: false
+        default: 'daily'
+        type: choice
+        options:
+          - daily
+          - init
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装依赖
+        run: pip install -r scripts/sector-prediction/python/requirements.txt
+
+      - name: 运行采集
+        run: |
+          if [ "${{ inputs.mode }}" = "init" ]; then
+            echo "=== 初始化模式 ==="
+            python scripts/sector-prediction/python/init_master.py
+          else
+            echo "=== 每日增量模式 ==="
+            python scripts/sector-prediction/python/main.py
+          fi
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
