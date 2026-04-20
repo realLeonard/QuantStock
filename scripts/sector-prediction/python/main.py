@@ -16,8 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from db import get_supabase_client
 from browser import close_browser
-from collectors.sector_list import sync_sector_master
-from collectors.sector_kline import collect_kline_batch
+from collectors.sector_list import sync_sector_master, write_daily_kline
 from collectors.sector_fund_flow import collect_fund_flow
 
 # 北京时区
@@ -56,15 +55,8 @@ def main():
         print('[error] 未获取到任何板块，终止')
         sys.exit(1)
 
-    # [2/4] 采集 K 线（最近 2 日）
-    kline_result = collect_kline_batch(
-        sb,
-        sectors,
-        days=2,
-        batch_size=50,
-        sleep_between_batches=3.0,
-        sleep_between_sectors=0.5,
-    )
+    # [2/4] 写入当日 K 线（从板块列表接口获取的 OHLCV）
+    kline_result = write_daily_kline(sb, sectors, today)
 
     # [3/4] 采集资金流
     fund_result = collect_fund_flow(sb, today)
@@ -74,12 +66,7 @@ def main():
     print('=' * 60)
     print('[4/4] 汇总')
     print(f'  板块总数: {len(sectors)}')
-    print(f'  K 线 — 成功: {kline_result["success"]}，失败: {kline_result["failed"]}')
-    kline_rate = (
-        f'{kline_result["success"] / len(sectors) * 100:.1f}%'
-        if sectors else 'N/A'
-    )
-    print(f'  K 线成功率: {kline_rate}')
+    print(f'  K 线 — 成功: {kline_result["success"]}（新增 {kline_result["inserted"]}，更新 {kline_result["updated"]}）')
     print(f'  资金流 — 匹配: {fund_result["matched"]}/{fund_result["total"]}')
     fund_rate = (
         f'{fund_result["matched"] / fund_result["total"] * 100:.1f}%'
@@ -88,9 +75,6 @@ def main():
     print(f'  资金流匹配率: {fund_rate}')
     print('=' * 60)
 
-    # K 线失败率超过 50% 时警告（不退出，资金流仍可正常采集）
-    if sectors and kline_result['failed'] > len(sectors) * 0.5:
-        print('[warn] K 线失败率超过 50%，请检查网络或 API 状态')
 
     close_browser()
 

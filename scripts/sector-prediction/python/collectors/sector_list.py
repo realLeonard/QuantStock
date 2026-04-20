@@ -1,4 +1,4 @@
-"""板块列表采集：东财概念板块列表 API（JSONP）→ sector_master"""
+"""板块列表采集：东财概念板块列表 API（JSONP）→ sector_master + sector_daily K线"""
 
 import math
 import re
@@ -77,7 +77,7 @@ def _fetch_sector_list_jsonp() -> list[dict] | None:
                     + '&pn=' + pn + '&pz=' + pz
                     + '&po=1&np=1&fltt=2&invt=2'
                     + '&fid=f3&fs=m:90+t:3'
-                    + '&fields=f12,f14,f2,f3,f4,f8,f20,f128,f136,f124'
+                    + '&fields=f12,f14,f2,f3,f4,f5,f6,f7,f8,f15,f16,f17,f20,f128,f136,f124'
                     + '&_=' + Date.now();
                 s.onerror = () => {
                     delete window[cb];
@@ -105,6 +105,15 @@ def _fetch_sector_list_jsonp() -> list[dict] | None:
                 'bk_code': str(item.get('f12', '')).strip(),
                 'change_pct': _safe_float(item.get('f3')),
                 'leading_stock': str(item.get('f128', '')).strip() if item.get('f128') != '-' else '',
+                # 当日 OHLCV（用于写入 sector_daily）
+                'open': _safe_float(item.get('f17')),
+                'close': _safe_float(item.get('f2')),
+                'high': _safe_float(item.get('f15')),
+                'low': _safe_float(item.get('f16')),
+                'volume': _safe_int(item.get('f5')),
+                'turnover': _safe_float(item.get('f6')),
+                'amplitude': _safe_float(item.get('f7')),
+                'turnover_rate': _safe_float(item.get('f8')),
             })
 
         if page_num * page_size >= total:
@@ -193,7 +202,94 @@ def sync_sector_master(sb: Client) -> list[dict]:
         inactive_count = len(to_update) - active_updates
         print(f'  更新 {active_updates} 个板块，标记 {inactive_count} 个为 inactive')
 
-    # 返回所有 active 板块
+    # 返回所有 active 板块（含 OHLCV 数据，供写入 sector_daily）
     active_sectors = sb.table('sector_master').select('name,bk_code').eq('is_active', True).execute()
-    print(f'  当前 active 板块总数: {len(active_sectors.data)}')
-    return active_sectors.data
+    # 把 OHLCV 数据附加到返回结果中
+    ohlcv_map = {it['name']: it for it in items}
+    result_sectors = []
+    for s in active_sectors.data:
+        merged = dict(s)
+        if s['name'] in ohlcv_map:
+            src = ohlcv_map[s['name']]
+            merged.update({
+                'open': src['open'],
+                'close': src['close'],
+                'high': src['high'],
+                'low': src['low'],
+                'volume': src['volume'],
+                'turnover': src['turnover'],
+                'amplitude': src['amplitude'],
+                'change_pct': src['change_pct'],
+                'turnover_rate': src['turnover_rate'],
+            })
+        result_sectors.append(merged)
+
+    print(f'  当前 active 板块总数: {len(result_sectors)}')
+    return result_sectors
+
+
+def write_daily_kline(sb: Client, sectors: list[dict], trade_date: str) -> dict:
+    """
+    把板块列表接口获取的当日 OHLCV 数据写入 sector_daily。
+    替代原来的 K 线单独采集步骤（push2his.eastmoney.com 在 Actions 上被限流）。
+    """
+    print(f'[2/4] 写入当日 K 线（{trade_date}，{len(sectors)} 个板块）...')
+    now = now_utc_ms()
+    success = 0
+    skipped = 0
+
+    # 查询已有记录（今日）
+    existing = (
+        sb.table('sector_daily')
+        .select('id,sector_name')
+        .eq('trade_date', trade_date)
+        .execute()
+    )
+    existing_map = {r['sector_name']: r['id'] for r in existing.data}
+
+    to_insert = []
+    to_update = []
+
+    for s in sectors:
+        name = s.get('name', '')
+        # 没有 OHLCV 数据的板块跳过
+        if 'open' not in s or s.get('close', 0) == 0:
+            skipped += 1
+            continue
+
+        kline_data = {
+            'sector_name': name,
+            'trade_date': trade_date,
+            'open': s['open'],
+            'close': s['close'],
+            'high': s['high'],
+            'low': s['low'],
+            'volume': s['volume'],
+            'turnover': s['turnover'],
+            'amplitude': s['amplitude'],
+            'change_pct': s['change_pct'],
+            'turnover_rate': s['turnover_rate'],
+        }
+
+        if name in existing_map:
+            to_update.append((existing_map[name], kline_data))
+        else:
+            kline_data['id'] = str(uuid.uuid4())
+            kline_data['created_at'] = now
+            to_insert.append(kline_data)
+
+        success += 1
+
+    # 批量 insert
+    if to_insert:
+        for i in range(0, len(to_insert), 100):
+            batch = to_insert[i:i + 100]
+            sb.table('sector_daily').insert(batch).execute()
+
+    # 逐条 update（只更新 K 线字段，不覆盖资金流字段）
+    for record_id, data in to_update:
+        update_data = {k: v for k, v in data.items() if k not in ('sector_name', 'trade_date')}
+        sb.table('sector_daily').update(update_data).eq('id', record_id).execute()
+
+    print(f'  K 线写入完成: {success} 个（新增 {len(to_insert)}，更新 {len(to_update)}），跳过 {skipped}')
+    return {'success': success, 'inserted': len(to_insert), 'updated': len(to_update), 'skipped': skipped}
