@@ -256,12 +256,13 @@ async function generateReport(params: {
   yesterdayReviewBlock?: string;
   recentHitRate?: string;
 }): Promise<{ content: string; summary: string }> {
-  const client = new Anthropic();
+  const client = new Anthropic({ timeout: 5 * 60 * 1000 }); // 5分钟超时
   const userPrompt = buildUserPrompt(params);
 
   console.log('  [Claude] 调用 claude-opus-4-6 生成报告...');
+  const MAX_RETRIES = 3;
   let message;
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       message = await client.messages.create({
         model: 'claude-opus-4-6',
@@ -272,9 +273,11 @@ async function generateReport(params: {
       break;
     } catch (err: unknown) {
       const status = (err as { status?: number }).status;
-      if (status === 500 && attempt < 2) {
-        console.warn(`  [Claude] 500 错误，30秒后重试（第 ${attempt} 次）...`);
-        await new Promise(r => setTimeout(r, 30000));
+      // 5xx（含 524 Cloudflare 超时）和 429 限流均可重试
+      if ((status && (status >= 500 || status === 429)) && attempt < MAX_RETRIES) {
+        const delaySec = 30 * attempt; // 递增等待：30s, 60s
+        console.warn(`  [Claude] ${status} 错误，${delaySec}秒后重试（第 ${attempt}/${MAX_RETRIES - 1} 次）...`);
+        await new Promise(r => setTimeout(r, delaySec * 1000));
       } else {
         throw err;
       }
