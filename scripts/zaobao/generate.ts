@@ -259,17 +259,18 @@ async function generateReport(params: {
   const client = new Anthropic({ timeout: 5 * 60 * 1000 }); // 5分钟超时
   const userPrompt = buildUserPrompt(params);
 
-  console.log('  [Claude] 调用 claude-opus-4-6 生成报告...');
+  const model = process.env.ZAOBAO_MODEL || 'claude-opus-4-6';
+  console.log(`  [Claude] 调用 ${model} 生成报告（streaming）...`);
   const MAX_RETRIES = 3;
   let message;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      message = await client.messages.create({
-        model: 'claude-opus-4-6',
+      message = await client.messages.stream({
+        model,
         max_tokens: 8192,
         messages: [{ role: 'user', content: userPrompt }],
         system: SYSTEM_PROMPT,
-      });
+      }).finalMessage();
       break;
     } catch (err: unknown) {
       const status = (err as { status?: number }).status;
