@@ -23,6 +23,14 @@ on:
         description: '初始化拉取天数（默认60）'
         required: false
         default: '60'
+      force_run:
+        description: '强制运行（跳过交易日检查，用于周末测试）'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 jobs:
   collect:
@@ -54,3 +62,4 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SKIP_MASTER: ${{ inputs.skip_master }}
           INIT_DAYS: ${{ inputs.init_days }}
+          FORCE_RUN: ${{ inputs.force_run }}

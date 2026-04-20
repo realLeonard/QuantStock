@@ -6,6 +6,7 @@
 4. 汇总日志
 """
 
+import os
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
@@ -39,8 +40,10 @@ def main():
     print(f'北京时间: {datetime.now(_BJ_TZ).strftime("%Y-%m-%d %H:%M:%S")}')
     print('=' * 60)
 
-    if not is_trade_day():
+    force = os.environ.get('FORCE_RUN', '').lower() in ('1', 'true', 'yes')
+    if not is_trade_day() and not force:
         print('今天不是交易日（周末），跳过采集')
+        print('提示: 设置 FORCE_RUN=1 可强制运行')
         return
 
     sb = get_supabase_client()
