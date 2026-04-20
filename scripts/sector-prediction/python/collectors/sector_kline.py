@@ -1,18 +1,17 @@
-"""K 线采集：Playwright HTTP 请求 → sector_daily
+"""K 线采集：Playwright 浏览器 JSONP → sector_daily
 
-用 Playwright 浏览器内置 HTTP 客户端（context.request）请求东财 K 线 API，
-绕过 TLS 指纹检测，且不受页面 CSP 限制。
+在东财页面中注入 JSONP script 标签请求 push2his.eastmoney.com K 线 API。
+注意：必须用主域名 push2his.eastmoney.com（不带节点号），带节点号的子域名会被拦截。
 """
 
 import math
-import random
 import time
 import uuid
 
 from supabase import Client
 
 from db import now_utc_ms
-from browser import get_context
+from browser import get_page
 
 
 def _safe_float(val, default=0.0) -> float:
@@ -36,34 +35,53 @@ def _safe_int(val, default=0) -> int:
         return default
 
 
-def _fetch_kline_http(bk_code: str, days: int) -> list[str] | None:
+def _fetch_kline_jsonp(bk_code: str, days: int) -> list[str] | None:
     """
-    通过 Playwright context.request 请求东财 K 线 API。
-    用浏览器内置 HTTP 客户端，不受 CSP/CORS 限制。
+    通过 Playwright JSONP 请求东财 K 线 API。
+    用 push2his.eastmoney.com 主域名（不带节点号，带节点号的子域名会被拦截）。
     返回 K 线字符串列表，或 None（失败）。
     """
-    context = get_context()
-    node = random.randint(1, 99)
-    url = (
-        f'https://{node}.push2his.eastmoney.com/api/qt/stock/kline/get'
-        f'?secid=90.{bk_code}'
-        f'&fields1=f1,f2,f3,f4,f5,f6'
-        f'&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61'
-        f'&klt=101&fqt=0&lmt={days}&end=20500101'
-        f'&ut=fa5fd1943c7b386f172d6893dbfba10b'
-    )
+    page = get_page()
 
     try:
-        resp = context.request.get(url, timeout=10000)
-        if resp.status != 200:
-            print(f'    [error] {bk_code} HTTP {resp.status}')
-            return None
-        data = resp.json()
-        if data.get('data') and data['data'].get('klines'):
-            return data['data']['klines']
-        return []
+        result = page.evaluate('''({ bkCode, days }) => {
+            return new Promise((resolve, reject) => {
+                const cb = 'kl_' + bkCode + '_' + Date.now();
+                window[cb] = (data) => {
+                    delete window[cb];
+                    try { document.head.removeChild(s); } catch(e) {}
+                    if (data && data.data && data.data.klines) {
+                        resolve(data.data.klines);
+                    } else {
+                        resolve([]);
+                    }
+                };
+                const s = document.createElement('script');
+                s.src = 'https://push2his.eastmoney.com/api/qt/stock/kline/get?cb=' + cb
+                    + '&secid=90.' + bkCode
+                    + '&fields1=f1,f2,f3,f4,f5,f6'
+                    + '&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61'
+                    + '&klt=101&fqt=0&lmt=' + days
+                    + '&end=20500101'
+                    + '&ut=fa5fd1943c7b386f172d6893dbfba10b';
+                s.onerror = () => {
+                    delete window[cb];
+                    try { document.head.removeChild(s); } catch(e) {}
+                    reject('load_error');
+                };
+                document.head.appendChild(s);
+                setTimeout(() => {
+                    if (window[cb]) {
+                        delete window[cb];
+                        try { document.head.removeChild(s); } catch(e) {}
+                        reject('timeout');
+                    }
+                }, 10000);
+            });
+        }''', {'bkCode': bk_code, 'days': days})
+        return result if result else []
     except Exception as e:
-        print(f'    [error] {bk_code} 请求失败: {e}')
+        print(f'    [error] {bk_code} JSONP 失败: {e}')
         return None
 
 
@@ -120,7 +138,7 @@ def collect_kline_batch(
                 skipped += 1
                 continue
 
-            klines = _fetch_kline_http(bk_code, days)
+            klines = _fetch_kline_jsonp(bk_code, days)
             if klines is None:
                 failed += 1
                 consecutive_fails += 1
