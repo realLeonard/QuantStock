@@ -111,9 +111,9 @@ def collect_kline_batch(
     sb: Client,
     sectors: list[dict],
     days: int = 2,
-    batch_size: int = 50,
-    sleep_between_batches: float = 5.0,
-    sleep_between_sectors: float = 1.0,
+    batch_size: int = 30,
+    sleep_between_batches: float = 15.0,
+    sleep_between_sectors: float = 3.0,
 ) -> dict:
     """批量采集板块 K 线并 upsert 到 sector_daily。"""
     # 刷新页面，避免前序步骤（板块列表）的 JSONP 残留导致 DOM 污染
@@ -154,14 +154,19 @@ def collect_kline_batch(
                     print(f'  [熔断] 连续失败 {consecutive_fails} 次，跳过 K 线采集')
                     print(f'  K 线采集中断: 成功 {success}，失败 {failed}，跳过 {skipped}')
                     return {'success': success, 'failed': failed, 'skipped': skipped, 'failed_names': failed_names}
-                # 失败后退避：等更久再继续
-                time.sleep(random.uniform(2.0, 4.0))
+                # 失败后重建页面 + 长退避（可能被 CDN 限流）
+                if consecutive_fails >= 3:
+                    print(f'    连续失败 {consecutive_fails} 次，重建页面...')
+                    get_page(fresh=True)
+                    time.sleep(random.uniform(8.0, 15.0))
+                else:
+                    time.sleep(random.uniform(4.0, 8.0))
                 continue
 
             if not klines:
                 skipped += 1
                 consecutive_fails = 0
-                time.sleep(random.uniform(0.5, 1.0))
+                time.sleep(random.uniform(1.5, 3.0))
                 continue
 
             records = []
@@ -176,13 +181,14 @@ def collect_kline_batch(
 
             success += 1
             consecutive_fails = 0
-            # 请求间隔随机化
-            time.sleep(random.uniform(0.5, 1.5))
+            # 请求间隔：2-4 秒（避免 CDN 限流）
+            time.sleep(random.uniform(2.0, 4.0))
 
-        # 批间暂停随机化
+        # 批间暂停：重建页面 + 长暂停（避免 DOM 堆积 + CDN 限流）
         if batch_idx + batch_size < len(shuffled):
-            pause = random.uniform(3.0, 6.0)
-            print(f'  批间暂停 {pause:.1f}s...')
+            get_page(fresh=True)
+            pause = random.uniform(10.0, 20.0)
+            print(f'  批间暂停 {pause:.1f}s（已重建页面）...')
             time.sleep(pause)
 
     print(f'  K 线采集完成: 成功 {success}，失败 {failed}，跳过 {skipped}')
