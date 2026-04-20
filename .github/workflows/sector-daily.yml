@@ -71,6 +71,39 @@ jobs:
           INIT_DAYS: ${{ inputs.init_days }}
           FORCE_RUN: ${{ inputs.force_run }}
 
+      - name: 安装评分依赖
+        if: success() && inputs.mode == 'daily'
+        run: pip install httpx
+
+      - name: 运行评分（含回填+6维评分+市场分级+生命周期）
+        if: success() && inputs.mode == 'daily'
+        run: |
+          echo "=== 板块评分 ==="
+          python scripts/sector-prediction/python/scoring.py 2>&1 | tee /tmp/scoring-output.log
+        env:
+          PYTHONUNBUFFERED: '1'
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+
+      - uses: actions/setup-node@v4
+        if: success() && inputs.mode == 'daily'
+        with:
+          node-version: '20'
+
+      - name: 推送评分结果
+        if: success() && inputs.mode == 'daily'
+        run: |
+          cd scripts/sector-prediction
+          npm install --production
+          npx tsx push-scores.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          WXPUSHER_TOKEN: ${{ secrets.WXPUSHER_TOKEN }}
+          WXPUSHER_UID: ${{ secrets.WXPUSHER_UID }}
+
       - name: Bark 失败通知
         if: failure()
         run: |
