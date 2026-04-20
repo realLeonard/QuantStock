@@ -1,12 +1,28 @@
 """板块列表采集：东财概念板块列表 API（JSONP）→ sector_master"""
 
 import math
+import re
 import uuid
 
 from supabase import Client
 
 from db import now_utc_ms
 from browser import get_page
+
+# 非真实概念板块的关键词（筛选类/规模类/季报类）
+_EXCLUDE_KEYWORDS = [
+    '新高', '新低', '预增', '预减', '预亏', '扭亏', '预盈',
+    '大盘股', '中盘股', '小盘股', '大盘', '中盘', '小盘',
+    '价值', '成长', '破发', '破净',
+    '次新股', '注册制次新',
+    '中报', '年报', '季报',
+]
+_EXCLUDE_PATTERN = re.compile('|'.join(re.escape(k) for k in _EXCLUDE_KEYWORDS))
+
+
+def _is_real_concept(name: str) -> bool:
+    """判断板块名称是否为真实概念板块（排除筛选类/规模类/季报类）"""
+    return not _EXCLUDE_PATTERN.search(name)
 
 
 def _safe_float(val, default=0.0) -> float:
@@ -109,7 +125,12 @@ def sync_sector_master(sb: Client) -> list[dict]:
         print('  [error] 板块列表 API 返回为空')
         return []
 
-    print(f'  获取到 {len(items)} 个概念板块')
+    # 过滤非真实概念板块
+    excluded = [it for it in items if not _is_real_concept(it['name'])]
+    items = [it for it in items if _is_real_concept(it['name'])]
+    print(f'  获取到 {len(items) + len(excluded)} 个板块，排除 {len(excluded)} 个非概念板块')
+    if excluded[:5]:
+        print(f'  排除示例: {", ".join(it["name"] for it in excluded[:5])}')
 
     # 获取已有板块
     existing = sb.table('sector_master').select('name,id').execute()
@@ -148,8 +169,9 @@ def sync_sector_master(sb: Client) -> list[dict]:
                 'updated_at': now,
             })
 
-    # 标记不在 API 列表中的板块为 inactive
-    inactive_names = set(existing_map.keys()) - api_names
+    # 标记不在 API 列表中的板块 + 被排除的非概念板块为 inactive
+    excluded_names = {it['name'] for it in excluded}
+    inactive_names = (set(existing_map.keys()) - api_names) | (excluded_names & set(existing_map.keys()))
     for name in inactive_names:
         to_update.append({
             'id': existing_map[name],

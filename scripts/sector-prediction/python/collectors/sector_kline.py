@@ -121,6 +121,8 @@ def collect_kline_batch(
     failed = 0
     skipped = 0
     failed_names = []
+    consecutive_fails = 0
+    MAX_CONSECUTIVE_FAILS = 10  # 连续失败超过此数则熔断跳过
 
     for batch_idx in range(0, len(sectors), batch_size):
         batch = sectors[batch_idx:batch_idx + batch_size]
@@ -139,12 +141,18 @@ def collect_kline_batch(
             klines = _fetch_kline_jsonp(bk_code, days)
             if klines is None:
                 failed += 1
+                consecutive_fails += 1
                 failed_names.append(name)
+                if consecutive_fails >= MAX_CONSECUTIVE_FAILS:
+                    print(f'  [熔断] 连续失败 {consecutive_fails} 次，跳过 K 线采集')
+                    print(f'  K 线采集中断: 成功 {success}，失败 {failed}，跳过 {skipped}')
+                    return {'success': success, 'failed': failed, 'skipped': skipped, 'failed_names': failed_names}
                 time.sleep(sleep_between_sectors)
                 continue
 
             if not klines:
                 skipped += 1
+                consecutive_fails = 0
                 time.sleep(sleep_between_sectors)
                 continue
 
@@ -159,6 +167,7 @@ def collect_kline_batch(
                 _upsert_kline_records(sb, records)
 
             success += 1
+            consecutive_fails = 0
             time.sleep(sleep_between_sectors)
 
         # 批间暂停

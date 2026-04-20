@@ -21,8 +21,13 @@ def get_page() -> Page:
         _browser = _playwright.chromium.launch(headless=True)
 
     _page = _browser.new_page()
-    # 用 about:blank 避免 CSP 限制，JSONP 可自由注入 script 标签
-    _page.goto('about:blank')
+    # 导航到东财行情页，为 JSONP 提供正确的 origin/referer 上下文
+    try:
+        _page.goto('https://quote.eastmoney.com/center/gridlist.html',
+                   wait_until='domcontentloaded', timeout=15000)
+    except Exception:
+        # 如果主页加载超时，用 about:blank 兜底
+        _page.goto('about:blank')
     return _page
 
 

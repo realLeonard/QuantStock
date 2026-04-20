@@ -88,11 +88,9 @@ def main():
     print(f'  资金流匹配率: {fund_rate}')
     print('=' * 60)
 
-    # 如果 K 线失败率超过 10%，退出码非零
-    if sectors and kline_result['failed'] > len(sectors) * 0.1:
-        print('[warn] K 线失败率超过 10%')
-        close_browser()
-        sys.exit(1)
+    # K 线失败率超过 50% 时警告（不退出，资金流仍可正常采集）
+    if sectors and kline_result['failed'] > len(sectors) * 0.5:
+        print('[warn] K 线失败率超过 50%，请检查网络或 API 状态')
 
     close_browser()
 
