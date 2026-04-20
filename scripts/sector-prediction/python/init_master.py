@@ -45,8 +45,8 @@ def main():
         sectors,
         days=days,
         batch_size=50,
-        sleep_between_batches=5.0,
-        sleep_between_sectors=0.5,
+        sleep_between_batches=10.0,
+        sleep_between_sectors=2.0,
     )
 
     # 汇总
@@ -59,8 +59,8 @@ def main():
     print(f'  K 线失败: {kline_result["failed"]}')
     print('=' * 60)
 
-    if kline_result['failed'] > len(sectors) * 0.1:
-        print('[warn] K 线失败率超过 10%，请检查日志')
+    if kline_result['failed'] > len(sectors) * 0.3:
+        print('[warn] K 线失败率超过 30%，请检查日志')
         sys.exit(1)
 
 

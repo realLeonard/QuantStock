@@ -1,23 +1,22 @@
 """K 线采集：直接请求东财 K 线 API → sector_daily
 
-绕过 akshare 的 stock_board_concept_hist_em（每次调用都会先拉全量板块列表，
-触发东财 push2 接口风控）。直接用 BK 代码请求 push2his.eastmoney.com。
+用 curl_cffi 模拟 Chrome TLS 指纹请求东财接口，
+绕过东财对 Python urllib3 TLS 指纹的检测封锁。
 """
 
-import json
 import math
 import random
-import subprocess
 import time
 import uuid
 
+from curl_cffi import requests as cffi_requests
 from supabase import Client
 
 from db import now_utc_ms
 
-# 连接错误最大重试次数
-MAX_RETRIES = 3
-RETRY_WAIT = [3, 8, 15]
+# 连接错误最大重试次数（设为 1 = 不重试，避免触发风控）
+MAX_RETRIES = 1
+RETRY_WAIT = [3]
 
 # 东财有多个 push2his 节点（1-99），随机选择避免单节点风控
 _PUSH2_NODES = list(range(1, 100))
@@ -44,19 +43,19 @@ def _safe_int(val, default=0) -> int:
         return default
 
 
-def _fetch_kline_direct(bk_code: str, days: int) -> list[dict] | None:
+def _fetch_kline_direct(bk_code: str, days: int) -> list[str] | None:
     """
-    直接请求东财 K 线 API。
+    直接请求东财 K 线 API（curl_cffi 模拟 Chrome TLS 指纹）。
     bk_code: 如 "BK0927"
     days: 拉取最近几天
-    返回 K 线数据列表，或 None（失败）。
+    返回 K 线字符串列表，或 None（失败）。
     """
     params = {
         'secid': f'90.{bk_code}',
         'fields1': 'f1,f2,f3,f4,f5,f6',
         'fields2': 'f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61',
-        'klt': '101',  # 日K
-        'fqt': '0',    # 不复权
+        'klt': '101',
+        'fqt': '0',
         'lmt': str(days),
         'end': '20500101',
         'ut': 'fa5fd1943c7b386f172d6893dbfba10b',
@@ -66,30 +65,20 @@ def _fetch_kline_direct(bk_code: str, days: int) -> list[dict] | None:
         try:
             node = random.choice(_PUSH2_NODES)
             url = f'https://{node}.push2his.eastmoney.com/api/qt/stock/kline/get'
-            # 构建查询字符串
-            qs = '&'.join(f'{k}={v}' for k, v in params.items())
-            full_url = f'{url}?{qs}'
-
-            # 用 curl 替代 requests（东财检测 Python urllib3 TLS 指纹会拒绝连接）
-            result = subprocess.run(
-                ['curl', '-s', '--connect-timeout', '10', '-H', 'User-Agent: Mozilla/5.0',
-                 full_url],
-                capture_output=True, text=True, timeout=15,
-            )
-            if result.returncode != 0:
-                raise ConnectionError(f'curl 返回码 {result.returncode}')
-
-            data = json.loads(result.stdout)
+            r = cffi_requests.get(url, params=params, impersonate='chrome', timeout=10)
+            data = r.json()
             if data.get('data') and data['data'].get('klines'):
                 return data['data']['klines']
             return []
-        except (ConnectionError, subprocess.TimeoutExpired, json.JSONDecodeError) as e:
-            wait = RETRY_WAIT[min(attempt, len(RETRY_WAIT) - 1)]
-            print(f'    [retry] {bk_code} 连接异常，等待 {wait}s ({attempt + 1}/{MAX_RETRIES})')
-            time.sleep(wait)
         except Exception as e:
-            print(f'    [error] {bk_code}: {e}')
-            return None
+            err_str = str(e)
+            if 'Connection' in err_str or 'Timeout' in err_str or 'Remote' in err_str:
+                wait = RETRY_WAIT[min(attempt, len(RETRY_WAIT) - 1)]
+                print(f'    [retry] {bk_code} 连接异常，等待 {wait}s ({attempt + 1}/{MAX_RETRIES})')
+                time.sleep(wait)
+            else:
+                print(f'    [error] {bk_code}: {e}')
+                return None
     return None
 
 
@@ -97,7 +86,6 @@ def _parse_kline_str(sector_name: str, line: str) -> dict:
     """
     解析东财 K 线字符串。
     格式: 日期,开盘,收盘,最高,最低,成交量,成交额,振幅,涨跌幅,涨跌额,换手率
-    示例: 2026-04-13,1310.74,1313.43,1317.57,1306.99,4206957,4197969576.00,0.80,-0.22,-2.89,0.57
     """
     parts = line.split(',')
     return {
@@ -119,21 +107,12 @@ def collect_kline_batch(
     sb: Client,
     sectors: list[dict],
     days: int = 5,
-    batch_size: int = 30,
-    sleep_between_batches: float = 10.0,
-    sleep_between_sectors: float = 0.5,
+    batch_size: int = 50,
+    sleep_between_batches: float = 5.0,
+    sleep_between_sectors: float = 0.3,
 ) -> dict:
     """
     批量采集板块 K 线并 upsert 到 sector_daily。
-
-    参数:
-      sectors: [{name, bk_code}, ...] active 板块列表
-      days: 拉取最近几日的数据（每日增量用 5，初始化用 60）
-      batch_size: 每批处理板块数
-      sleep_between_batches: 批间 sleep 秒数
-      sleep_between_sectors: 板块间 sleep 秒数
-
-    返回: {success: int, failed: int, skipped: int, failed_names: [str]}
     """
     print(f'[2/4] 采集 K 线（最近 {days} 日，共 {len(sectors)} 个板块）...')
     now = now_utc_ms()
@@ -181,7 +160,7 @@ def collect_kline_batch(
             success += 1
             time.sleep(sleep_between_sectors)
 
-        # 批间暂停（最后一批不用等）
+        # 批间暂停
         if batch_idx + batch_size < len(sectors):
             print(f'  批间暂停 {sleep_between_batches}s...')
             time.sleep(sleep_between_batches)
@@ -194,17 +173,13 @@ def collect_kline_batch(
 
 
 def _upsert_kline_records(sb: Client, records: list[dict]) -> None:
-    """
-    Upsert K 线记录。利用 UNIQUE(sector_name, trade_date) 约束，
-    通过先查再决定 insert/update 实现。
-    """
+    """Upsert K 线记录到 sector_daily"""
     if not records:
         return
 
     sector_name = records[0]['sector_name']
     dates = [r['trade_date'] for r in records]
 
-    # 查询已有记录
     existing = (
         sb.table('sector_daily')
         .select('id,trade_date')
@@ -220,7 +195,6 @@ def _upsert_kline_records(sb: Client, records: list[dict]) -> None:
     for record in records:
         td = record['trade_date']
         if td in existing_map:
-            # 更新 K 线字段（保留已有的资金流字段）
             update_data = {k: v for k, v in record.items() if k not in ('id', 'created_at')}
             to_update.append((existing_map[td], update_data))
         else:
