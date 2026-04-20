@@ -5,6 +5,7 @@
 """
 
 import math
+import random
 import time
 import uuid
 
@@ -109,10 +110,10 @@ def _parse_kline_str(sector_name: str, line: str) -> dict:
 def collect_kline_batch(
     sb: Client,
     sectors: list[dict],
-    days: int = 5,
+    days: int = 2,
     batch_size: int = 50,
-    sleep_between_batches: float = 3.0,
-    sleep_between_sectors: float = 0.5,
+    sleep_between_batches: float = 5.0,
+    sleep_between_sectors: float = 1.0,
 ) -> dict:
     """批量采集板块 K 线并 upsert 到 sector_daily。"""
     print(f'[2/4] 采集 K 线（最近 {days} 日，共 {len(sectors)} 个板块）...')
@@ -124,10 +125,14 @@ def collect_kline_batch(
     consecutive_fails = 0
     MAX_CONSECUTIVE_FAILS = 10  # 连续失败超过此数则熔断跳过
 
-    for batch_idx in range(0, len(sectors), batch_size):
-        batch = sectors[batch_idx:batch_idx + batch_size]
+    # 打乱顺序，避免每次请求模式相同
+    shuffled = list(sectors)
+    random.shuffle(shuffled)
+
+    for batch_idx in range(0, len(shuffled), batch_size):
+        batch = shuffled[batch_idx:batch_idx + batch_size]
         batch_num = batch_idx // batch_size + 1
-        total_batches = (len(sectors) + batch_size - 1) // batch_size
+        total_batches = (len(shuffled) + batch_size - 1) // batch_size
         print(f'  批次 {batch_num}/{total_batches}（{len(batch)} 个板块）')
 
         for sector in batch:
@@ -147,13 +152,14 @@ def collect_kline_batch(
                     print(f'  [熔断] 连续失败 {consecutive_fails} 次，跳过 K 线采集')
                     print(f'  K 线采集中断: 成功 {success}，失败 {failed}，跳过 {skipped}')
                     return {'success': success, 'failed': failed, 'skipped': skipped, 'failed_names': failed_names}
-                time.sleep(sleep_between_sectors)
+                # 失败后退避：等更久再继续
+                time.sleep(random.uniform(2.0, 4.0))
                 continue
 
             if not klines:
                 skipped += 1
                 consecutive_fails = 0
-                time.sleep(sleep_between_sectors)
+                time.sleep(random.uniform(0.5, 1.0))
                 continue
 
             records = []
@@ -168,12 +174,14 @@ def collect_kline_batch(
 
             success += 1
             consecutive_fails = 0
-            time.sleep(sleep_between_sectors)
+            # 请求间隔随机化
+            time.sleep(random.uniform(0.5, 1.5))
 
-        # 批间暂停
-        if batch_idx + batch_size < len(sectors):
-            print(f'  批间暂停 {sleep_between_batches}s...')
-            time.sleep(sleep_between_batches)
+        # 批间暂停随机化
+        if batch_idx + batch_size < len(shuffled):
+            pause = random.uniform(3.0, 6.0)
+            print(f'  批间暂停 {pause:.1f}s...')
+            time.sleep(pause)
 
     print(f'  K 线采集完成: 成功 {success}，失败 {failed}，跳过 {skipped}')
     if failed_names[:10]:
