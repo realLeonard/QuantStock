@@ -36,7 +36,7 @@ on:
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -51,16 +51,17 @@ jobs:
           playwright install chromium --with-deps
 
       - name: 运行采集
+        id: collect
         run: |
           if [ "${{ inputs.mode }}" = "init" ]; then
             echo "=== 初始化模式 ==="
-            python scripts/sector-prediction/python/init_master.py
+            python scripts/sector-prediction/python/init_master.py 2>&1 | tee /tmp/sector-output.log
           elif [ "${{ inputs.mode }}" = "test_kline" ]; then
-            echo "=== K 线连通性测试（3个板块）==="
-            python scripts/sector-prediction/python/test_kline.py
+            echo "=== K 线测试 ==="
+            python scripts/sector-prediction/python/test_kline.py 2>&1 | tee /tmp/sector-output.log
           else
             echo "=== 每日增量模式 ==="
-            python scripts/sector-prediction/python/main.py
+            python scripts/sector-prediction/python/main.py 2>&1 | tee /tmp/sector-output.log
           fi
         env:
           PYTHONUNBUFFERED: '1'
@@ -69,3 +70,38 @@ jobs:
           SKIP_MASTER: ${{ inputs.skip_master }}
           INIT_DAYS: ${{ inputs.init_days }}
           FORCE_RUN: ${{ inputs.force_run }}
+
+      - name: Bark 失败通知
+        if: failure()
+        run: |
+          BARK_KEY="${{ secrets.BARK_KEY }}"
+          if [ -z "$BARK_KEY" ]; then exit 0; fi
+          TITLE="板块采集失败"
+          # 提取最后几行关键日志
+          if [ -f /tmp/sector-output.log ]; then
+            BODY=$(grep -E '(error|失败|熔断|FAIL)' /tmp/sector-output.log | tail -3 | tr '\n' ' ')
+          fi
+          if [ -z "$BODY" ]; then
+            BODY="采集脚本异常退出，请检查 Actions 日志"
+          fi
+          TITLE_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$TITLE")
+          BODY_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$BODY")
+          curl -s "https://api.day.app/${BARK_KEY}/${TITLE_ENC}/${BODY_ENC}?group=QuantStock" || true
+
+      - name: Bark 成功通知（含数据摘要）
+        if: success() && inputs.mode != 'test_kline'
+        run: |
+          BARK_KEY="${{ secrets.BARK_KEY }}"
+          if [ -z "$BARK_KEY" ]; then exit 0; fi
+          TITLE="板块采集完成"
+          BODY="无摘要"
+          if [ -f /tmp/sector-output.log ]; then
+            # 提取汇总行
+            KLINE=$(grep 'K 线' /tmp/sector-output.log | grep '成功' | tail -1 | sed 's/.*K 线/K线/')
+            FUND=$(grep '资金流匹配率' /tmp/sector-output.log | tail -1 | sed 's/.*资金流/资金流/')
+            SECTORS=$(grep 'active 板块总数' /tmp/sector-output.log | tail -1 | grep -oP '\d+')
+            BODY="${SECTORS}板块 | ${KLINE} | ${FUND}"
+          fi
+          TITLE_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$TITLE")
+          BODY_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$BODY")
+          curl -s "https://api.day.app/${BARK_KEY}/${TITLE_ENC}/${BODY_ENC}?group=QuantStock" || true

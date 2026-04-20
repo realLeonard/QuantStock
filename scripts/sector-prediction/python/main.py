@@ -75,6 +75,20 @@ def main():
     print(f'  资金流匹配率: {fund_rate}')
     print('=' * 60)
 
+    # 任一数据源有严重问题时以非零退出（触发 Bark 失败通知）
+    errors = []
+    if kline_result['success'] < len(sectors) * 0.5:
+        errors.append(f'K 线成功率不足 50%（{kline_result["success"]}/{len(sectors)}）')
+    if fund_result['total'] > 0 and fund_result['matched'] < fund_result['total'] * 0.5:
+        errors.append(f'资金流匹配率不足 50%（{fund_result["matched"]}/{fund_result["total"]}）')
+    if not sectors:
+        errors.append('板块列表为空')
+
+    if errors:
+        for e in errors:
+            print(f'[FAIL] {e}')
+        close_browser()
+        sys.exit(1)
 
     close_browser()
 
