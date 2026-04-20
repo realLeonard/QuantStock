@@ -56,14 +56,14 @@ def main():
         print('[error] 未获取到任何板块，终止')
         sys.exit(1)
 
-    # [2/4] 采集 K 线（最近 5 日，容错节假日）
+    # [2/4] 采集 K 线（最近 2 日）
     kline_result = collect_kline_batch(
         sb,
         sectors,
-        days=5,
+        days=2,
         batch_size=50,
-        sleep_between_batches=5.0,
-        sleep_between_sectors=0.3,
+        sleep_between_batches=3.0,
+        sleep_between_sectors=0.5,
     )
 
     # [3/4] 采集资金流
