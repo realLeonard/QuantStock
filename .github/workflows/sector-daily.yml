@@ -11,6 +11,7 @@ on:
         options:
           - daily
           - init
+          - test_kline
       skip_master:
         description: '跳过板块列表同步（init 模式下 DB 已有数据时使用）'
         required: false
@@ -54,6 +55,9 @@ jobs:
           if [ "${{ inputs.mode }}" = "init" ]; then
             echo "=== 初始化模式 ==="
             python scripts/sector-prediction/python/init_master.py
+          elif [ "${{ inputs.mode }}" = "test_kline" ]; then
+            echo "=== K 线连通性测试（3个板块）==="
+            python scripts/sector-prediction/python/test_kline.py
           else
             echo "=== 每日增量模式 ==="
             python scripts/sector-prediction/python/main.py
