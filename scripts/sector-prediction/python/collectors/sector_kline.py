@@ -116,6 +116,8 @@ def collect_kline_batch(
     sleep_between_sectors: float = 1.0,
 ) -> dict:
     """批量采集板块 K 线并 upsert 到 sector_daily。"""
+    # 刷新页面，避免前序步骤（板块列表）的 JSONP 残留导致 DOM 污染
+    get_page(fresh=True)
     print(f'[2/4] 采集 K 线（最近 {days} 日，共 {len(sectors)} 个板块）...')
     now = now_utc_ms()
     success = 0

@@ -22,11 +22,18 @@ def _ensure_browser():
     _context = _browser.new_context()
 
 
-def get_page() -> Page:
-    """获取或创建浏览器页面（单例，用于 JSONP 调用）"""
+def get_page(fresh: bool = False) -> Page:
+    """获取或创建浏览器页面（用于 JSONP 调用）
+
+    fresh=True 时强制关闭旧页面、创建新页面（避免 DOM 污染）
+    """
     global _page
 
     _ensure_browser()
+
+    if fresh and _page and not _page.is_closed():
+        _page.close()
+        _page = None
 
     if _page and not _page.is_closed():
         return _page
