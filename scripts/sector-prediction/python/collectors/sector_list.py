@@ -1,12 +1,12 @@
-"""板块列表采集：stock_board_concept_name_em() → sector_master"""
+"""板块列表采集：东财概念板块列表 API（JSONP）→ sector_master"""
 
 import math
 import uuid
 
-import akshare as ak
 from supabase import Client
 
 from db import now_utc_ms
+from browser import get_page
 
 
 def _safe_float(val, default=0.0) -> float:
@@ -32,18 +32,84 @@ def _safe_int(val, default=0) -> int:
         return default
 
 
+def _fetch_sector_list_jsonp() -> list[dict] | None:
+    """
+    通过 Playwright 在东财页面中用 JSONP 拉取概念板块列表。
+    等同于 akshare 的 stock_board_concept_name_em()，但用浏览器绕过 TLS 检测。
+    """
+    page = get_page()
+
+    all_items = []
+    page_num = 1
+    page_size = 100
+
+    while True:
+        result = page.evaluate('''({ pn, pz }) => {
+            return new Promise((resolve, reject) => {
+                const cb = 'sl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+                window[cb] = (data) => {
+                    delete window[cb];
+                    try { document.head.removeChild(s); } catch(e) {}
+                    if (data && data.data && data.data.diff) {
+                        resolve({ items: data.data.diff, total: data.data.total });
+                    } else {
+                        resolve({ items: [], total: 0 });
+                    }
+                };
+                const s = document.createElement('script');
+                s.src = 'https://push2.eastmoney.com/api/qt/clist/get?cb=' + cb
+                    + '&pn=' + pn + '&pz=' + pz
+                    + '&po=1&np=1&fltt=2&invt=2'
+                    + '&fid=f3&fs=m:90+t:3'
+                    + '&fields=f12,f14,f2,f3,f4,f8,f20,f128,f136,f124'
+                    + '&_=' + Date.now();
+                s.onerror = () => {
+                    delete window[cb];
+                    try { document.head.removeChild(s); } catch(e) {}
+                    reject('load_error');
+                };
+                document.head.appendChild(s);
+                setTimeout(() => {
+                    if (window[cb]) { delete window[cb]; reject('timeout'); }
+                }, 10000);
+            });
+        }''', {'pn': page_num, 'pz': page_size})
+
+        items = result.get('items', [])
+        total = result.get('total', 0)
+
+        if not items:
+            if page_num == 1:
+                return None
+            break
+
+        for item in items:
+            all_items.append({
+                'name': str(item.get('f14', '')).strip(),
+                'bk_code': str(item.get('f12', '')).strip(),
+                'change_pct': _safe_float(item.get('f3')),
+                'leading_stock': str(item.get('f128', '')).strip() if item.get('f128') != '-' else '',
+            })
+
+        if page_num * page_size >= total:
+            break
+        page_num += 1
+
+    return all_items
+
+
 def sync_sector_master(sb: Client) -> list[dict]:
     """
     拉取东财概念板块列表，upsert 到 sector_master。
     返回 active 板块列表（含 name, bk_code）。
     """
     print('[1/4] 刷新板块列表...')
-    df = ak.stock_board_concept_name_em()
-    if df is None or df.empty:
-        print('  [error] stock_board_concept_name_em() 返回为空')
+    items = _fetch_sector_list_jsonp()
+    if not items:
+        print('  [error] 板块列表 API 返回为空')
         return []
 
-    print(f'  获取到 {len(df)} 个概念板块')
+    print(f'  获取到 {len(items)} 个概念板块')
 
     # 获取已有板块
     existing = sb.table('sector_master').select('name,id').execute()
@@ -54,25 +120,19 @@ def sync_sector_master(sb: Client) -> list[dict]:
     to_insert = []
     to_update = []
 
-    for _, row in df.iterrows():
-        name = str(row.get('板块名称', '')).strip()
+    for item in items:
+        name = item['name']
         if not name:
             continue
         api_names.add(name)
-
-        bk_code = str(row.get('板块代码', '')).strip()
-        stock_count = _safe_int(row.get('上涨家数', 0)) + _safe_int(row.get('下跌家数', 0))
-        change_pct = _safe_float(row.get('涨跌幅'))
-        leading_stock = str(row.get('领涨股票', '')).strip()
 
         if name in existing_map:
             to_update.append({
                 'id': existing_map[name],
                 'name': name,
-                'bk_code': bk_code,
-                'stock_count': stock_count,
-                'change_pct': change_pct,
-                'leading_stock': leading_stock,
+                'bk_code': item['bk_code'],
+                'change_pct': item['change_pct'],
+                'leading_stock': item['leading_stock'],
                 'is_active': True,
                 'updated_at': now,
             })
@@ -80,10 +140,9 @@ def sync_sector_master(sb: Client) -> list[dict]:
             to_insert.append({
                 'id': str(uuid.uuid4()),
                 'name': name,
-                'bk_code': bk_code,
-                'stock_count': stock_count,
-                'change_pct': change_pct,
-                'leading_stock': leading_stock,
+                'bk_code': item['bk_code'],
+                'change_pct': item['change_pct'],
+                'leading_stock': item['leading_stock'],
                 'is_active': True,
                 'created_at': now,
                 'updated_at': now,
@@ -100,7 +159,6 @@ def sync_sector_master(sb: Client) -> list[dict]:
 
     # 批量写入
     if to_insert:
-        # 分批插入，每批 100 条
         for i in range(0, len(to_insert), 100):
             batch = to_insert[i:i + 100]
             sb.table('sector_master').insert(batch).execute()

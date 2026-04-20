@@ -15,6 +15,7 @@ from datetime import datetime, timedelta, timezone
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from db import get_supabase_client
+from browser import close_browser
 from collectors.sector_list import sync_sector_master
 from collectors.sector_kline import collect_kline_batch
 from collectors.sector_fund_flow import collect_fund_flow
@@ -90,8 +91,14 @@ def main():
     # 如果 K 线失败率超过 10%，退出码非零
     if sectors and kline_result['failed'] > len(sectors) * 0.1:
         print('[warn] K 线失败率超过 10%')
+        close_browser()
         sys.exit(1)
+
+    close_browser()
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    finally:
+        close_browser()

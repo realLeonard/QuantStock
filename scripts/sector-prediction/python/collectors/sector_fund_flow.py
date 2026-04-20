@@ -1,16 +1,16 @@
-"""资金流采集：直接请求东财资金流 API → sector_daily
+"""资金流采集：Playwright 浏览器 JSONP → sector_daily
 
-用 curl_cffi 模拟 Chrome TLS 指纹，绕过东财对 Python 的检测。
+在东财页面中注入 JSONP script 标签请求资金流 API，
+用真实浏览器 TLS 指纹绕过东财检测。
 """
 
 import math
-import time
 import uuid
 
-from curl_cffi import requests as cffi_requests
 from supabase import Client
 
 from db import now_utc_ms
+from browser import get_page
 
 
 def _safe_float(val, default=0.0) -> float:
@@ -25,50 +25,63 @@ def _safe_float(val, default=0.0) -> float:
         return default
 
 
-def _fetch_fund_flow_direct() -> list[dict] | None:
+def _fetch_fund_flow_jsonp() -> list[dict] | None:
     """
-    直接请求东财概念板块资金流 API（curl_cffi 模拟 Chrome TLS 指纹）。
-    返回板块资金流列表，每项包含 name/main_net_inflow 等字段。
+    通过 Playwright JSONP 请求东财概念板块资金流 API。
+    返回全部板块资金流列表。
     """
+    page = get_page()
+
     all_items = []
-    page = 1
+    page_num = 1
     page_size = 100
 
     while True:
-        params = {
-            'pn': str(page),
-            'pz': str(page_size),
-            'po': '1',
-            'np': '1',
-            'ut': 'b2884a393a59ad64002292a3e90d46a5',
-            'fltt': '2',
-            'invt': '2',
-            'fid0': 'f62',
-            'fs': 'm:90 t:3',  # t:3 = 概念资金流
-            'stat': '1',       # 1 = 今日
-            'fields': 'f12,f14,f2,f3,f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f204,f205,f124',
-            'rt': '52975239',
-            '_': str(int(time.time() * 1000)),
-        }
-
         try:
-            r = cffi_requests.get(
-                'https://push2.eastmoney.com/api/qt/clist/get',
-                params=params,
-                impersonate='chrome',
-                timeout=10,
-            )
-            data = r.json()
+            result = page.evaluate('''({ pn, pz }) => {
+                return new Promise((resolve, reject) => {
+                    const cb = 'ff_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+                    window[cb] = (data) => {
+                        delete window[cb];
+                        try { document.head.removeChild(s); } catch(e) {}
+                        if (data && data.data && data.data.diff) {
+                            resolve({ items: data.data.diff, total: data.data.total });
+                        } else {
+                            resolve({ items: [], total: 0 });
+                        }
+                    };
+                    const s = document.createElement('script');
+                    s.src = 'https://push2.eastmoney.com/api/qt/clist/get?cb=' + cb
+                        + '&pn=' + pn + '&pz=' + pz
+                        + '&po=1&np=1'
+                        + '&ut=b2884a393a59ad64002292a3e90d46a5'
+                        + '&fltt=2&invt=2&fid0=f62'
+                        + '&fs=m:90+t:3&stat=1'
+                        + '&fields=f12,f14,f2,f3,f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f204,f205,f124'
+                        + '&_=' + Date.now();
+                    s.onerror = () => {
+                        delete window[cb];
+                        try { document.head.removeChild(s); } catch(e) {}
+                        reject('load_error');
+                    };
+                    document.head.appendChild(s);
+                    setTimeout(() => {
+                        if (window[cb]) { delete window[cb]; reject('timeout'); }
+                    }, 10000);
+                });
+            }''', {'pn': page_num, 'pz': page_size})
         except Exception as e:
-            print(f'  [error] 资金流 API 请求失败: {e}')
+            print(f'  [error] 资金流 JSONP 请求失败: {e}')
             return None
 
-        if not data.get('data') or not data['data'].get('diff'):
-            if page == 1:
+        items = result.get('items', [])
+        total = result.get('total', 0)
+
+        if not items:
+            if page_num == 1:
                 return None
             break
 
-        items = data['data']['diff']
         for item in items:
             all_items.append({
                 'name': str(item.get('f14', '')).strip(),
@@ -86,10 +99,9 @@ def _fetch_fund_flow_direct() -> list[dict] | None:
                 'leading_stock': str(item.get('f204', '')).strip() if item.get('f204') != '-' else None,
             })
 
-        total = data['data'].get('total', 0)
-        if page * page_size >= total:
+        if page_num * page_size >= total:
             break
-        page += 1
+        page_num += 1
 
     return all_items
 
@@ -106,7 +118,7 @@ def collect_fund_flow(sb: Client, today: str) -> dict:
     print('[3/4] 采集资金流...')
     now = now_utc_ms()
 
-    items = _fetch_fund_flow_direct()
+    items = _fetch_fund_flow_jsonp()
     if items is None or len(items) == 0:
         print('  [error] 资金流 API 返回为空')
         return {'total': 0, 'matched': 0, 'unmatched_names': []}

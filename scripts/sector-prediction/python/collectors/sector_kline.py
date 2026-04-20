@@ -1,25 +1,17 @@
-"""K 线采集：直接请求东财 K 线 API → sector_daily
+"""K 线采集：Playwright 浏览器 JSONP → sector_daily
 
-用 curl_cffi 模拟 Chrome TLS 指纹请求东财接口，
-绕过东财对 Python urllib3 TLS 指纹的检测封锁。
+在东财页面中注入 JSONP script 标签请求 K 线 API，
+用真实浏览器 TLS 指纹绕过东财检测。
 """
 
 import math
-import random
 import time
 import uuid
 
-from curl_cffi import requests as cffi_requests
 from supabase import Client
 
 from db import now_utc_ms
-
-# 连接错误最大重试次数（设为 1 = 不重试，避免触发风控）
-MAX_RETRIES = 1
-RETRY_WAIT = [3]
-
-# 东财有多个 push2his 节点（1-99），随机选择避免单节点风控
-_PUSH2_NODES = list(range(1, 100))
+from browser import get_page
 
 
 def _safe_float(val, default=0.0) -> float:
@@ -43,43 +35,54 @@ def _safe_int(val, default=0) -> int:
         return default
 
 
-def _fetch_kline_direct(bk_code: str, days: int) -> list[str] | None:
+def _fetch_kline_jsonp(bk_code: str, days: int) -> list[str] | None:
     """
-    直接请求东财 K 线 API（curl_cffi 模拟 Chrome TLS 指纹）。
-    bk_code: 如 "BK0927"
-    days: 拉取最近几天
+    通过 Playwright JSONP 请求东财 K 线 API。
     返回 K 线字符串列表，或 None（失败）。
     """
-    params = {
-        'secid': f'90.{bk_code}',
-        'fields1': 'f1,f2,f3,f4,f5,f6',
-        'fields2': 'f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61',
-        'klt': '101',
-        'fqt': '0',
-        'lmt': str(days),
-        'end': '20500101',
-        'ut': 'fa5fd1943c7b386f172d6893dbfba10b',
-    }
+    page = get_page()
 
-    for attempt in range(MAX_RETRIES):
-        try:
-            node = random.choice(_PUSH2_NODES)
-            url = f'https://{node}.push2his.eastmoney.com/api/qt/stock/kline/get'
-            r = cffi_requests.get(url, params=params, impersonate='chrome', timeout=10)
-            data = r.json()
-            if data.get('data') and data['data'].get('klines'):
-                return data['data']['klines']
-            return []
-        except Exception as e:
-            err_str = str(e)
-            if 'Connection' in err_str or 'Timeout' in err_str or 'Remote' in err_str:
-                wait = RETRY_WAIT[min(attempt, len(RETRY_WAIT) - 1)]
-                print(f'    [retry] {bk_code} 连接异常，等待 {wait}s ({attempt + 1}/{MAX_RETRIES})')
-                time.sleep(wait)
-            else:
-                print(f'    [error] {bk_code}: {e}')
-                return None
-    return None
+    try:
+        result = page.evaluate('''({ bkCode, days }) => {
+            return new Promise((resolve, reject) => {
+                const cb = 'kl_' + bkCode + '_' + Date.now();
+                const node = Math.floor(Math.random() * 99) + 1;
+                window[cb] = (data) => {
+                    delete window[cb];
+                    try { document.head.removeChild(s); } catch(e) {}
+                    if (data && data.data && data.data.klines) {
+                        resolve(data.data.klines);
+                    } else {
+                        resolve([]);
+                    }
+                };
+                const s = document.createElement('script');
+                s.src = 'https://' + node + '.push2his.eastmoney.com/api/qt/stock/kline/get?cb=' + cb
+                    + '&secid=90.' + bkCode
+                    + '&fields1=f1,f2,f3,f4,f5,f6'
+                    + '&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61'
+                    + '&klt=101&fqt=0&lmt=' + days
+                    + '&end=20500101'
+                    + '&ut=fa5fd1943c7b386f172d6893dbfba10b';
+                s.onerror = () => {
+                    delete window[cb];
+                    try { document.head.removeChild(s); } catch(e) {}
+                    reject('load_error');
+                };
+                document.head.appendChild(s);
+                setTimeout(() => {
+                    if (window[cb]) {
+                        delete window[cb];
+                        try { document.head.removeChild(s); } catch(e) {}
+                        reject('timeout');
+                    }
+                }, 10000);
+            });
+        }''', {'bkCode': bk_code, 'days': days})
+        return result if result else []
+    except Exception as e:
+        print(f'    [error] {bk_code} JSONP 失败: {e}')
+        return None
 
 
 def _parse_kline_str(sector_name: str, line: str) -> dict:
@@ -108,12 +111,10 @@ def collect_kline_batch(
     sectors: list[dict],
     days: int = 5,
     batch_size: int = 50,
-    sleep_between_batches: float = 5.0,
-    sleep_between_sectors: float = 0.3,
+    sleep_between_batches: float = 3.0,
+    sleep_between_sectors: float = 0.5,
 ) -> dict:
-    """
-    批量采集板块 K 线并 upsert 到 sector_daily。
-    """
+    """批量采集板块 K 线并 upsert 到 sector_daily。"""
     print(f'[2/4] 采集 K 线（最近 {days} 日，共 {len(sectors)} 个板块）...')
     now = now_utc_ms()
     success = 0
@@ -135,7 +136,7 @@ def collect_kline_batch(
                 skipped += 1
                 continue
 
-            klines = _fetch_kline_direct(bk_code, days)
+            klines = _fetch_kline_jsonp(bk_code, days)
             if klines is None:
                 failed += 1
                 failed_names.append(name)

@@ -45,7 +45,9 @@ jobs:
           python-version: '3.11'
 
       - name: 安装依赖
-        run: pip install -r scripts/sector-prediction/python/requirements.txt
+        run: |
+          pip install -r scripts/sector-prediction/python/requirements.txt
+          playwright install chromium --with-deps
 
       - name: 运行采集
         run: |
