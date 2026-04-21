@@ -1,17 +1,13 @@
-"""评分器模块 — 6 维评分 + 龙头加分"""
+"""评分器模块 — v3 预测导向"""
 
-from .fund_scorer import calc_fund_score
-from .tech_scorer import calc_tech_score
-from .sentiment_scorer import calc_sentiment_score
-from .policy_scorer import calc_policy_scores_batch
-from .rotation_scorer import calc_rotation_score
-from .leader_scorer import calc_leader_bonus
+from .fund_stealth_scorer import calc_fund_stealth_score
+from .momentum_scorer import calc_momentum_score
+from .pattern_scorer import calc_pattern_score
+from .catalyst_scorer import calc_catalyst_score
 
 __all__ = [
-    'calc_fund_score',
-    'calc_tech_score',
-    'calc_sentiment_score',
-    'calc_policy_scores_batch',
-    'calc_rotation_score',
-    'calc_leader_bonus',
+    'calc_fund_stealth_score',
+    'calc_momentum_score',
+    'calc_pattern_score',
+    'calc_catalyst_score',
 ]

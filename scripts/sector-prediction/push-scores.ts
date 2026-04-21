@@ -1,7 +1,8 @@
 /**
- * 板块评分推送 — WxPusher
+ * 板块评分推送 v3 — WxPusher
  *
- * 推送样式参考每日复盘，使用 ━━━ 分隔 + 斜体强调
+ * v3 改造：新维度（暗流/蓄势/模式/催化）、新信号(hold/sell)、
+ * 止损建议、板块去重标注、时间维度、持仓跟踪
  *
  * 环境变量：
  *   SUPABASE_URL / NEXT_PUBLIC_SUPABASE_URL
@@ -39,12 +40,23 @@ const sb = createClient(supabaseUrl, supabaseKey);
 interface ScoreRow {
   trade_date: string;
   sector_name: string;
+  // v3 新字段
+  stealth_fund_score: number;
+  momentum_score: number;
+  pattern_score: number;
+  catalyst_score: number;
+  risk_adjustment: number;
+  stage_coefficient: number;
+  market_emotion_phase: string | null;
+  time_horizon: string | null;
+  // 旧字段（向后兼容）
   fund_score: number;
   tech_score: number;
   sentiment_score: number;
   policy_score: number;
   rotation_score: number;
   leader_bonus: number;
+  // 通用
   total_score: number;
   rank: number;
   signal: string;
@@ -73,11 +85,22 @@ function envIcon(env: string): string {
   return map[env] || env;
 }
 
-function starsFromConfidence(c: number): string {
-  if (c >= 0.8) return '⭐⭐⭐';
-  if (c >= 0.6) return '⭐⭐';
-  if (c >= 0.4) return '⭐';
-  return '';
+function signalIcon(signal: string): string {
+  const map: Record<string, string> = {
+    strong_buy: '🔴',
+    buy: '🟠',
+    hold: '🟡',
+    sell: '🔻',
+    watch: '👀',
+    risk: '⚠️',
+  };
+  return map[signal] || '⚪';
+}
+
+function statusIcon(status: string): string {
+  if (status.includes('持有')) return '🟢';
+  if (status.includes('止损')) return '🔴';
+  return '⚪';
 }
 
 // ---------- WxPusher ----------
@@ -122,7 +145,7 @@ async function sendWxPush(content: string, summary: string): Promise<void> {
 
 async function main() {
   const today = getTodayBJ();
-  console.log(`板块评分推送 — ${today}`);
+  console.log(`板块评分推送 v3 — ${today}`);
 
   // 查询当日评分
   let tradeDate = today;
@@ -168,17 +191,19 @@ async function main() {
   // 分组
   const strongBuy = scores.filter((s: ScoreRow) => s.signal === 'strong_buy');
   const buy = scores.filter((s: ScoreRow) => s.signal === 'buy');
+  const hold = scores.filter((s: ScoreRow) => s.signal === 'hold');
+  const sell = scores.filter((s: ScoreRow) => s.signal === 'sell');
   const watch = scores.filter((s: ScoreRow) => s.signal === 'watch').slice(0, 5);
-  const risk = scores.filter((s: ScoreRow) => s.signal === 'risk');
 
   // 市场环境
   const marketEnv = scores[0]?.market_env || 'neutral';
+  const marketCoeff = scores[0]?.stage_coefficient || 1.0;
 
   // 统计
   const allScores = scores.map((s: ScoreRow) => s.total_score).sort((a: number, b: number) => a - b);
   const median = allScores[Math.floor(allScores.length / 2)];
 
-  // 复盘数据（查前一日的预测）
+  // 复盘数据（查前一日预测命中）
   const { data: prevScores } = await sb
     .from('sector_scores')
     .select('signal,prediction_hit,sector_name,next_day_actual,trade_date')
@@ -188,46 +213,142 @@ async function main() {
     .order('trade_date', { ascending: false })
     .limit(50);
 
-  // 只取最近一天
   const prevDate = prevScores?.[0]?.trade_date;
   const prevDayScores = prevScores?.filter(s => s.trade_date === prevDate) || [];
   const prevHit = prevDayScores.filter(s => s.prediction_hit).length;
   const prevTotal = prevDayScores.length;
 
+  // 持仓跟踪（查过去5个交易日的推荐）
+  const startTrack = new Date(new Date(tradeDate).getTime() - 12 * 86400000)
+    .toISOString().slice(0, 10);
+  const { data: trackData } = await sb
+    .from('sector_scores')
+    .select('trade_date,sector_name,signal,total_score,stage')
+    .gte('trade_date', startTrack)
+    .lt('trade_date', tradeDate)
+    .in('signal', ['strong_buy', 'buy'])
+    .order('trade_date', { ascending: false });
+
+  // 去重：同板块只跟踪最早推荐
+  const trackSeen = new Set<string>();
+  const trackRecs: typeof trackData = [];
+  for (const r of trackData || []) {
+    if (!trackSeen.has(r.sector_name)) {
+      trackSeen.add(r.sector_name);
+      trackRecs.push(r);
+    }
+  }
+
+  // 查这些板块从推荐日到今天的累计涨幅
+  type TrackItem = {
+    sector_name: string;
+    signal: string;
+    rec_date: string;
+    days_held: number;
+    cum_change: number;
+    status: string;
+  };
+  const trackResults: TrackItem[] = [];
+
+  if (trackRecs.length > 0) {
+    const trackNames = trackRecs.map(r => r.sector_name);
+    const earliestTrack = trackRecs[trackRecs.length - 1]?.trade_date || startTrack;
+    const { data: dailyData } = await sb
+      .from('sector_daily')
+      .select('sector_name,trade_date,change_pct')
+      .gte('trade_date', earliestTrack)
+      .lte('trade_date', tradeDate)
+      .in('sector_name', trackNames)
+      .order('trade_date', { ascending: true });
+
+    // {板块: {日期: change_pct}}
+    const dailyMap: Record<string, Record<string, number>> = {};
+    for (const d of dailyData || []) {
+      if (!dailyMap[d.sector_name]) dailyMap[d.sector_name] = {};
+      dailyMap[d.sector_name][d.trade_date] = d.change_pct || 0;
+    }
+
+    for (const rec of trackRecs) {
+      const map = dailyMap[rec.sector_name] || {};
+      const dates = Object.keys(map).sort().filter(d => d > rec.trade_date);
+      let cum = 0;
+      let daysHeld = 0;
+      let hitStopLoss = false;
+
+      for (const d of dates) {
+        cum += map[d];
+        daysHeld++;
+        if (cum <= -3) {
+          hitStopLoss = true;
+          break;
+        }
+      }
+
+      let status = '持有中';
+      if (hitStopLoss) status = '已止损';
+      else if (daysHeld >= 5) status = '已超期';
+
+      trackResults.push({
+        sector_name: rec.sector_name,
+        signal: rec.signal,
+        rec_date: rec.trade_date,
+        days_held: daysHeld,
+        cum_change: Math.round(cum * 100) / 100,
+        status,
+      });
+    }
+  }
+
   // ============================================================
-  // 格式化推送内容（参考每日复盘样式）
+  // 格式化推送内容
   // ============================================================
   const lines: string[] = [];
 
-  // 顶部市场概览
   const envInfo = envIcon(marketEnv);
-  const topPicks = [...strongBuy, ...buy].slice(0, 10);
+  const topPicks = [...strongBuy, ...buy, ...hold].slice(0, 10);
 
-  lines.push(`> ${tradeDate} 板块评分日报`);
+  lines.push(`> ${tradeDate} 板块预测日报 v3`);
   lines.push('');
-  lines.push(`市场环境: _${envInfo}_ | 推荐 _${topPicks.length}_ 个 | 中位数 _${median.toFixed(0)}_ 分`);
+  lines.push(`市场: _${envInfo}_ | 推荐 _${topPicks.length}_ 个 | 中位 _${median.toFixed(0)}_ 分`);
   lines.push('');
 
-  // ━━━ 强势推荐 ━━━
+  // ━━━ 推荐板块 ━━━
   if (topPicks.length > 0) {
-    lines.push('━━━ 🔥 强势推荐 ━━━');
+    lines.push('━━━ 🔥 推荐板块 ━━━');
     lines.push('');
 
-    // 表格头
-    lines.push('| # | 板块 | 总分 | 阶段 | 资金 | 情绪 | 政策 | 技术 | 龙头 |');
-    lines.push('|---|------|------|------|------|------|------|------|------|');
+    // v3 表格
+    lines.push('| # | 板块 | 分数 | 阶段 | 暗流 | 蓄势 | 模式 | 催化 | 风险 | 建议 |');
+    lines.push('|---|------|------|------|------|------|------|------|------|------|');
 
     for (let i = 0; i < topPicks.length; i++) {
       const s = topPicks[i] as ScoreRow;
       const stage = s.stage || '-';
-      const leader = s.leading_stock || '-';
-      const bonus = s.leader_bonus > 0 ? `+${s.leader_bonus.toFixed(0)}` : '';
+      const icon = signalIcon(s.signal);
+      const horizon = s.time_horizon || '-';
+      const risk = s.risk_adjustment < 0 ? `${s.risk_adjustment.toFixed(0)}` : '0';
 
       lines.push(
-        `| ${i + 1} | _${s.sector_name}_ | _${s.total_score.toFixed(0)}${bonus}_ | ${stage} `
-        + `| ${s.fund_score.toFixed(0)} | ${s.sentiment_score.toFixed(0)} `
-        + `| ${s.policy_score.toFixed(0)} | ${s.tech_score.toFixed(0)} | ${leader} |`
+        `| ${icon}${i + 1} | _${s.sector_name}_ | _${s.total_score.toFixed(0)}_ | ${stage} `
+        + `| ${s.stealth_fund_score.toFixed(0)} | ${s.momentum_score.toFixed(0)} `
+        + `| ${s.pattern_score.toFixed(0)} | ${s.catalyst_score.toFixed(0)} `
+        + `| ${risk} | ${horizon} |`
       );
+    }
+    lines.push('');
+
+    // 止损建议
+    lines.push('> 💡 止损: strong\\_buy/buy 建议 -3%，持有上限 5 个交易日');
+    lines.push('> hold 跌破 MA5 则离场');
+    lines.push('');
+  }
+
+  // ━━━ 建议离场 ━━━
+  if (sell.length > 0) {
+    lines.push('━━━ 🔻 建议离场 ━━━');
+    lines.push('');
+    for (const s of (sell as ScoreRow[]).slice(0, 5)) {
+      lines.push(`▸ ${s.sector_name} 【${s.stage || '-'}】 风险${s.risk_adjustment.toFixed(0)}`);
     }
     lines.push('');
   }
@@ -237,17 +358,23 @@ async function main() {
     lines.push('━━━ 👀 关注观察 ━━━');
     lines.push('');
     for (const s of watch as ScoreRow[]) {
-      lines.push(`▸ ${s.sector_name} ${s.total_score.toFixed(0)}分${s.stage ? `(${s.stage})` : ''}`);
+      const dedup = s.risk_reason?.includes('去重') ? ` (${s.risk_reason})` : '';
+      lines.push(`▸ ${s.sector_name} ${s.total_score.toFixed(0)}分${s.stage ? ` (${s.stage})` : ''}${dedup}`);
     }
     lines.push('');
   }
 
-  // ━━━ 风险板块 ━━━
-  if (risk.length > 0) {
-    lines.push('━━━ ⚠️ 风险板块 ━━━');
+  // ━━━ 持仓跟踪 ━━━
+  if (trackResults.length > 0) {
+    lines.push('━━━ 📈 昨日推荐跟踪 ━━━');
     lines.push('');
-    for (const s of (risk as ScoreRow[]).slice(0, 5)) {
-      lines.push(`▸ ${s.sector_name} → ${s.risk_reason || s.stage || '分歧'}`);
+    for (const t of trackResults) {
+      const icon = statusIcon(t.status);
+      const sign = t.cum_change >= 0 ? '+' : '';
+      lines.push(
+        `${icon} ${t.sector_name} ${t.rec_date}+${t.days_held}天 `
+        + `累计${sign}${t.cum_change.toFixed(1)}% ${t.status}`
+      );
     }
     lines.push('');
   }
@@ -255,8 +382,14 @@ async function main() {
   // ━━━ 市场概况 ━━━
   lines.push('━━━ 📋 市场概况 ━━━');
   lines.push('');
-  lines.push(`▸ strong\\_buy: ${strongBuy.length} | buy: ${buy.length} | risk: ${risk.length}`);
-  lines.push(`▸ 中位数: ${median.toFixed(0)} | 最高: ${allScores[allScores.length - 1].toFixed(0)} | 最低: ${allScores[0].toFixed(0)}`);
+  lines.push(
+    `▸ strong\\_buy: ${strongBuy.length} | buy: ${buy.length} | hold: ${hold.length}`
+    + ` | sell: ${sell.length}`
+  );
+  lines.push(
+    `▸ 中位: ${median.toFixed(0)} | 最高: ${allScores[allScores.length - 1].toFixed(0)}`
+    + ` | 最低: ${allScores[0].toFixed(0)}`
+  );
 
   // 复盘
   if (prevTotal > 0) {
@@ -266,12 +399,12 @@ async function main() {
 
   const content = lines.join('\n');
 
-  // 推送标题：📊 日期 板块机会｜摘要
+  // 推送标题
   const topSector = topPicks[0] ? (topPicks[0] as ScoreRow).sector_name : '';
-  const summaryTail = topPicks.length > 1
+  const summaryTail = topPicks.length > 0
     ? `TOP1 ${topSector} ${(topPicks[0] as ScoreRow).total_score.toFixed(0)}分`
     : '暂无推荐';
-  const summary = `📊 ${tradeDate} 板块机会｜${envInfo} ${summaryTail}`;
+  const summary = `📊 ${tradeDate} 板块预测｜${envInfo} ${summaryTail}`;
 
   // 打印
   console.log('\n' + content);

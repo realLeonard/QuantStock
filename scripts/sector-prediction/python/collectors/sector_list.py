@@ -77,7 +77,7 @@ def _fetch_sector_list_jsonp() -> list[dict] | None:
                     + '&pn=' + pn + '&pz=' + pz
                     + '&po=1&np=1&fltt=2&invt=2'
                     + '&fid=f3&fs=m:90+t:3'
-                    + '&fields=f12,f14,f2,f3,f4,f5,f6,f7,f8,f15,f16,f17,f20,f128,f136,f124'
+                    + '&fields=f12,f14,f2,f3,f4,f5,f6,f7,f8,f10,f15,f16,f17,f20,f104,f105,f106,f107,f128,f136,f124'
                     + '&_=' + Date.now();
                 s.onerror = () => {
                     delete window[cb];
@@ -114,6 +114,12 @@ def _fetch_sector_list_jsonp() -> list[dict] | None:
                 'turnover': _safe_float(item.get('f6')),
                 'amplitude': _safe_float(item.get('f7')),
                 'turnover_rate': _safe_float(item.get('f8')),
+                # v3 新增：涨跌停/涨跌家数/量比
+                'volume_ratio': _safe_float(item.get('f10')),
+                'up_count': _safe_int(item.get('f104')),
+                'down_count': _safe_int(item.get('f105')),
+                'limit_up_count': _safe_int(item.get('f106')),
+                'limit_down_count': _safe_int(item.get('f107')),
             })
 
         if page_num * page_size >= total:
@@ -221,6 +227,12 @@ def sync_sector_master(sb: Client) -> list[dict]:
                 'amplitude': src['amplitude'],
                 'change_pct': src['change_pct'],
                 'turnover_rate': src['turnover_rate'],
+                # v3 新增字段
+                'volume_ratio': src.get('volume_ratio', 0),
+                'up_count': src.get('up_count', 0),
+                'down_count': src.get('down_count', 0),
+                'limit_up_count': src.get('limit_up_count', 0),
+                'limit_down_count': src.get('limit_down_count', 0),
             })
         result_sectors.append(merged)
 
@@ -269,6 +281,12 @@ def write_daily_kline(sb: Client, sectors: list[dict], trade_date: str) -> dict:
             'amplitude': s['amplitude'],
             'change_pct': s['change_pct'],
             'turnover_rate': s['turnover_rate'],
+            # v3 新增字段
+            'volume_ratio': s.get('volume_ratio', 0),
+            'up_count': s.get('up_count', 0),
+            'down_count': s.get('down_count', 0),
+            'limit_up_count': s.get('limit_up_count', 0),
+            'limit_down_count': s.get('limit_down_count', 0),
         }
 
         if name in existing_map:

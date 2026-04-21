@@ -1,77 +1,110 @@
-"""板块生命周期判断
+"""板块生命周期判断 — v3 改造
 
-基于近 5-10 天 sector_daily + 涨停数据判断板块所处阶段。
+返回 (stage, coefficient)，引入连板天梯数据。
 
-| 阶段 | 判断条件 |
-|------|----------|
-| 萌芽 | 涨停≤2 且 主力刚转为净流入 且 涨幅<2% |
-| 发酵 | 涨停3-5 且 成交量放大>50% 且 连涨2-3天 |
-| 主升 | 涨停>5 或 板块涨幅>5% 且 成交额创近期新高 |
-| 分歧 | 龙头炸板 或 振幅>5% 且 换手率骤增 |
-| 退潮 | 连续2天主力净流出 且 涨幅回落 且 连板股断板 |
+| 阶段   | 系数 | 判断条件                                          |
+|--------|------|---------------------------------------------------|
+| 见顶期 | 0.7  | 断板/极度过热/连涨5天+振幅异常/涨>5%但资金流出    |
+| 调整期 | 0.8  | 涨停减少无接力/连续流出+下跌/跌破MA5且MA5<MA10    |
+| 主升期 | 0.9  | 涨停≥3且最高板≥3/5日涨>5%+量放大+连续3天流入      |
+| 发酵期 | 1.0  | 涨停增加+出现2板/成交量放大>50%+上涨2-4天          |
+| 启动期 | 1.1  | 首板从无到有/MA5刚上穿MA10+量放大/首次突破20日高点 |
+| 吸筹期 | 1.2  | 无涨停+资金连续3天递增流入+价格中位+振幅收敛       |
+| 观察期 | 1.0  | 默认                                              |
 """
 
 from __future__ import annotations
 
+import json
+import sys
+from pathlib import Path
 
-def _mean(values: list[float]) -> float:
-    return sum(values) / len(values) if values else 0.0
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from utils import mean, match_sector_name
+
+import numpy as np
+
+
+def _parse_json(val):
+    if isinstance(val, (list, dict)):
+        return val
+    if isinstance(val, str):
+        try:
+            return json.loads(val)
+        except (json.JSONDecodeError, ValueError):
+            return None
+    return None
+
+
+def _extract_limit_stats(limit_up_recent: list[dict], sector_name: str) -> list[dict]:
+    """从近N天 limitUpReasons 中提取该板块的涨停统计"""
+    stats = []
+    for day_data in limit_up_recent:
+        themes = _parse_json(day_data.get('themes')) or []
+        count = 0
+        max_board = 0
+        has_2board = False
+        top_stock_names = []
+
+        for theme in themes:
+            if not match_sector_name(sector_name, theme.get('name', '')):
+                continue
+            count = theme.get('count', 0)
+            for stock in theme.get('stocks', []):
+                board_str = stock.get('board', '')
+                if '天' in board_str and '板' in board_str:
+                    try:
+                        boards = int(board_str.split('天')[0])
+                        max_board = max(max_board, boards)
+                        if boards >= 2:
+                            has_2board = True
+                        top_stock_names.append(stock.get('name', ''))
+                    except ValueError:
+                        pass
+            break
+
+        stats.append({
+            'count': count,
+            'max_board': max_board,
+            'has_2board': has_2board,
+            'top_stocks': top_stock_names,
+        })
+    return stats
 
 
 def detect_lifecycle(
     sector_rows: list[dict],
-    sector_limit_count: int = 0,
-    max_board: int = 0,
-    has_broken_leader: bool = False,
-) -> str:
+    limit_up_recent: list[dict] | None = None,
+    sector_name: str = '',
+) -> tuple[str, float]:
     """
     判断板块生命周期阶段。
 
     参数:
-      sector_rows: 该板块最近 10 天 sector_daily 记录，按 trade_date ASC
-      sector_limit_count: 该板块今日涨停数
-      max_board: 该板块最高连板数
-      has_broken_leader: 龙头是否炸板（暂不判断，预留）
+      sector_rows: 该板块最近 N 天 sector_daily，按 trade_date ASC
+      limit_up_recent: 近3天 limitUpReasons 列表
+      sector_name: 板块名（用于匹配涨停数据）
 
-    返回: '萌芽' / '发酵' / '主升' / '分歧' / '退潮'
+    返回: (stage: str, coefficient: float)
     """
-    if len(sector_rows) < 3:
-        return '萌芽'
+    if len(sector_rows) < 5:
+        return '观察期', 1.0
 
     today = sector_rows[-1]
-    changes = [r.get('change_pct') or 0.0 for r in sector_rows]
+    changes = [r.get('change_pct') or 0 for r in sector_rows]
     volumes = [r.get('volume') or 0 for r in sector_rows]
-    turnovers = [r.get('turnover') or 0.0 for r in sector_rows]
-    amplitudes = [r.get('amplitude') or 0.0 for r in sector_rows]
-    turnover_rates = [r.get('turnover_rate') or 0.0 for r in sector_rows]
+    amplitudes = [r.get('amplitude') or 0 for r in sector_rows]
+    closes = [r.get('close') or 0 for r in sector_rows]
+    highs = [r.get('high') or 0 for r in sector_rows]
+    lows = [r.get('low') or 0 for r in sector_rows]
 
     today_change = changes[-1]
-    today_amp = amplitudes[-1] if amplitudes else 0
-    today_turnover_rate = turnover_rates[-1] if turnover_rates else 0
 
-    # 资金流（可能为 None）
+    # 资金流
     fund_rows = [r for r in sector_rows if r.get('main_net_inflow') is not None]
-    recent_fund = fund_rows[-3:] if fund_rows else []
+    recent_fund = fund_rows[-5:] if fund_rows else []
 
-    # 近5日统计
-    recent_5_changes = changes[-5:]
-    up_days = sum(1 for c in recent_5_changes if c > 0)
-    cum_change_5d = sum(recent_5_changes)
-
-    # 成交量变化
-    vol_recent_3 = _mean(volumes[-3:])
-    vol_prev_5 = _mean(volumes[-8:-3]) if len(volumes) >= 8 else _mean(volumes[:-3]) if len(volumes) > 3 else 0
-    vol_expand = (vol_recent_3 / vol_prev_5 - 1) if vol_prev_5 > 0 else 0
-
-    # 成交额是否创��期新高
-    turnover_max_10d = max(turnovers[-10:]) if len(turnovers) >= 10 else max(turnovers) if turnovers else 0
-    turnover_today = turnovers[-1] if turnovers else 0
-
-    # 换手率变化
-    tr_recent = _mean(turnover_rates[-2:])
-    tr_prev = _mean(turnover_rates[-5:-2]) if len(turnover_rates) >= 5 else _mean(turnover_rates[:-2]) if len(turnover_rates) > 2 else 0
-
-    # 连续资金流出天数
+    # 连续流出天数
     consecutive_outflow = 0
     for r in reversed(recent_fund):
         if (r.get('main_net_inflow') or 0) < 0:
@@ -79,33 +112,150 @@ def detect_lifecycle(
         else:
             break
 
-    # ---- 退潮 ----
-    if (consecutive_outflow >= 2
-            and today_change < 0
-            and up_days <= 2):
-        return '退潮'
+    # 连续流入天数 + 是否递增
+    consecutive_inflow = 0
+    inflow_increasing = True
+    prev_inflow = None
+    for r in reversed(recent_fund):
+        inf = r.get('main_net_inflow') or 0
+        if inf > 0:
+            consecutive_inflow += 1
+            if prev_inflow is not None and inf >= prev_inflow:
+                inflow_increasing = False
+            prev_inflow = inf
+        else:
+            break
 
-    # ---- 分歧 ----
-    if today_amp > 5 and tr_recent > tr_prev * 1.5 and tr_prev > 0:
-        return '分歧'
+    # 近5日统计
+    recent_5_changes = changes[-5:]
+    up_days = sum(1 for c in recent_5_changes if c > 0)
+    cum_change_5d = sum(recent_5_changes)
+
+    # 成交量变化
+    vol_recent_3 = mean(volumes[-3:])
+    vol_prev_5 = mean(volumes[-8:-3]) if len(volumes) >= 8 else mean(volumes[:-3]) if len(volumes) > 3 else 0
+    vol_expand = (vol_recent_3 / vol_prev_5 - 1) if vol_prev_5 > 0 else 0
+
+    # 振幅
+    amp_recent = mean(amplitudes[-3:]) if len(amplitudes) >= 3 else 0
+    amp_avg = mean(amplitudes[-20:]) if len(amplitudes) >= 20 else mean(amplitudes) if amplitudes else 0
+
+    # 均线
+    ma5 = mean(closes[-5:])
+    ma10 = mean(closes[-10:]) if len(closes) >= 10 else mean(closes)
+
+    # 20日高点
+    high_20d = max(highs[-20:]) if len(highs) >= 20 else max(highs) if highs else 0
+    low_20d = min(lows[-20:]) if len(lows) >= 20 else min(lows) if lows else 0
+    price_range = high_20d - low_20d
+    position = (closes[-1] - low_20d) / price_range if price_range > 0 else 0.5
+
+    # 涨跌停数据
+    limit_stats = _extract_limit_stats(limit_up_recent or [], sector_name)
+    today_stat = limit_stats[-1] if limit_stats else {'count': 0, 'max_board': 0, 'has_2board': False, 'top_stocks': []}
+    yesterday_stat = limit_stats[-2] if len(limit_stats) >= 2 else {'count': 0, 'max_board': 0, 'has_2board': False, 'top_stocks': []}
+    day_before_stat = limit_stats[-3] if len(limit_stats) >= 3 else {'count': 0, 'max_board': 0, 'has_2board': False, 'top_stocks': []}
+
+    # 成交额中位数（全市场判断需外部传入，这里用板块自身）
+    turnovers = [r.get('turnover') or 0 for r in sector_rows]
+    turnover_median = float(np.median(turnovers)) if turnovers else 0
+
+    # ============ 判断逻辑（按优先级从高到低）============
+
+    # ---- 见顶期 (0.7) ----
+    # ①最高板断板
+    has_broken_leader = False
+    if yesterday_stat['max_board'] >= 2:
+        yesterday_top_stocks = set(yesterday_stat['top_stocks'])
+        today_stocks = set(today_stat['top_stocks'])
+        if yesterday_top_stocks and not yesterday_top_stocks.issubset(today_stocks):
+            has_broken_leader = True
+
     if has_broken_leader:
-        return '分歧'
+        return '见顶期', 0.7
 
-    # ---- 主升 ----
-    if sector_limit_count > 5 or (cum_change_5d > 5 and turnover_today >= turnover_max_10d * 0.9):
-        return '主升'
+    # ②涨停数连续2天增+最高板≥5（高潮末期）
+    if (len(limit_stats) >= 3
+            and day_before_stat['count'] < yesterday_stat['count']
+            and yesterday_stat['count'] < today_stat['count']
+            and today_stat['max_board'] >= 5):
+        return '见顶期', 0.7
 
-    # ---- 发酵 ----
-    if (3 <= sector_limit_count <= 5
-            or (vol_expand > 0.5 and 2 <= up_days <= 4)):
-        return '发酵'
+    # ③连涨5天+振幅>均值2倍
+    consecutive_up = 0
+    for c in reversed(changes):
+        if c > 0:
+            consecutive_up += 1
+        else:
+            break
+    if consecutive_up >= 5 and amp_avg > 0 and amp_recent > amp_avg * 2:
+        return '见顶期', 0.7
 
-    # ---- 萌芽 ----
-    if (sector_limit_count <= 2
-            and 0 < today_change < 2
-            and len(recent_fund) >= 1
-            and (recent_fund[-1].get('main_net_inflow') or 0) > 0):
-        return '萌芽'
+    # ④涨>5%但资金流出
+    if today_change > 5 and recent_fund and (recent_fund[-1].get('main_net_inflow') or 0) < 0:
+        return '见顶期', 0.7
 
-    # 默认：无法判断阶段
-    return ''
+    # ---- 调整期 (0.8) ----
+    # ①涨停数减少+无新首板接力
+    if (yesterday_stat['count'] > 0
+            and today_stat['count'] < yesterday_stat['count']
+            and today_stat['count'] == 0):
+        return '调整期', 0.8
+
+    # ②连续2天流出+近5日涨幅<0
+    if consecutive_outflow >= 2 and cum_change_5d < 0:
+        return '调整期', 0.8
+
+    # ③跌破MA5且MA5<MA10
+    if closes[-1] < ma5 and ma5 < ma10:
+        return '调整期', 0.8
+
+    # ---- 主升期 (0.9) ----
+    # ①涨停数≥3且最高板≥3
+    if today_stat['count'] >= 3 and today_stat['max_board'] >= 3:
+        return '主升期', 0.9
+
+    # ②5日涨>5%+量能放大+连续3天流入
+    if cum_change_5d > 5 and vol_expand > 0.3 and consecutive_inflow >= 3:
+        return '主升期', 0.9
+
+    # ---- 发酵期 (1.0) ----
+    # ①涨停数增加+出现2板
+    if today_stat['count'] > yesterday_stat['count'] and today_stat['has_2board']:
+        return '发酵期', 1.0
+
+    # ②成交量放大>50%+上涨2-4天
+    if vol_expand > 0.5 and 2 <= up_days <= 4:
+        return '发酵期', 1.0
+
+    # ---- 启动期 (1.1) ----
+    # ①首板从无到有
+    if yesterday_stat['count'] == 0 and today_stat['count'] >= 1:
+        return '启动期', 1.1
+
+    # ②MA5刚上穿MA10+量能放大
+    if len(closes) >= 11:
+        prev_ma5 = mean(closes[-6:-1])
+        prev_ma10 = mean(closes[-11:-1])
+        if prev_ma5 <= prev_ma10 and ma5 > ma10 and vol_expand > 0.2:
+            return '启动期', 1.1
+
+    # ③首次突破20日高点
+    if len(closes) >= 2 and closes[-2] < high_20d and closes[-1] >= high_20d * 0.98:
+        return '启动期', 1.1
+
+    # ---- 吸筹期 (1.2) ----
+    # 无涨停 + 资金连续3天流入(递增) + 价格在0.3-0.6 + 振幅收敛 + 成交额>中位数
+    amp_convergence = amp_recent < amp_avg * 0.7 if amp_avg > 0 else False
+    today_turnover = turnovers[-1] if turnovers else 0
+
+    if (today_stat['count'] == 0
+            and consecutive_inflow >= 3
+            and inflow_increasing
+            and 0.3 <= position <= 0.6
+            and amp_convergence
+            and today_turnover > turnover_median):
+        return '吸筹期', 1.2
+
+    # ---- 观察期 (1.0) ----
+    return '观察期', 1.0
