@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { Theme, Stock, StockInput, ThemeRow, StockRow, AdminUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview, RecentInsights, DailyGoldPick, LimitUpReasons } from '@quantstock/types';
+import type { Theme, Stock, StockInput, ThemeRow, StockRow, AdminUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview, RecentInsights, DailyGoldPick, LimitUpReasons, SectorScore, SectorDaily, SectorRotationMap } from '@quantstock/types';
 
 // ===== Supabase 客户端工厂 =====
 export function createSupabaseClient(url: string, anonKey: string): SupabaseClient {
@@ -393,6 +393,51 @@ export class QuantStockApiClient {
     if (error) throw new Error(error.message);
     return (data || null) as DailyGoldPick | null;
   }
+
+  // ===== 板块预测 =====
+
+  // 列表页：取所有日期的轻量字段，前端聚合
+  async listSectorPredictionDays(limit = 60): Promise<SectorScore[]> {
+    const { data, error } = await this.sb
+      .from('sector_scores')
+      .select('trade_date, signal, market_emotion_phase')
+      .order('trade_date', { ascending: false })
+      .limit(limit * 300); // 每天约300条，取足量
+    if (error) throw new Error(error.message);
+    return (data || []) as SectorScore[];
+  }
+
+  // 指定日期全量评分
+  async getSectorScoresByDate(date: string): Promise<SectorScore[]> {
+    const { data, error } = await this.sb
+      .from('sector_scores')
+      .select('*')
+      .eq('trade_date', date)
+      .order('rank', { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data || []) as SectorScore[];
+  }
+
+  // 指定日期全量板块日数据
+  async getSectorDailyByDate(date: string): Promise<SectorDaily[]> {
+    const { data, error } = await this.sb
+      .from('sector_daily')
+      .select('*')
+      .eq('trade_date', date)
+      .order('change_pct', { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data || []) as SectorDaily[];
+  }
+
+  // 产业链关联（全量）
+  async getSectorRotationMap(): Promise<SectorRotationMap[]> {
+    const { data, error } = await this.sb
+      .from('sector_rotation_map')
+      .select('*')
+      .order('source_sector', { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data || []) as SectorRotationMap[];
+  }
 }
 
-export type { Theme, Stock, StockInput, AdminUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview, RecentInsights, DailyGoldPick };
+export type { Theme, Stock, StockInput, AdminUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview, RecentInsights, DailyGoldPick, SectorScore, SectorDaily, SectorRotationMap };

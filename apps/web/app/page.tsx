@@ -17,6 +17,7 @@ import AppEventsView from '@/components/app-events/AppEventsView';
 import AppVersionView from '@/components/app-version/AppVersionView';
 import DailyReviewView from '@/components/daily-review/DailyReviewView';
 import GoldView from '@/components/gold/GoldView';
+import SectorPredictionView from '@/components/sector-prediction/SectorPredictionView';
 import type { SessionUser } from '@quantstock/types';
 
 export default function Home() {
@@ -60,6 +61,7 @@ export default function Home() {
       {currentNav === 'app-version' && <AppVersionView />}
       {currentNav === 'daily-review' && <DailyReviewView />}
       {currentNav === 'gold' && <GoldView />}
+      {currentNav === 'sector-prediction' && <SectorPredictionView />}
     </AdminLayout>
   );
 }

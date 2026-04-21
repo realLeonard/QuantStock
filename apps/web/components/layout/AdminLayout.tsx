@@ -72,6 +72,11 @@ export default function AdminLayout({ children }: Props) {
     if (nav === 'daily-review') {
       useAppStore.getState().loadDailyReviews();
     }
+    if (nav === 'sector-prediction') {
+      const s = useAppStore.getState();
+      s.setCurrentSectorDate(null);
+      s.loadSectorPredictionDays();
+    }
     if (nav === 'gold') {
       const s = useAppStore.getState();
       s.loadRecentInsights();
@@ -177,6 +182,19 @@ export default function AdminLayout({ children }: Props) {
             </span>
             每日复盘
             {latestReviewDate && <span className="nav-badge">{latestReviewDate}</span>}
+          </div>
+          <div
+            className={`nav-item${currentNav === 'sector-prediction' ? ' active' : ''}`}
+            onClick={() => handleNav('sector-prediction')}
+          >
+            <span className="nav-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                <line x1="12" y1="22.08" x2="12" y2="12"/>
+              </svg>
+            </span>
+            板块预测
           </div>
           <div
             className={`nav-item${currentNav === 'news' ? ' active' : ''}`}
@@ -374,8 +392,8 @@ export default function AdminLayout({ children }: Props) {
 
 function FloatingActions() {
   const {
-    currentNav, currentThemeId, currentReportId,
-    setCurrentNav, setCurrentThemeId, setCurrentReportId,
+    currentNav, currentThemeId, currentReportId, currentSectorDate,
+    setCurrentNav, setCurrentThemeId, setCurrentReportId, setCurrentSectorDate,
   } = useAppStore();
 
   function scrollToTop() {
@@ -387,12 +405,14 @@ function FloatingActions() {
       setCurrentThemeId(null);
     } else if (currentReportId) {
       setCurrentReportId(null);
+    } else if (currentSectorDate) {
+      setCurrentSectorDate(null);
     } else if (currentNav === 'themes') {
       setCurrentNav('dashboard');
     }
   }
 
-  const canGoBack = !!currentThemeId || !!currentReportId;
+  const canGoBack = !!currentThemeId || !!currentReportId || !!currentSectorDate;
 
   return (
     <div className="floating-actions">
@@ -428,10 +448,11 @@ const NAV_LABEL: Record<string, string> = {
   'app-version': '管理控制',
   'daily-review': '每日复盘',
   gold: '近期掘金',
+  'sector-prediction': '板块预测',
 };
 
 function Topbar() {
-  const { currentNav, currentThemeId, currentReportId, themes, reports, currentUser } = useAppStore();
+  const { currentNav, currentThemeId, currentReportId, currentSectorDate, themes, reports, currentUser } = useAppStore();
 
   let breadcrumb = NAV_LABEL[currentNav] ?? currentNav;
   if (currentNav === 'themes' && currentThemeId) {
@@ -442,6 +463,9 @@ function Topbar() {
     const r = reports.find(r => r.id === currentReportId);
     const typeLabel = r?.report_type === 'weekly' ? '周报' : '交易日';
     breadcrumb = `每日早报 · ${r?.report_date ?? '详情'}（${typeLabel}）`;
+  }
+  if (currentNav === 'sector-prediction' && currentSectorDate) {
+    breadcrumb = `板块预测 · ${currentSectorDate}`;
   }
 
   const avatarLetter = currentUser?.username?.charAt(0).toUpperCase() ?? 'U';

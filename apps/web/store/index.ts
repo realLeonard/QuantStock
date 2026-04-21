@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import type { Theme, AdminUser, SessionUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview, RecentInsights, DailyGoldPick } from '@quantstock/types';
+import type { Theme, AdminUser, SessionUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview, RecentInsights, DailyGoldPick, SectorScore, SectorDaily, SectorRotationMap, SectorPredictionSummary } from '@quantstock/types';
 import { apiClient, supabase } from '@/lib/supabase';
 
 export interface NewsItem {
@@ -22,7 +22,8 @@ import { uid } from '@/lib/utils';
 const API_BASE = '/backend-api';
 
 type NavItem = 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao' | 'breadth' | 'news'
-             | 'app-users' | 'app-feedback' | 'app-events' | 'app-version' | 'daily-review' | 'gold';
+             | 'app-users' | 'app-feedback' | 'app-events' | 'app-version' | 'daily-review' | 'gold'
+             | 'sector-prediction';
 
 interface AppState {
   // 数据
@@ -79,6 +80,16 @@ interface AppState {
   // 每日复盘 Actions
   loadDailyReviews: () => Promise<void>;
 
+  // 板块预测
+  sectorPredictionDays: SectorPredictionSummary[];
+  currentSectorDate: string | null;
+  sectorScores: SectorScore[];
+  sectorDaily: SectorDaily[];
+  sectorRotationMap: SectorRotationMap[];
+  loadSectorPredictionDays: () => Promise<void>;
+  setCurrentSectorDate: (date: string | null) => void;
+  loadSectorDetail: (date: string) => Promise<void>;
+
   // 近期掘金
   recentInsights: RecentInsights | null;
   dailyGoldPicks: DailyGoldPick[];
@@ -132,6 +143,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   appVersions: [],
   dailyReviews: [],
   currentDailyReviewId: null,
+  sectorPredictionDays: [],
+  currentSectorDate: null,
+  sectorScores: [],
+  sectorDaily: [],
+  sectorRotationMap: [],
   recentInsights: null,
   dailyGoldPicks: [],
   currentThemeId: null,
@@ -330,6 +346,72 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ dailyGoldPicks });
     } catch (e) {
       get().showToast('❌ 加载每日掘金失败：' + (e as Error).message);
+    }
+  },
+
+  // ===== 板块预测 =====
+  setCurrentSectorDate: (date) => set({ currentSectorDate: date }),
+
+  loadSectorPredictionDays: async () => {
+    set({ isLoading: true });
+    try {
+      const rows = await apiClient.listSectorPredictionDays(60);
+      // 前端聚合：按 trade_date 分组，统计信号数量
+      const map = new Map<string, { phase: string; total: number; strong_buy: number; buy: number; sell: number }>();
+      for (const r of rows) {
+        const key = r.trade_date;
+        if (!map.has(key)) {
+          map.set(key, { phase: r.market_emotion_phase, total: 0, strong_buy: 0, buy: 0, sell: 0 });
+        }
+        const g = map.get(key)!;
+        g.total++;
+        if (r.signal === 'strong_buy') g.strong_buy++;
+        else if (r.signal === 'buy') g.buy++;
+        else if (r.signal === 'sell') g.sell++;
+      }
+      const days: SectorPredictionSummary[] = Array.from(map.entries())
+        .map(([date, g]) => ({
+          trade_date: date,
+          market_emotion_phase: g.phase as SectorPredictionSummary['market_emotion_phase'],
+          total_count: g.total,
+          strong_buy_count: g.strong_buy,
+          buy_count: g.buy,
+          sell_count: g.sell,
+        }))
+        .sort((a, b) => b.trade_date.localeCompare(a.trade_date));
+      set({ sectorPredictionDays: days });
+    } catch (e) {
+      get().showToast('❌ 加载板块预测失败：' + (e as Error).message);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  loadSectorDetail: async (date) => {
+    set({ isLoading: true });
+    try {
+      const { sectorRotationMap } = get();
+      const promises: Promise<unknown>[] = [
+        apiClient.getSectorScoresByDate(date),
+        apiClient.getSectorDailyByDate(date),
+      ];
+      // 产业链缓存：有值时不重复请求
+      if (sectorRotationMap.length === 0) {
+        promises.push(apiClient.getSectorRotationMap());
+      }
+      const results = await Promise.all(promises);
+      const patch: Record<string, unknown> = {
+        sectorScores: results[0],
+        sectorDaily: results[1],
+      };
+      if (results[2]) {
+        patch.sectorRotationMap = results[2];
+      }
+      set(patch as Partial<AppState>);
+    } catch (e) {
+      get().showToast('❌ 加载板块预测详情失败：' + (e as Error).message);
+    } finally {
+      set({ isLoading: false });
     }
   },
 

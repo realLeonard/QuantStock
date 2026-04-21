@@ -1,0 +1,305 @@
+/* 列表页 */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.card {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  padding: 18px 22px;
+  cursor: pointer;
+  transition: box-shadow .18s, border-color .18s;
+}
+.card:hover {
+  border-color: var(--primary, #6366f1);
+  box-shadow: 0 2px 12px rgba(99, 102, 241, .08);
+}
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.cardHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cardDate {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+}
+
+/* 市场环境标签 */
+.phaseTag {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.phaseStrong { background: #dcfce7; color: #166534; }
+.phaseNeutral { background: #e0e7ff; color: #3730a3; }
+.phaseWeak { background: #fef9c3; color: #854d0e; }
+.phaseExtreme { background: #fee2e2; color: #991b1b; }
+
+.cardSummary {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--text-secondary, #64748b);
+}
+.cardSummary span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.totalBadge {
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+  font-weight: 500;
+}
+
+/* 信号标签 */
+.signalTag {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.signalStrongBuy { background: #dc2626; color: #fff; }
+.signalBuy { background: #f97316; color: #fff; }
+.signalHold { background: #e0e7ff; color: #3730a3; }
+.signalSell { background: #22c55e; color: #fff; }
+.signalWatch { background: #f1f5f9; color: #475569; }
+.signalAvoid { background: #fecaca; color: #991b1b; }
+.signalRisk { background: #7f1d1d; color: #fff; }
+
+/* 空状态 */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 80px 0;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 15px;
+}
+
+/* 详情页容器 */
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 详情页 Tab */
+.tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  padding-bottom: 12px;
+}
+.tab {
+  padding: 6px 14px;
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary, #64748b);
+  transition: all .15s;
+}
+.tab:hover {
+  background: var(--bg-hover, #f1f5f9);
+  color: var(--text-primary, #1e293b);
+}
+.tabActive,
+.tabActive:hover {
+  background: var(--primary, #6366f1);
+  color: #fff;
+  border-color: var(--primary, #6366f1);
+}
+
+/* 表格 */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.table th,
+.table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  white-space: nowrap;
+}
+.table th {
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+  font-size: 12px;
+  position: sticky;
+  top: 0;
+  background: var(--card-bg, #fff);
+  cursor: pointer;
+  user-select: none;
+}
+.table th:hover {
+  color: var(--primary, #6366f1);
+}
+.table tbody tr:hover {
+  background: var(--bg-hover, #f8fafc);
+}
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  background: var(--card-bg, #fff);
+}
+
+/* 排序箭头 */
+.sortArrow {
+  font-size: 10px;
+  margin-left: 2px;
+}
+
+/* 涨跌幅着色 */
+.up { color: #dc2626; }
+.down { color: #16a34a; }
+.flat { color: var(--text-secondary, #64748b); }
+
+/* 金额高亮 */
+.positive { color: #dc2626; }
+.negative { color: #16a34a; }
+
+/* 全览面板 */
+.overviewGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+@media (max-width: 768px) {
+  .overviewGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.overviewCard {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  padding: 16px 20px;
+}
+.overviewCardTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 市场环境指示器 */
+.envIndicator {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.envStrong { background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%); color: #166534; }
+.envNeutral { background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%); color: #3730a3; }
+.envWeak { background: linear-gradient(135deg, #fef9c3 0%, #fde68a 100%); color: #854d0e; }
+.envExtreme { background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); color: #991b1b; }
+.envLabel {
+  font-size: 22px;
+}
+.envDesc {
+  font-size: 13px;
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+/* 信号分布统计 */
+.signalStats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.signalStatItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.signalStatCount {
+  font-weight: 700;
+  font-size: 18px;
+}
+
+/* 推荐板块列表 */
+.sectorList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sectorItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.sectorItem:nth-child(odd) {
+  background: var(--bg-hover, #f8fafc);
+}
+.sectorName {
+  font-weight: 600;
+  min-width: 100px;
+}
+.sectorScore {
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+}
+.sectorStage {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--bg-hover, #f1f5f9);
+  color: var(--text-secondary, #475569);
+}
+.sectorLeader {
+  font-size: 12px;
+  color: var(--text-secondary, #94a3b8);
+  margin-left: auto;
+}
+
+/* 全宽卡片 */
+.overviewFull {
+  grid-column: 1 / -1;
+}
+
+/* 产业链表格 */
+.chainBadge {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 500;
+}
+.chainType { background: #dbeafe; color: #1d4ed8; }
+.corrType { background: #fce7f3; color: #be185d; }

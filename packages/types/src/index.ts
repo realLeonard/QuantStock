@@ -436,6 +436,86 @@ export interface DailyGoldPick {
   updated_at: number;
 }
 
+// ===== 板块预测信号 =====
+export type SectorSignal = 'strong_buy' | 'buy' | 'hold' | 'sell' | 'watch' | 'avoid' | 'risk';
+
+// ===== 市场情绪阶段 =====
+export type MarketEmotionPhase = 'strong' | 'neutral' | 'weak' | 'extreme';
+
+// ===== 板块每日评分（sector_scores 表行）=====
+export interface SectorScore {
+  id: string;
+  trade_date: string;               // 'YYYY-MM-DD'
+  sector_name: string;
+  // v3 评分维度
+  stealth_fund_score: number;       // 资金暗流(0-100, 权重30%)
+  momentum_score: number;           // 量价蓄势(0-100, 权重25%)
+  pattern_score: number;            // 模式匹配(0-100, 权重20%)
+  catalyst_score: number;           // 催化剂(0-100, 权重15%)
+  risk_adjustment: number;          // 风险修正(-5~0)
+  stage_coefficient: number;        // 阶段系数(×0.7~1.2)
+  market_emotion_phase: MarketEmotionPhase;
+  time_horizon: string;             // 中期布局3-5天/短期机会1-3天/持有观察/建议离场
+  // 总分与排名
+  total_score: number;
+  rank: number;
+  signal: SectorSignal;
+  // 生命周期
+  stage: string;                    // 萌芽/启动/发酵/主升/分歧/退潮/观察
+  confidence: number;               // 0-1
+  risk_reason: string | null;
+  leading_stock: string | null;
+  market_env: string | null;
+  // 复盘
+  next_day_actual: number | null;
+  prediction_hit: boolean | null;
+  created_at: number;
+}
+
+// ===== 板块每日快照（sector_daily 表行）=====
+export interface SectorDaily {
+  id: string;
+  sector_name: string;
+  trade_date: string;
+  open: number;
+  close: number;
+  high: number;
+  low: number;
+  change_pct: number;
+  volume: number;
+  turnover: number;
+  amplitude: number;
+  turnover_rate: number;
+  main_net_inflow: number;
+  main_net_inflow_pct: number;
+  super_large_net: number;
+  large_net: number;
+  medium_net: number;
+  small_net: number;
+  fund_leading_stock: string | null;
+  created_at: number;
+}
+
+// ===== 板块关联图谱（sector_rotation_map 表行）=====
+export interface SectorRotationMap {
+  id: string;
+  source_sector: string;
+  target_sector: string;
+  relation_type: string;            // 'chain' | 'corr'
+  weight: number;
+  description: string | null;
+}
+
+// ===== 板块预测列表摘要（前端聚合）=====
+export interface SectorPredictionSummary {
+  trade_date: string;
+  market_emotion_phase: MarketEmotionPhase;
+  total_count: number;
+  strong_buy_count: number;
+  buy_count: number;
+  sell_count: number;
+}
+
 // ===== API 统一响应结构 =====
 export interface ApiResponse<T = void> {
   data?: T;
