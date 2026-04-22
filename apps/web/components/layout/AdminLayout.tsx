@@ -22,6 +22,7 @@ export default function AdminLayout({ children }: Props) {
     setCurrentThemeId, setCurrentReportId, currentUser,
     systemMenuOpen, toggleSystemMenu,
     appMenuOpen, toggleAppMenu,
+    stockDictMenuOpen, toggleStockDictMenu,
   } = useAppStore();
 
   // 把 'YYYY-MM-DD' 格式化为 'M/D'，无值返回空串
@@ -83,6 +84,12 @@ export default function AdminLayout({ children }: Props) {
       s.loadDailyGoldPicks();
       s.loadThemes();
       s.loadReports();
+    }
+    if (nav === 'stock-dict-sector') {
+      useAppStore.getState().loadSectorMasters();
+    }
+    if (nav === 'stock-dict-codes') {
+      useAppStore.getState().loadStockCodes();
     }
   }
 
@@ -219,6 +226,52 @@ export default function AdminLayout({ children }: Props) {
             </span>
             涨跌家数
           </div>
+
+          {/* 股票字典（可折叠） */}
+          <div className="nav-item nav-group-toggle" onClick={toggleStockDictMenu}>
+            <span className="nav-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+              </svg>
+            </span>
+            股票字典
+            <span className="nav-arrow" style={{ marginLeft: 'auto', transition: 'transform .2s', transform: stockDictMenuOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </span>
+          </div>
+
+          {stockDictMenuOpen && (
+            <>
+              <div
+                className={`nav-item nav-sub-item${currentNav === 'stock-dict-sector' ? ' active' : ''}`}
+                onClick={() => handleNav('stock-dict-sector')}
+              >
+                <span className="nav-icon">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+                    <polyline points="2 17 12 22 22 17"/>
+                    <polyline points="2 12 12 17 22 12"/>
+                  </svg>
+                </span>
+                概念板块
+              </div>
+              <div
+                className={`nav-item nav-sub-item${currentNav === 'stock-dict-codes' ? ' active' : ''}`}
+                onClick={() => handleNav('stock-dict-codes')}
+              >
+                <span className="nav-icon">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+                  </svg>
+                </span>
+                股票代码
+              </div>
+            </>
+          )}
         </nav>
 
         {/* 弹性间距，把下方菜单顶到底部 */}
@@ -449,6 +502,8 @@ const NAV_LABEL: Record<string, string> = {
   'daily-review': '每日复盘',
   gold: '近期掘金',
   'sector-prediction': '板块预测',
+  'stock-dict-sector': '概念板块',
+  'stock-dict-codes': '股票代码',
 };
 
 function Topbar() {

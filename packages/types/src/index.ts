@@ -516,6 +516,28 @@ export interface SectorPredictionSummary {
   sell_count: number;
 }
 
+// ===== 板块字典（sector_master 表）=====
+export interface SectorMaster {
+  id: string;
+  name: string;
+  bk_code: string;
+  stock_count: number;
+  change_pct: number;
+  leading_stock: string;
+  is_active: boolean;
+  created_at: number;
+  updated_at: number;
+}
+
+// ===== 股票代码字典（stockCodes 表）=====
+export interface StockCode {
+  code: string;
+  name: string;
+  exchange: string;
+  board: string;
+  created_at: number;
+}
+
 // ===== API 统一响应结构 =====
 export interface ApiResponse<T = void> {
   data?: T;

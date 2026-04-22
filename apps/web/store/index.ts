@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import type { Theme, AdminUser, SessionUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview, RecentInsights, DailyGoldPick, SectorScore, SectorDaily, SectorRotationMap, SectorPredictionSummary } from '@quantstock/types';
+import type { Theme, AdminUser, SessionUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview, RecentInsights, DailyGoldPick, SectorScore, SectorDaily, SectorRotationMap, SectorPredictionSummary, SectorMaster, StockCode } from '@quantstock/types';
 import { apiClient, supabase } from '@/lib/supabase';
 
 export interface NewsItem {
@@ -23,7 +23,7 @@ const API_BASE = '/backend-api';
 
 type NavItem = 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao' | 'breadth' | 'news'
              | 'app-users' | 'app-feedback' | 'app-events' | 'app-version' | 'daily-review' | 'gold'
-             | 'sector-prediction';
+             | 'sector-prediction' | 'stock-dict-sector' | 'stock-dict-codes';
 
 interface AppState {
   // 数据
@@ -51,6 +51,12 @@ interface AppState {
   systemMenuOpen: boolean;
   // 侧边栏 APP 管理菜单是否展开
   appMenuOpen: boolean;
+  // 侧边栏股票字典菜单是否展开
+  stockDictMenuOpen: boolean;
+
+  // 股票字典
+  sectorMasters: SectorMaster[];
+  stockCodes: StockCode[];
 
   // Actions
   setLoading: (v: boolean) => void;
@@ -63,6 +69,11 @@ interface AppState {
   setCurrentDailyReviewId: (id: string | null) => void;
   toggleSystemMenu: () => void;
   toggleAppMenu: () => void;
+  toggleStockDictMenu: () => void;
+
+  // 股票字典 Actions
+  loadSectorMasters: () => Promise<void>;
+  loadStockCodes: () => Promise<void>;
 
   // 登录 Action
   login: (username: string, password: string) => Promise<boolean>;
@@ -159,6 +170,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   currentNav: 'dashboard',
   systemMenuOpen: false,
   appMenuOpen: false,
+  stockDictMenuOpen: false,
+  sectorMasters: [],
+  stockCodes: [],
 
   setLoading: (v) => set({ isLoading: v }),
 
@@ -182,6 +196,34 @@ export const useAppStore = create<AppState>((set, get) => ({
   toggleSystemMenu: () => set((s) => ({ systemMenuOpen: !s.systemMenuOpen })),
 
   toggleAppMenu: () => set((s) => ({ appMenuOpen: !s.appMenuOpen })),
+
+  toggleStockDictMenu: () => set((s) => ({ stockDictMenuOpen: !s.stockDictMenuOpen })),
+
+  // ===== 加载板块字典 =====
+  loadSectorMasters: async () => {
+    set({ isLoading: true });
+    try {
+      const sectorMasters = await apiClient.listSectorMasters();
+      set({ sectorMasters });
+    } catch (e) {
+      get().showToast('❌ 加载板块字典失败：' + (e as Error).message);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ===== 加载股票代码字典 =====
+  loadStockCodes: async () => {
+    set({ isLoading: true });
+    try {
+      const stockCodes = await apiClient.listStockCodes();
+      set({ stockCodes });
+    } catch (e) {
+      get().showToast('❌ 加载股票代码失败：' + (e as Error).message);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
 
   // ===== 登录（调 Hono API，password_hash 不再传到前端） =====
   login: async (username, password) => {

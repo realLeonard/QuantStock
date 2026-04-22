@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { Theme, Stock, StockInput, ThemeRow, StockRow, AdminUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview, RecentInsights, DailyGoldPick, LimitUpReasons, SectorScore, SectorDaily, SectorRotationMap } from '@quantstock/types';
+import type { Theme, Stock, StockInput, ThemeRow, StockRow, AdminUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview, RecentInsights, DailyGoldPick, LimitUpReasons, SectorScore, SectorDaily, SectorRotationMap, SectorMaster, StockCode } from '@quantstock/types';
 
 // ===== Supabase 客户端工厂 =====
 export function createSupabaseClient(url: string, anonKey: string): SupabaseClient {
@@ -438,6 +438,38 @@ export class QuantStockApiClient {
     if (error) throw new Error(error.message);
     return (data || []) as SectorRotationMap[];
   }
+  // ===== 股票字典：板块主表 =====
+
+  async listSectorMasters(): Promise<SectorMaster[]> {
+    const { data, error } = await this.sb
+      .from('sector_master')
+      .select('*')
+      .eq('is_active', true)
+      .order('name', { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data || []) as SectorMaster[];
+  }
+
+  // ===== 股票字典：股票代码（分页拉取，突破 PostgREST 1000 行限制）=====
+
+  async listStockCodes(): Promise<StockCode[]> {
+    const PAGE_SIZE = 1000;
+    const all: StockCode[] = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await this.sb
+        .from('stockCodes')
+        .select('*')
+        .order('code', { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) break;
+      all.push(...(data as StockCode[]));
+      if (data.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
+    }
+    return all;
+  }
 }
 
-export type { Theme, Stock, StockInput, AdminUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview, RecentInsights, DailyGoldPick, SectorScore, SectorDaily, SectorRotationMap };
+export type { Theme, Stock, StockInput, AdminUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview, RecentInsights, DailyGoldPick, SectorScore, SectorDaily, SectorRotationMap, SectorMaster, StockCode };
