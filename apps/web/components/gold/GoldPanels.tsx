@@ -55,12 +55,15 @@ function pickLatestReport(reports: DailyReport[], todayStr: string): DailyReport
   return tradingSorted[0] ?? reports[0] ?? null;
 }
 
-/** overview 首行剥离前缀 */
+/** overview 首行剥离前缀，跳过纯标签行（如"产业信息："） */
 function firstOverviewLine(overview: string | null | undefined): string {
   if (!overview) return '';
   const lines = overview.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   if (!lines.length) return '';
-  return lines[0].replace(/^([①-⑳]|[0-9]+[.、)）:：]|[-*•·])\s*/u, '').trim();
+  // 跳过"产业信息："等纯分类标签行，取第一行有实际内容的
+  const idx = lines.findIndex(l => !/^[\u4e00-\u9fa5]{2,6}[：:]\s*$/.test(l) && l.length > 6);
+  const line = lines[idx >= 0 ? idx : 0];
+  return line.replace(/^([①-⑳]|[0-9]+[.、)）:：]|[-*•·])\s*/u, '').trim();
 }
 
 // ===== 区块一：近期思路和方向 =====

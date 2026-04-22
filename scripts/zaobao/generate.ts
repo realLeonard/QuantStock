@@ -295,11 +295,27 @@ async function generateReport(params: {
     .map(block => (block as { type: 'text'; text: string }).text)
     .join('\n');
 
-  // 只取①市场基调一行作为摘要（兼容 **加粗** 标记）
+  // 提取①市场基调作为摘要（兼容 **加粗** 标记）
+  // 若基调一行太短（<50字），追加后续非空行补充到 200 字
   const summaryMatch = content.match(/①\s*\*{0,2}【市场基调】\*{0,2}([^\n]+)/);
-  const summary = summaryMatch
-    ? summaryMatch[1].replace(/\*\*/g, '').trim()
-    : content.replace(/\*\*/g, '').slice(0, 120);
+  let summary: string;
+  if (summaryMatch) {
+    summary = summaryMatch[1].replace(/\*\*/g, '').trim();
+    if (summary.length < 50) {
+      const afterIdx = content.indexOf(summaryMatch[0]) + summaryMatch[0].length;
+      const remaining = content.slice(afterIdx).split('\n');
+      for (const line of remaining) {
+        const cleaned = line.replace(/\*\*/g, '').replace(/^[②③④⑤⑥⑦⑧⑨⑩]\s*/, '').replace(/【.*?】/g, '').trim();
+        if (cleaned.length > 10 && !/^[━─\-*#>|]/.test(cleaned)) {
+          summary += '。' + cleaned;
+          if (summary.length >= 120) break;
+        }
+      }
+      summary = summary.slice(0, 200);
+    }
+  } else {
+    summary = content.replace(/\*\*/g, '').slice(0, 120);
+  }
 
   return { content, summary };
 }

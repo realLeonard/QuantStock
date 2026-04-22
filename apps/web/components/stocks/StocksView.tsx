@@ -19,14 +19,20 @@ export default function StocksView() {
   const stocks = theme ? [...(theme.stocks || [])] : [];
 
   // 主题描述按行拆分（过滤空行），默认只展示第 1 条，多余的折叠
+  // 跳过纯标签行（如"产业信息："），确保首行是实际内容
   const overviewLines = useMemo(() => {
     return (theme?.overview || '')
       .split(/\r?\n/)
       .map(l => l.trim())
       .filter(Boolean);
   }, [theme?.overview]);
+  const firstContentIdx = overviewLines.findIndex(
+    l => !/^[\u4e00-\u9fa5]{2,6}[：:]\s*$/.test(l) && l.length > 6
+  );
   const hasMoreOverview = overviewLines.length > 1;
-  const visibleOverview = overviewExpanded ? overviewLines : overviewLines.slice(0, 1);
+  const visibleOverview = overviewExpanded
+    ? overviewLines
+    : overviewLines.slice(Math.max(0, firstContentIdx), Math.max(0, firstContentIdx) + 1);
 
   function openCreate() {
     setEditingStock(null);
