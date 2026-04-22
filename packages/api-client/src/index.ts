@@ -400,7 +400,7 @@ export class QuantStockApiClient {
   async listSectorPredictionDays(limit = 60): Promise<SectorScore[]> {
     const { data, error } = await this.sb
       .from('sector_scores')
-      .select('trade_date, signal, market_emotion_phase')
+      .select('trade_date, signal, market_emotion_phase, stage, total_score, confidence, sector_name, leading_stock, rank')
       .order('trade_date', { ascending: false })
       .limit(limit * 300); // 每天约300条，取足量
     if (error) throw new Error(error.message);

@@ -41,10 +41,10 @@
   border-radius: 4px;
   font-weight: 600;
 }
-.phaseStrong { background: #dcfce7; color: #166534; }
+.phaseStrong { background: #fff1f2; color: #be123c; }
 .phaseNeutral { background: #e0e7ff; color: #3730a3; }
-.phaseWeak { background: #fef9c3; color: #854d0e; }
-.phaseExtreme { background: #fee2e2; color: #991b1b; }
+.phaseWeak { background: #dcfce7; color: #166534; }
+.phaseExtreme { background: #fef9c3; color: #854d0e; }
 
 .cardSummary {
   display: flex;
@@ -186,7 +186,6 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
-  margin-bottom: 20px;
 }
 @media (max-width: 768px) {
   .overviewGrid {
@@ -211,20 +210,24 @@
 }
 
 /* 市场环境指示器 */
+.overviewWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
 .envIndicator {
   display: flex;
   align-items: center;
   gap: 16px;
   padding: 16px 20px;
   border-radius: 10px;
-  margin-bottom: 20px;
   font-size: 14px;
   font-weight: 600;
 }
-.envStrong { background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%); color: #166534; }
+.envStrong { background: linear-gradient(135deg, #fff1f2 0%, #fecdd3 100%); color: #be123c; }
 .envNeutral { background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%); color: #3730a3; }
-.envWeak { background: linear-gradient(135deg, #fef9c3 0%, #fde68a 100%); color: #854d0e; }
-.envExtreme { background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); color: #991b1b; }
+.envWeak { background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%); color: #166534; }
+.envExtreme { background: linear-gradient(135deg, #fef9c3 0%, #fde68a 100%); color: #854d0e; }
 .envLabel {
   font-size: 22px;
 }
@@ -239,6 +242,7 @@
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+  justify-content: center;
 }
 .signalStatItem {
   display: flex;
@@ -303,3 +307,150 @@
 }
 .chainType { background: #dbeafe; color: #1d4ed8; }
 .corrType { background: #fce7f3; color: #be185d; }
+
+/* ===== 列表卡片增强 ===== */
+.cardScoreMeta {
+  font-size: 12px;
+  color: var(--text-secondary, #94a3b8);
+  font-weight: 400;
+}
+
+.cardStages {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.cardStagesLabel {
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+  font-weight: 600;
+  margin-right: 2px;
+}
+.cardStageChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.stageMengya   { background: #dbeafe; color: #1d4ed8; }
+.stageQidong   { background: #dcfce7; color: #166534; }
+.stageFajiao   { background: #fef3c7; color: #92400e; }
+.stageZhusheng { background: #fee2e2; color: #dc2626; }
+.stageFenqi    { background: #ede9fe; color: #6d28d9; }
+.stageTuichao  { background: #f1f5f9; color: #475569; }
+.stageGuancha  { background: #e5e7eb; color: #64748b; }
+
+.collapseBtn {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px 0;
+  font-size: 12px;
+  color: var(--primary, #6366f1);
+  background: none;
+  border: 1px dashed var(--border, #e5e7eb);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background .15s;
+}
+.collapseBtn:hover {
+  background: var(--bg-hover, #f8fafc);
+}
+
+.cardTopSectors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border, #e5e7eb);
+  font-size: 12px;
+  align-items: center;
+}
+.cardTopLabel {
+  font-size: 11px;
+  color: var(--text-secondary, #94a3b8);
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.cardTopItem {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-primary, #1e293b);
+  font-weight: 500;
+}
+.cardTopScore {
+  font-size: 11px;
+  color: var(--text-secondary, #64748b);
+}
+.cardTopLeader {
+  font-size: 11px;
+  color: var(--text-secondary, #94a3b8);
+}
+
+/* ===== 全览页生命周期进度条 ===== */
+.lifecycleBar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 20px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  overflow-x: auto;
+}
+.lifecycleNode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 56px;
+  flex-shrink: 0;
+}
+.lifecycleNodeInactive .lifecycleCircle {
+  opacity: 0.4;
+}
+.lifecycleLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+  white-space: nowrap;
+}
+.lifecycleCircle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  transition: transform .2s, box-shadow .2s;
+}
+.lifecycleCircleMax {
+  transform: scale(1.15);
+  font-size: 16px;
+}
+.lifecycleLine {
+  flex: 1;
+  min-width: 16px;
+  max-width: 48px;
+  height: 2px;
+  background: var(--border, #e5e7eb);
+  align-self: center;
+  margin-top: 20px;
+}
+@media (max-width: 768px) {
+  .lifecycleBar {
+    justify-content: flex-start;
+    padding: 12px;
+  }
+  .lifecycleNode { min-width: 48px; }
+  .lifecycleCircle { width: 32px; height: 32px; font-size: 12px; }
+}

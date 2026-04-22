@@ -514,6 +514,20 @@ export interface SectorPredictionSummary {
   strong_buy_count: number;
   buy_count: number;
   sell_count: number;
+  hold_count: number;
+  watch_count: number;
+  avoid_count: number;
+  avg_score: number;
+  max_score: number;
+  avg_confidence: number;
+  stage_counts: Record<string, number>;
+  top_sectors: Array<{
+    sector_name: string;
+    signal: string;
+    total_score: number;
+    stage: string;
+    leading_stock: string | null;
+  }>;
 }
 
 // ===== 板块字典（sector_master 表）=====

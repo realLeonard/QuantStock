@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAppStore } from '@/store';
 import PageHeader from '@/components/ui/PageHeader';
 import DetailBackBar from '@/components/ui/DetailBackBar';
@@ -49,6 +49,17 @@ const ENV_CLS: Record<MarketEmotionPhase, string> = {
   weak: s.envWeak,
   extreme: s.envExtreme,
 };
+// ===== 生命周期阶段配置 =====
+const LIFECYCLE_STAGES = [
+  { key: '萌芽', cls: s.stageMengya, color: '#1d4ed8', bg: '#dbeafe' },
+  { key: '启动', cls: s.stageQidong, color: '#166534', bg: '#dcfce7' },
+  { key: '发酵', cls: s.stageFajiao, color: '#92400e', bg: '#fef3c7' },
+  { key: '主升', cls: s.stageZhusheng, color: '#dc2626', bg: '#fee2e2' },
+  { key: '分歧', cls: s.stageFenqi, color: '#6d28d9', bg: '#ede9fe' },
+  { key: '退潮', cls: s.stageTuichao, color: '#475569', bg: '#f1f5f9' },
+  { key: '观察', cls: s.stageGuancha, color: '#64748b', bg: '#e5e7eb' },
+];
+
 const ENV_DESC: Record<MarketEmotionPhase, string> = {
   strong: '市场情绪积极，板块轮动活跃，适合积极布局',
   neutral: '市场情绪平稳，结构性机会为主，精选方向',
@@ -120,39 +131,76 @@ function ListView({
     <>
       <PageHeader title="板块预测" desc="基于多维评分的板块预测系统，每日收盘后自动生成" />
       <div className={s.list}>
-        {days.map(d => (
-          <div key={d.trade_date} className={s.card} onClick={() => onSelect(d.trade_date)}>
-            <div className={s.cardHeader}>
-              <div className={s.cardHeaderLeft}>
-                <span className={s.cardDate}>{d.trade_date}</span>
-                <span className={`${s.phaseTag} ${PHASE_CLS[d.market_emotion_phase]}`}>
-                  {PHASE_LABEL[d.market_emotion_phase]}
-                </span>
+        {days.map(d => {
+          const signals: Array<{ key: string; cls: string; label: string; count: number }> = [
+            { key: 'sb', cls: s.signalStrongBuy, label: '强买', count: d.strong_buy_count },
+            { key: 'b', cls: s.signalBuy, label: '买入', count: d.buy_count },
+            { key: 'h', cls: s.signalHold, label: '持有', count: d.hold_count },
+            { key: 'sl', cls: s.signalSell, label: '卖出', count: d.sell_count },
+            { key: 'w', cls: s.signalWatch, label: '观察', count: d.watch_count },
+            { key: 'a', cls: s.signalAvoid, label: '规避', count: d.avoid_count },
+          ];
+          return (
+            <div key={d.trade_date} className={s.card} onClick={() => onSelect(d.trade_date)}>
+              <div className={s.cardHeader}>
+                <div className={s.cardHeaderLeft}>
+                  <span className={s.cardDate}>{d.trade_date}</span>
+                  <span className={`${s.phaseTag} ${PHASE_CLS[d.market_emotion_phase]}`}>
+                    市场情绪 · {PHASE_LABEL[d.market_emotion_phase]}
+                  </span>
+                  <span className={s.cardScoreMeta}>
+                    均分 {d.avg_score} · 最高 {d.max_score.toFixed(1)} · 置信度 {(d.avg_confidence * 100).toFixed(0)}%
+                  </span>
+                </div>
+                <span className={s.totalBadge}>共 {d.total_count} 个板块</span>
               </div>
-              <span className={s.totalBadge}>共 {d.total_count} 个板块</span>
+
+              {/* 完整信号分布 */}
+              <div className={s.cardSummary}>
+                {signals.map(sig => (
+                  <span key={sig.key}>
+                    <span className={`${s.signalTag} ${sig.cls}`}>{sig.label}</span>
+                    {sig.count}
+                  </span>
+                ))}
+              </div>
+
+              {/* 生命周期分布芯片（仅当存在非"观察"阶段时才显示） */}
+              {LIFECYCLE_STAGES.some(st => st.key !== '观察' && d.stage_counts[st.key] > 0) && (
+                <div className={s.cardStages}>
+                  <span className={s.cardStagesLabel}>生命周期</span>
+                  {LIFECYCLE_STAGES.map(st => {
+                    const cnt = d.stage_counts[st.key];
+                    return cnt ? (
+                      <span key={st.key} className={`${s.cardStageChip} ${st.cls}`}>
+                        {st.key} {cnt}
+                      </span>
+                    ) : null;
+                  })}
+                </div>
+              )}
+
+              {/* TOP 板块预览 */}
+              {d.top_sectors.length > 0 && (
+                <div className={s.cardTopSectors}>
+                  <span className={s.cardTopLabel}>TOP</span>
+                  {d.top_sectors.map(t => (
+                    <span key={t.sector_name} className={s.cardTopItem}>
+                      <span className={`${s.signalTag} ${SIGNAL_CLS[t.signal as SectorSignal] || s.signalWatch}`}>
+                        {SIGNAL_LABEL[t.signal as SectorSignal] || t.signal}
+                      </span>
+                      {t.sector_name}
+                      <span className={s.cardTopScore}>{t.total_score.toFixed(1)}分</span>
+                      {t.leading_stock && (
+                        <span className={s.cardTopLeader}>{t.leading_stock}</span>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className={s.cardSummary}>
-              {d.strong_buy_count > 0 && (
-                <span>
-                  <span className={`${s.signalTag} ${s.signalStrongBuy}`}>强买</span>
-                  {d.strong_buy_count}
-                </span>
-              )}
-              {d.buy_count > 0 && (
-                <span>
-                  <span className={`${s.signalTag} ${s.signalBuy}`}>买入</span>
-                  {d.buy_count}
-                </span>
-              )}
-              {d.sell_count > 0 && (
-                <span>
-                  <span className={`${s.signalTag} ${s.signalSell}`}>卖出</span>
-                  {d.sell_count}
-                </span>
-              )}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );
@@ -196,6 +244,38 @@ function DetailView({
   );
 }
 
+// ===== 生命周期进度条 =====
+function LifecycleBar({ stageCounts }: { stageCounts: Record<string, number> }) {
+  const maxCount = Math.max(...Object.values(stageCounts), 1);
+  return (
+    <div className={s.lifecycleBar}>
+      {LIFECYCLE_STAGES.map((stage, i) => {
+        const count = stageCounts[stage.key] || 0;
+        const isActive = count > 0;
+        const isMax = count === maxCount && count > 0;
+        return (
+          <React.Fragment key={stage.key}>
+            {i > 0 && <div className={s.lifecycleLine} />}
+            <div className={`${s.lifecycleNode} ${isActive ? '' : s.lifecycleNodeInactive}`}>
+              <span className={s.lifecycleLabel}>{stage.key}</span>
+              <div
+                className={`${s.lifecycleCircle} ${isMax ? s.lifecycleCircleMax : ''}`}
+                style={{
+                  background: isActive ? stage.bg : '#f1f5f9',
+                  color: isActive ? stage.color : '#cbd5e1',
+                  boxShadow: isMax ? `0 0 12px ${stage.color}33` : 'none',
+                }}
+              >
+                {count}
+              </div>
+            </div>
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
 // ===== 全览面板 =====
 function OverviewPanel({ scores }: { scores: SectorScore[] }) {
   const phase = scores[0]?.market_emotion_phase ?? 'neutral';
@@ -214,12 +294,40 @@ function OverviewPanel({ scores }: { scores: SectorScore[] }) {
     return map;
   }, [scores]);
 
+  // 生命周期分布
+  const stageCounts = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const stage of LIFECYCLE_STAGES) map[stage.key] = 0;
+    for (const sc of scores) {
+      const key = sc.stage || '观察';
+      if (key in map) map[key]++;
+      else map['观察']++;
+    }
+    return map;
+  }, [scores]);
+
   return (
-    <>
+    <div className={s.overviewWrap}>
       {/* 市场环境指示器 */}
       <div className={`${s.envIndicator} ${ENV_CLS[phase]}`}>
-        <span className={s.envLabel}>{PHASE_LABEL[phase]}</span>
+        <span className={s.envLabel}>市场情绪 · {PHASE_LABEL[phase]}</span>
         <span className={s.envDesc}>{ENV_DESC[phase]}</span>
+      </div>
+
+      {/* 生命周期进度条 */}
+      <LifecycleBar stageCounts={stageCounts} />
+
+      {/* 信号分布统计 */}
+      <div className={s.overviewCard} style={{ textAlign: 'center' }}>
+        <div className={s.overviewCardTitle} style={{ justifyContent: 'center' }}>信号分布统计</div>
+        <div className={s.signalStats}>
+          {(['strong_buy', 'buy', 'hold', 'watch', 'sell', 'avoid', 'risk'] as SectorSignal[]).map(sig => (
+            <div key={sig} className={s.signalStatItem}>
+              <span className={`${s.signalTag} ${SIGNAL_CLS[sig]}`}>{SIGNAL_LABEL[sig]}</span>
+              <span className={s.signalStatCount}>{signalCounts[sig] || 0}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className={s.overviewGrid}>
@@ -265,26 +373,11 @@ function OverviewPanel({ scores }: { scores: SectorScore[] }) {
               <span className={`${s.signalTag} ${s.signalRisk}`}>风险</span>
               规避板块（{avoid.length}）
             </div>
-            <SectorList items={avoid} />
+            <CollapsibleSectorList items={avoid} limit={10} />
           </div>
         )}
-
-        {/* 信号分布 */}
-        <div className={s.overviewCard}>
-          <div className={s.overviewCardTitle}>信号分布统计</div>
-          <div className={s.signalStats}>
-            {(['strong_buy', 'buy', 'hold', 'watch', 'sell', 'avoid', 'risk'] as SectorSignal[]).map(sig => (
-              signalCounts[sig] ? (
-                <div key={sig} className={s.signalStatItem}>
-                  <span className={`${s.signalTag} ${SIGNAL_CLS[sig]}`}>{SIGNAL_LABEL[sig]}</span>
-                  <span className={s.signalStatCount}>{signalCounts[sig]}</span>
-                </div>
-              ) : null
-            ))}
-          </div>
-        </div>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -309,6 +402,26 @@ function SectorList({ items }: { items: SectorScore[] }) {
         </div>
       ))}
     </div>
+  );
+}
+
+// ===== 可折叠板块列表 =====
+function CollapsibleSectorList({ items, limit }: { items: SectorScore[]; limit: number }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!items.length) {
+    return <div style={{ fontSize: 13, color: '#94a3b8', padding: '8px 0' }}>暂无</div>;
+  }
+  const needCollapse = items.length > limit;
+  const visible = needCollapse && !expanded ? items.slice(0, limit) : items;
+  return (
+    <>
+      <SectorList items={visible} />
+      {needCollapse && (
+        <button className={s.collapseBtn} onClick={() => setExpanded(v => !v)}>
+          {expanded ? '收起' : `展开全部（${items.length}）`}
+        </button>
+      )}
+    </>
   );
 }
 

@@ -398,28 +398,73 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ isLoading: true });
     try {
       const rows = await apiClient.listSectorPredictionDays(60);
-      // 前端聚合：按 trade_date 分组，统计信号数量
-      const map = new Map<string, { phase: string; total: number; strong_buy: number; buy: number; sell: number }>();
+      type DayAgg = {
+        phase: string;
+        total: number;
+        strong_buy: number; buy: number; sell: number;
+        hold: number; watch: number; avoid: number;
+        scores: number[]; confidences: number[];
+        stage_counts: Record<string, number>;
+        sectors: Array<{
+          sector_name: string; signal: string;
+          total_score: number; stage: string;
+          leading_stock: string | null; rank: number;
+        }>;
+      };
+      const map = new Map<string, DayAgg>();
       for (const r of rows) {
         const key = r.trade_date;
         if (!map.has(key)) {
-          map.set(key, { phase: r.market_emotion_phase, total: 0, strong_buy: 0, buy: 0, sell: 0 });
+          map.set(key, {
+            phase: r.market_emotion_phase, total: 0,
+            strong_buy: 0, buy: 0, sell: 0, hold: 0, watch: 0, avoid: 0,
+            scores: [], confidences: [], stage_counts: {}, sectors: [],
+          });
         }
         const g = map.get(key)!;
         g.total++;
         if (r.signal === 'strong_buy') g.strong_buy++;
         else if (r.signal === 'buy') g.buy++;
         else if (r.signal === 'sell') g.sell++;
+        else if (r.signal === 'hold') g.hold++;
+        else if (r.signal === 'watch') g.watch++;
+        else g.avoid++;
+        if (r.total_score != null) g.scores.push(r.total_score);
+        if (r.confidence != null) g.confidences.push(r.confidence);
+        const st = r.stage || '观察';
+        g.stage_counts[st] = (g.stage_counts[st] || 0) + 1;
+        g.sectors.push({
+          sector_name: r.sector_name, signal: r.signal,
+          total_score: r.total_score ?? 0, stage: st,
+          leading_stock: r.leading_stock ?? null, rank: r.rank ?? 999,
+        });
       }
       const days: SectorPredictionSummary[] = Array.from(map.entries())
-        .map(([date, g]) => ({
-          trade_date: date,
-          market_emotion_phase: g.phase as SectorPredictionSummary['market_emotion_phase'],
-          total_count: g.total,
-          strong_buy_count: g.strong_buy,
-          buy_count: g.buy,
-          sell_count: g.sell,
-        }))
+        .map(([date, g]) => {
+          const sumArr = (a: number[]) => a.reduce((s, v) => s + v, 0);
+          const avgArr = (a: number[]) => a.length ? sumArr(a) / a.length : 0;
+          const top = [...g.sectors].sort((a, b) => a.rank - b.rank).slice(0, 3);
+          return {
+            trade_date: date,
+            market_emotion_phase: g.phase as SectorPredictionSummary['market_emotion_phase'],
+            total_count: g.total,
+            strong_buy_count: g.strong_buy,
+            buy_count: g.buy,
+            sell_count: g.sell,
+            hold_count: g.hold,
+            watch_count: g.watch,
+            avoid_count: g.avoid,
+            avg_score: +avgArr(g.scores).toFixed(1),
+            max_score: g.scores.length ? Math.max(...g.scores) : 0,
+            avg_confidence: +avgArr(g.confidences).toFixed(2),
+            stage_counts: g.stage_counts,
+            top_sectors: top.map(t => ({
+              sector_name: t.sector_name, signal: t.signal,
+              total_score: t.total_score, stage: t.stage,
+              leading_stock: t.leading_stock,
+            })),
+          };
+        })
         .sort((a, b) => b.trade_date.localeCompare(a.trade_date));
       set({ sectorPredictionDays: days });
     } catch (e) {
