@@ -16,6 +16,7 @@ import { fileURLToPath } from 'url';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
 import axios from 'axios';
+import { isTradingDay } from '../shared/trading-calendar';
 
 // 加载环境变量
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
@@ -691,6 +692,11 @@ async function main() {
   console.log(`====== 每日复盘 AI 总结 + 推送（v2）======`);
   console.log(`  日期: ${date}`);
   console.log();
+
+  if (!isTradingDay(date)) {
+    console.log(`${date} 非交易日（周末/法定节假日），跳过复盘`);
+    return;
+  }
 
   const sb = getSupabase();
 

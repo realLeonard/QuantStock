@@ -39,6 +39,10 @@ else:
 
 from supabase import create_client, Client
 
+# 交易日历公共模块
+sys.path.insert(0, str(project_root / 'scripts' / 'shared'))
+from trading_calendar import is_trading_day
+
 
 # ===== 常量 =====
 RETENTION_DAYS     = 7    # 保留最近7天数据
@@ -499,8 +503,8 @@ def collect_market_breadth(sb: Client) -> None:
     import akshare as ak
 
     now_bj = datetime.now(ZoneInfo('Asia/Shanghai'))
-    if now_bj.weekday() >= 5:
-        print(f'  [marketBreadth] 周末非交易日，跳过')
+    if not is_trading_day(now_bj.strftime('%Y-%m-%d')):
+        print(f'  [marketBreadth] 非交易日（周末/节假日），跳过')
         return
     if not (17 <= now_bj.hour < 18):
         print(f'  [marketBreadth] 当前 {now_bj.strftime("%H:%M")} BJ，不在 17:00-18:00 窗口，跳过')
@@ -567,8 +571,8 @@ def collect_limit_up_reasons(sb: Client) -> None:
     通过 Node.js 脚本 scripts/daily-review/jiuyan-image-fetch.ts 下载图片并调 Claude Opus 4.6 Vision 解析。
     """
     now_bj = datetime.now(ZoneInfo('Asia/Shanghai'))
-    if now_bj.weekday() >= 5:
-        print(f'  [limitUpReasons] 周末非交易日，跳过')
+    if not is_trading_day(now_bj.strftime('%Y-%m-%d')):
+        print(f'  [limitUpReasons] 非交易日（周末/节假日），跳过')
         return
     if not (17 <= now_bj.hour < 18):
         print(f'  [limitUpReasons] 当前 {now_bj.strftime("%H:%M")} BJ，不在 17:00-18:00 窗口，跳过')

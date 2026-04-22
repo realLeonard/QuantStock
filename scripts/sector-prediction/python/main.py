@@ -19,14 +19,12 @@ from browser import close_browser
 from collectors.sector_list import sync_sector_master, write_daily_kline
 from collectors.sector_fund_flow import collect_fund_flow
 
+# 交易日历公共模块
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / 'shared'))
+from trading_calendar import is_trading_day_today
+
 # 北京时区
 _BJ_TZ = timezone(timedelta(hours=8))
-
-
-def is_trade_day() -> bool:
-    """判断今天是否为交易日（简单版：排除周末）"""
-    now = datetime.now(_BJ_TZ)
-    return now.weekday() < 5  # 周一到周五
 
 
 def get_today_bj() -> str:
@@ -41,8 +39,8 @@ def main():
     print('=' * 60)
 
     force = os.environ.get('FORCE_RUN', '').lower() in ('1', 'true', 'yes')
-    if not is_trade_day() and not force:
-        print('今天不是交易日（周末），跳过采集')
+    if not is_trading_day_today() and not force:
+        print('今天不是交易日（周末/法定节假日），跳过采集')
         print('提示: 设置 FORCE_RUN=1 可强制运行')
         return
 
