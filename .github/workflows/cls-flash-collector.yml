@@ -38,8 +38,8 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: 安装 Node 依赖（韭研 Vision 解析需要）
-        run: npm ci --ignore-scripts
+      - name: 安装 Node 依赖（韭研 Vision 解析 + sharp 图片压缩）
+        run: npm ci
 
       - name: 执行快讯采集
         id: collect
