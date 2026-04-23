@@ -12,6 +12,7 @@ import { loadHistoryBaseline, loadSectorContinuity } from './formatters/review-q
 import { loadYesterdayReviewBlock, loadRecentHitRate } from './formatters/review-result';
 import { reviewOneDay } from './review-picks';
 import { sendBarkAlert } from './utils/bark';
+import { isTradingDay } from '../shared/trading-calendar';
 
 // ===== 环境变量 =====
 function getEnv() {
@@ -234,7 +235,6 @@ async function loadPreviousSummary(date: string): Promise<string | undefined> {
 }
 
 // ===== 交易日判断（公共模块，含法定节假日） =====
-import { isTradingDay } from '../shared/trading-calendar';
 const isTradeDay = isTradingDay;
 
 // ===== 调用 Claude API 生成报告 =====
