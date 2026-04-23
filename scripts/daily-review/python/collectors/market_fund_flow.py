@@ -8,6 +8,8 @@
   返回的金额统一换算为「亿元」。
 """
 
+import time
+
 import akshare as ak
 
 from utils import safe_float
@@ -47,30 +49,37 @@ def collect_market_fund_flow(date_str: str) -> dict:
         'retail_inflow': None,
     }
 
-    try:
-        df = ak.stock_market_fund_flow()
-        if df is None or df.empty:
-            print('  [warn] 大盘资金流向数据为空')
-            return result
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        try:
+            df = ak.stock_market_fund_flow()
+            if df is None or df.empty:
+                print('  [warn] 大盘资金流向数据为空')
+                return result
 
-        # 取最新一天（按日期升序，取最后一行）
-        date_col = '日期' if '日期' in df.columns else df.columns[0]
-        df_sorted = df.sort_values(date_col, ascending=True)
-        latest = df_sorted.iloc[-1].to_dict()
+            # 取最新一天（按日期升序，取最后一行）
+            date_col = '日期' if '日期' in df.columns else df.columns[0]
+            df_sorted = df.sort_values(date_col, ascending=True)
+            latest = df_sorted.iloc[-1].to_dict()
 
-        main = _pick(latest, _MAIN_KEYS)
-        super_large = _pick(latest, _SUPER_KEYS)
-        large = _pick(latest, _LARGE_KEYS)
-        mid = _pick(latest, _MID_KEYS)
-        small = _pick(latest, _SMALL_KEYS)
+            main = _pick(latest, _MAIN_KEYS)
+            super_large = _pick(latest, _SUPER_KEYS)
+            large = _pick(latest, _LARGE_KEYS)
+            mid = _pick(latest, _MID_KEYS)
+            small = _pick(latest, _SMALL_KEYS)
 
-        result['main_inflow'] = _to_yi(main)
-        result['super_large_inflow'] = _to_yi(super_large)
-        result['large_inflow'] = _to_yi(large)
-        result['mid_inflow'] = _to_yi(mid)
-        result['retail_inflow'] = _to_yi(small)
+            result['main_inflow'] = _to_yi(main)
+            result['super_large_inflow'] = _to_yi(super_large)
+            result['large_inflow'] = _to_yi(large)
+            result['mid_inflow'] = _to_yi(mid)
+            result['retail_inflow'] = _to_yi(small)
+            break
 
-    except Exception as e:
-        print(f'  [warn] 获取大盘资金流向失败: {e}')
+        except Exception as e:
+            if attempt < max_retries:
+                print(f'  [warn] 获取大盘资金流向失败(第{attempt}次), {e}, {5 * attempt}s 后重试...')
+                time.sleep(5 * attempt)
+            else:
+                print(f'  [warn] 获取大盘资金流向失败(已重试{max_retries}次): {e}')
 
     return result
