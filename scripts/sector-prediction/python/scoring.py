@@ -398,8 +398,8 @@ def main():
             + catalyst_score * W_CATALYST
         )
 
-        # 阶段系数与大盘系数取较低值，下限 0.5
-        combined_coeff = max(0.5, min(stage_coeff, market_coeff))
+        # 阶段系数 × 大盘系数，各自独立生效，下限 0.5
+        combined_coeff = max(0.5, stage_coeff * market_coeff)
         adjusted = raw * combined_coeff
         final = max(0, round(adjusted + risk_adj, 2))
 

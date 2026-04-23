@@ -60,6 +60,14 @@ const LIFECYCLE_STAGES = [
   { key: '观察', cls: s.stageGuancha, color: '#64748b', bg: '#e5e7eb' },
 ];
 
+const DB_STAGE_TO_UI: Record<string, string> = {
+  '吸筹期': '萌芽', '启动期': '启动', '发酵期': '发酵',
+  '主升期': '主升', '见顶期': '分歧', '调整期': '退潮', '观察期': '观察',
+};
+function mapStage(stage?: string | null): string {
+  return DB_STAGE_TO_UI[stage ?? ''] || stage || '观察';
+}
+
 const ENV_DESC: Record<MarketEmotionPhase, string> = {
   strong: '市场情绪积极，板块轮动活跃，适合积极布局',
   neutral: '市场情绪平稳，结构性机会为主，精选方向',
@@ -245,34 +253,60 @@ function DetailView({
 }
 
 // ===== 生命周期进度条 =====
-function LifecycleBar({ stageCounts }: { stageCounts: Record<string, number> }) {
+function LifecycleBar({ stageCounts, stageScores }: {
+  stageCounts: Record<string, number>;
+  stageScores?: Record<string, SectorScore[]>;
+}) {
   const maxCount = Math.max(...Object.values(stageCounts), 1);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const expandedItems = expanded && stageScores ? stageScores[expanded] || [] : [];
   return (
-    <div className={s.lifecycleBar}>
-      {LIFECYCLE_STAGES.map((stage, i) => {
-        const count = stageCounts[stage.key] || 0;
-        const isActive = count > 0;
-        const isMax = count === maxCount && count > 0;
-        return (
-          <React.Fragment key={stage.key}>
-            {i > 0 && <div className={s.lifecycleLine} />}
-            <div className={`${s.lifecycleNode} ${isActive ? '' : s.lifecycleNodeInactive}`}>
-              <span className={s.lifecycleLabel}>{stage.key}</span>
+    <>
+      <div className={s.lifecycleBar}>
+        {LIFECYCLE_STAGES.map((stage, i) => {
+          const count = stageCounts[stage.key] || 0;
+          const isActive = count > 0;
+          const isMax = count === maxCount && count > 0;
+          const isExpanded = expanded === stage.key;
+          return (
+            <React.Fragment key={stage.key}>
+              {i > 0 && <div className={s.lifecycleLine} />}
               <div
-                className={`${s.lifecycleCircle} ${isMax ? s.lifecycleCircleMax : ''}`}
-                style={{
-                  background: isActive ? stage.bg : '#f1f5f9',
-                  color: isActive ? stage.color : '#cbd5e1',
-                  boxShadow: isMax ? `0 0 12px ${stage.color}33` : 'none',
+                className={`${s.lifecycleNode} ${isActive ? '' : s.lifecycleNodeInactive}`}
+                style={{ cursor: isActive ? 'pointer' : 'default' }}
+                onClick={() => {
+                  if (!isActive) return;
+                  setExpanded(isExpanded ? null : stage.key);
                 }}
               >
-                {count}
+                <span className={s.lifecycleLabel}>{stage.key}</span>
+                <div
+                  className={`${s.lifecycleCircle} ${isMax ? s.lifecycleCircleMax : ''}`}
+                  style={{
+                    background: isActive ? stage.bg : '#f1f5f9',
+                    color: isActive ? stage.color : '#cbd5e1',
+                    boxShadow: isMax ? `0 0 12px ${stage.color}33` : 'none',
+                    outline: isExpanded ? `2px solid ${stage.color}` : 'none',
+                    outlineOffset: 2,
+                  }}
+                >
+                  {count}
+                </div>
               </div>
-            </div>
-          </React.Fragment>
-        );
-      })}
-    </div>
+            </React.Fragment>
+          );
+        })}
+      </div>
+      {expanded && expandedItems.length > 0 && (
+        <div className={s.lifecycleExpand}>
+          <div className={s.lifecycleExpandHeader}>
+            <span>{expanded}（{expandedItems.length}）</span>
+            <button className={s.lifecycleExpandClose} onClick={() => setExpanded(null)}>收起</button>
+          </div>
+          <CollapsibleSectorList items={expandedItems} limit={10} />
+        </div>
+      )}
+    </>
   );
 }
 
@@ -299,9 +333,22 @@ function OverviewPanel({ scores }: { scores: SectorScore[] }) {
     const map: Record<string, number> = {};
     for (const stage of LIFECYCLE_STAGES) map[stage.key] = 0;
     for (const sc of scores) {
-      const key = sc.stage || '观察';
+      const key = mapStage(sc.stage);
       if (key in map) map[key]++;
       else map['观察']++;
+    }
+    return map;
+  }, [scores]);
+
+  const stageScores = useMemo(() => {
+    const map: Record<string, SectorScore[]> = {};
+    for (const sc of scores) {
+      const key = mapStage(sc.stage);
+      if (!map[key]) map[key] = [];
+      map[key].push(sc);
+    }
+    for (const arr of Object.values(map)) {
+      arr.sort((a, b) => (b.total_score ?? 0) - (a.total_score ?? 0));
     }
     return map;
   }, [scores]);
@@ -315,7 +362,7 @@ function OverviewPanel({ scores }: { scores: SectorScore[] }) {
       </div>
 
       {/* 生命周期进度条 */}
-      <LifecycleBar stageCounts={stageCounts} />
+      <LifecycleBar stageCounts={stageCounts} stageScores={stageScores} />
 
       {/* 信号分布统计 */}
       <div className={s.overviewCard} style={{ textAlign: 'center' }}>
@@ -395,7 +442,7 @@ function SectorList({ items }: { items: SectorScore[] }) {
             {SIGNAL_LABEL[it.signal]}
           </span>
           <span className={s.sectorScore}>{(it.total_score ?? 0).toFixed(1)}分</span>
-          <span className={s.sectorStage}>{it.stage}</span>
+          <span className={s.sectorStage}>{mapStage(it.stage)}</span>
           {it.leading_stock && (
             <span className={s.sectorLeader}>{it.leading_stock}</span>
           )}
@@ -676,7 +723,7 @@ function LimitStatsPanel({ scores }: { scores: SectorScore[] }) {
   const stageGroups = useMemo(() => {
     const map = new Map<string, SectorScore[]>();
     for (const sc of scores) {
-      const key = sc.stage || '未知';
+      const key = mapStage(sc.stage) || '未知';
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(sc);
     }

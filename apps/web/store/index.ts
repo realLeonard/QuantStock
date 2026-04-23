@@ -431,11 +431,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         else g.avoid++;
         if (r.total_score != null) g.scores.push(r.total_score);
         if (r.confidence != null) g.confidences.push(r.confidence);
-        const st = r.stage || '观察';
+        const stageMap: Record<string, string> = {
+          '吸筹期': '萌芽', '启动期': '启动', '发酵期': '发酵',
+          '主升期': '主升', '见顶期': '分歧', '调整期': '退潮', '观察期': '观察',
+        };
+        const st = stageMap[r.stage ?? ''] || r.stage || '观察';
         g.stage_counts[st] = (g.stage_counts[st] || 0) + 1;
         g.sectors.push({
           sector_name: r.sector_name, signal: r.signal,
-          total_score: r.total_score ?? 0, stage: st,
+          total_score: r.total_score ?? 0, stage: st as string,
           leading_stock: r.leading_stock ?? null, rank: r.rank ?? 999,
         });
       }

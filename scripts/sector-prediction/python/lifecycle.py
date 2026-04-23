@@ -5,11 +5,11 @@
 | 阶段   | 系数 | 判断条件                                          |
 |--------|------|---------------------------------------------------|
 | 见顶期 | 0.7  | 断板/极度过热/连涨5天+振幅异常/涨>5%但资金流出    |
-| 调整期 | 0.8  | 涨停减少无接力/连续流出+下跌/跌破MA5且MA5<MA10    |
+| 调整期 | 0.8  | 涨停减少无接力/曾活跃+流出下跌/曾活跃+MA空头      |
 | 主升期 | 0.9  | 涨停≥3且最高板≥3/5日涨>5%+量放大+连续3天流入      |
 | 发酵期 | 1.0  | 涨停增加+出现2板/成交量放大>50%+上涨2-4天          |
-| 启动期 | 1.1  | 首板从无到有/MA5刚上穿MA10+量放大/首次突破20日高点 |
-| 吸筹期 | 1.2  | 无涨停+资金连续3天递增流入+价格中位+振幅收敛       |
+| 启动期 | 1.1  | 首板从无到有/MA5刚上穿MA10+量放大/低位整理+向上异动 |
+| 吸筹期 | 1.2  | 无涨停+加权打分≥3(流入+位置+振幅+成交)             |
 | 观察期 | 1.0  | 默认                                              |
 """
 
@@ -196,18 +196,23 @@ def detect_lifecycle(
         return '见顶期', 0.7
 
     # ---- 调整期 (0.8) ----
-    # ①涨停数减少+无新首板接力
+    # 前置：近10日收盘价曾到过20日区间60%以上（证明之前涨过）
+    recent_10_closes = closes[-10:]
+    peak_position = (max(recent_10_closes) - low_20d) / price_range if price_range > 0 else 0.5
+    was_active = peak_position > 0.6
+
+    # ①涨停数减少+无新首板接力（自带活跃证据，不需要 was_active）
     if (yesterday_stat['count'] > 0
             and today_stat['count'] < yesterday_stat['count']
             and today_stat['count'] == 0):
         return '调整期', 0.8
 
-    # ②连续2天流出+近5日涨幅<0
-    if consecutive_outflow >= 2 and cum_change_5d < 0:
+    # ②连续2天流出+近5日涨幅<0（需证明之前活跃过）
+    if was_active and consecutive_outflow >= 2 and cum_change_5d < 0:
         return '调整期', 0.8
 
-    # ③跌破MA5且MA5<MA10
-    if closes[-1] < ma5 and ma5 < ma10:
+    # ③跌破MA5且MA5<MA10（需证明之前活跃过）
+    if was_active and closes[-1] < ma5 and ma5 < ma10:
         return '调整期', 0.8
 
     # ---- 主升期 (0.9) ----
@@ -240,22 +245,41 @@ def detect_lifecycle(
         if prev_ma5 <= prev_ma10 and ma5 > ma10 and vol_expand > 0.2:
             return '启动期', 1.1
 
-    # ③首次突破20日高点
-    if len(closes) >= 2 and closes[-2] < high_20d and closes[-1] >= high_20d * 0.98:
+    # ③低位整理后向上异动
+    ma5_position = (mean(closes[-5:]) - low_20d) / price_range if price_range > 0 else 0.5
+    amp_5d = mean(amplitudes[-5:]) if len(amplitudes) >= 5 else amp_recent
+    amp_converging = amp_5d < amp_avg * 0.7 if amp_avg > 0 else False
+    if (ma5_position < 0.4
+            and amp_converging
+            and today_change > 1
+            and vol_expand > 0.2):
         return '启动期', 1.1
 
     # ---- 吸筹期 (1.2) ----
-    # 无涨停 + 资金连续3天流入(递增) + 价格在0.3-0.6 + 振幅收敛 + 成交额>中位数
-    amp_convergence = amp_recent < amp_avg * 0.7 if amp_avg > 0 else False
-    today_turnover = turnovers[-1] if turnovers else 0
-
-    if (today_stat['count'] == 0
-            and consecutive_inflow >= 3
-            and inflow_increasing
-            and 0.3 <= position <= 0.6
-            and amp_convergence
-            and today_turnover > turnover_median):
-        return '吸筹期', 1.2
+    # 无涨停为前提，其余条件加权打分≥3分
+    if today_stat['count'] == 0:
+        absorb_score = 0
+        # 资金连续流入（2天+1，3天+2）
+        if consecutive_inflow >= 3:
+            absorb_score += 2
+        elif consecutive_inflow >= 2:
+            absorb_score += 1
+        # 流入递增
+        if inflow_increasing and consecutive_inflow >= 3:
+            absorb_score += 1
+        # 价格中低位
+        if 0.25 <= position <= 0.65:
+            absorb_score += 1
+        # 振幅收敛
+        amp_conv = amp_recent < amp_avg * 0.8 if amp_avg > 0 else False
+        if amp_conv:
+            absorb_score += 1
+        # 成交活跃
+        today_turnover = turnovers[-1] if turnovers else 0
+        if today_turnover > turnover_median * 0.8:
+            absorb_score += 1
+        if absorb_score >= 3:
+            return '吸筹期', 1.2
 
     # ---- 观察期 (1.0) ----
     return '观察期', 1.0

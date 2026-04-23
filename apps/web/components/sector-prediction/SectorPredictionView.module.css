@@ -446,6 +446,34 @@
   align-self: center;
   margin-top: 20px;
 }
+.lifecycleExpand {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-top: 8px;
+}
+.lifecycleExpandHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+  margin-bottom: 8px;
+}
+.lifecycleExpandClose {
+  background: none;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 4px;
+  padding: 2px 10px;
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+  cursor: pointer;
+}
+.lifecycleExpandClose:hover {
+  background: var(--hover-bg, #f8fafc);
+}
 @media (max-width: 768px) {
   .lifecycleBar {
     justify-content: flex-start;
