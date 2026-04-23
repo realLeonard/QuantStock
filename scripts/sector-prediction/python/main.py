@@ -6,6 +6,7 @@
 4. 汇总日志
 """
 
+import argparse
 import os
 import sys
 from pathlib import Path
@@ -33,19 +34,25 @@ def get_today_bj() -> str:
 
 
 def main():
+    parser = argparse.ArgumentParser(description='板块预测系统 — 每日增量采集')
+    parser.add_argument('--date', type=str, default=None, help='指定采集日期（YYYY-MM-DD），默认为今天')
+    args = parser.parse_args()
+
     print('=' * 60)
     print('板块预测系统 — 每日增量采集')
     print(f'北京时间: {datetime.now(_BJ_TZ).strftime("%Y-%m-%d %H:%M:%S")}')
     print('=' * 60)
 
     force = os.environ.get('FORCE_RUN', '').lower() in ('1', 'true', 'yes')
-    if not is_trading_day_today() and not force:
+    if not is_trading_day_today() and not force and not args.date:
         print('今天不是交易日（周末/法定节假日），跳过采集')
         print('提示: 设置 FORCE_RUN=1 可强制运行')
         return
 
     sb = get_supabase_client()
-    today = get_today_bj()
+    today = args.date or get_today_bj()
+    if args.date:
+        print(f'  指定采集日期: {today}')
 
     # [1/4] 刷新板块列表
     sectors = sync_sector_master(sb)

@@ -32,6 +32,10 @@ on:
         options:
           - 'false'
           - 'true'
+      date:
+        description: '指定采集日期（YYYY-MM-DD），留空=今天。盘前补昨日数据时使用'
+        required: false
+        default: ''
 
 jobs:
   collect:
@@ -61,7 +65,11 @@ jobs:
             python scripts/sector-prediction/python/test_kline.py 2>&1 | tee /tmp/sector-output.log
           else
             echo "=== 每日增量模式 ==="
-            python scripts/sector-prediction/python/main.py 2>&1 | tee /tmp/sector-output.log
+            DATE_ARG=""
+            if [ -n "${{ inputs.date }}" ]; then
+              DATE_ARG="--date ${{ inputs.date }}"
+            fi
+            python scripts/sector-prediction/python/main.py $DATE_ARG 2>&1 | tee /tmp/sector-output.log
           fi
         env:
           PYTHONUNBUFFERED: '1'
