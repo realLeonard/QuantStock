@@ -123,9 +123,12 @@ def _call_claude_policy(all_news: list[dict], sector_name: str) -> float | None:
         text = resp.json()['content'][0]['text'].strip()
         nums = re.findall(r'\d+', text)
         if nums:
-            return float(nums[0])
-    except Exception:
-        pass
+            score = float(nums[0])
+            print(f'    [catalyst] Claude 评分: {sector_name} → {score} ({len(matched)}条新闻)')
+            return score
+        print(f'    [catalyst] Claude 返回无法解析: {sector_name} → "{text[:50]}"')
+    except Exception as e:
+        print(f'    [catalyst] Claude 调用失败: {sector_name} → {e}')
 
     return None
 
@@ -310,6 +313,10 @@ def calc_catalyst_score(
         # 缓存新闻
         if _news_cache is None:
             _news_cache = _get_recent_news(sb, days=3)
+            print(f'  [catalyst] 新闻缓存: {len(_news_cache)} 条')
+            api_key = os.environ.get('ANTHROPIC_AUTH_TOKEN') or os.environ.get('ANTHROPIC_API_KEY')
+            if not api_key:
+                print('  [catalyst] 未配置 ANTHROPIC_AUTH_TOKEN，跳过 Claude NLP')
 
         # 检查该板块是否有新闻
         has_news = any(

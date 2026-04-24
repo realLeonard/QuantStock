@@ -442,6 +442,13 @@ def main():
 
     print(f'  评分完成: {len(scores)} 个板块')
 
+    # Claude AI 调用汇总
+    from scorers.catalyst_scorer import _claude_cache, _news_cache
+    called = sum(1 for v in _claude_cache.values() if v is not None)
+    skipped = sum(1 for v in _claude_cache.values() if v is None)
+    print(f'  [catalyst] Claude 汇总: 调用 {len(_claude_cache)} 个板块'
+          f'（有效 {called}，无结果 {skipped}），新闻 {len(_news_cache or [])} 条')
+
     if not scores:
         print('[error] 无板块评分结果，终止')
         sys.exit(1)
