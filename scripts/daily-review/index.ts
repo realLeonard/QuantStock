@@ -14,7 +14,10 @@ import * as dotenv from 'dotenv';
 import { resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import Anthropic from '@anthropic-ai/sdk';
+import { spawnSync } from 'node:child_process';
+import { writeFileSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import axios from 'axios';
 import { isTradingDay } from '../shared/trading-calendar';
 
@@ -402,11 +405,7 @@ async function generateAiAnalysisV2(
   sb: SupabaseClient,
   data: DailyReviewData,
 ): Promise<AiAnalysisV2> {
-  const token = process.env.ANTHROPIC_AUTH_TOKEN ?? process.env.ANTHROPIC_API_KEY ?? '';
-  const baseURL = process.env.ANTHROPIC_BASE_URL ?? undefined;
-  if (!token) throw new Error('缺少 ANTHROPIC_AUTH_TOKEN 环境变量');
-
-  const client = new Anthropic({ apiKey: token, baseURL });
+  // 不再用 SDK，改用 CLI 调用（代理只接受 CLI 请求）
 
   // 加载 v2 新增输入
   console.log('  [ai] 加载 v2 补充数据（韭研涨停原因 / 游资席位 / 昨日复盘 / 情绪历史）...');
@@ -483,21 +482,31 @@ async function generateAiAnalysisV2(
     /* 非关键路径，忽略 */
   }
 
-  console.log('  [ai] 调用 Claude Opus 生成 v2 结构化复盘...');
-  const res = await client.messages.create({
-    model: 'claude-opus-4-20250514',
-    max_tokens: 8192,
-    system: SYSTEM_PROMPT_V2,
-    messages: [
-      {
-        role: 'user',
-        content: `以下是 ${data.report_date} 的 A 股收盘数据，请严格按 JSON schema 返回 v2 结构化分析：\n\n${userContent}`,
-      },
-    ],
-  });
+  console.log('  [ai] 调用 Claude CLI 生成 v2 结构化复盘...');
+  const sysPromptFile = join(tmpdir(), `_daily_review_sys_${Date.now()}.txt`);
+  writeFileSync(sysPromptFile, SYSTEM_PROMPT_V2);
+  const userMsg = `以下是 ${data.report_date} 的 A 股收盘数据，请严格按 JSON schema 返回 v2 结构化分析：\n\n${userContent}`;
 
-  const textBlock = res.content.find(b => b.type === 'text');
-  const rawText = (textBlock as { text?: string } | undefined)?.text ?? '';
+  try {
+    var cliResult = spawnSync(
+      'claude',
+      ['-p', '--no-session-persistence', '--model', 'claude-opus-4-6',
+       '--system-prompt-file', sysPromptFile],
+      {
+        timeout: 300_000,
+        encoding: 'utf8',
+        maxBuffer: 10 * 1024 * 1024,
+        input: userMsg,
+      },
+    );
+  } finally {
+    try { unlinkSync(sysPromptFile); } catch {}
+  }
+  if (cliResult.status !== 0) {
+    const errDetail = cliResult.stderr || cliResult.stdout || '';
+    throw new Error(`CLI 退出码 ${cliResult.status}: ${errDetail.slice(-500)}`);
+  }
+  const rawText = cliResult.stdout;
 
   // 兼容 Claude 可能包裹 ```json```
   let jsonStr = rawText.trim();
