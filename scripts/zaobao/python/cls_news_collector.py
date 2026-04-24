@@ -598,7 +598,7 @@ def collect_limit_up_reasons(sb: Client) -> None:
             cwd=str(project_root / 'scripts' / 'daily-review'),
             capture_output=True,
             text=True,
-            timeout=180,
+            timeout=360,
         )
         if proc.returncode != 0:
             print(f'  [limitUpReasons] Node 脚本失败: {proc.stderr.strip()[-500:]}')
@@ -625,7 +625,7 @@ def collect_limit_up_reasons(sb: Client) -> None:
         )
 
     except subprocess.TimeoutExpired:
-        print('  [limitUpReasons] Node 脚本超时（180s）')
+        print('  [limitUpReasons] Node 脚本超时（360s）')
     except Exception as e:
         print(f'  [limitUpReasons] 采集失败: {e}')
 
