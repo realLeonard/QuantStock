@@ -15,9 +15,6 @@ import { resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { spawnSync } from 'node:child_process';
-import { writeFileSync, unlinkSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import axios from 'axios';
 import { isTradingDay } from '../shared/trading-calendar';
 
@@ -483,25 +480,18 @@ async function generateAiAnalysisV2(
   }
 
   console.log('  [ai] 调用 Claude CLI 生成 v2 结构化复盘...');
-  const sysPromptFile = join(tmpdir(), `_daily_review_sys_${Date.now()}.txt`);
-  writeFileSync(sysPromptFile, SYSTEM_PROMPT_V2);
-  const userMsg = `以下是 ${data.report_date} 的 A 股收盘数据，请严格按 JSON schema 返回 v2 结构化分析：\n\n${userContent}`;
+  const fullPrompt = `${SYSTEM_PROMPT_V2}\n\n---\n\n以下是 ${data.report_date} 的 A 股收盘数据，请严格按 JSON schema 返回 v2 结构化分析：\n\n${userContent}`;
 
-  try {
-    var cliResult = spawnSync(
-      'claude',
-      ['-p', '--no-session-persistence', '--model', 'claude-opus-4-6',
-       '--append-system-prompt-file', sysPromptFile],
-      {
-        timeout: 300_000,
-        encoding: 'utf8',
-        maxBuffer: 10 * 1024 * 1024,
-        input: userMsg,
-      },
-    );
-  } finally {
-    try { unlinkSync(sysPromptFile); } catch {}
-  }
+  var cliResult = spawnSync(
+    'claude',
+    ['-p', '--no-session-persistence', '--model', 'claude-opus-4-6'],
+    {
+      timeout: 300_000,
+      encoding: 'utf8',
+      maxBuffer: 10 * 1024 * 1024,
+      input: fullPrompt,
+    },
+  );
   if (cliResult.status !== 0) {
     const errDetail = cliResult.stderr || cliResult.stdout || '';
     throw new Error(`CLI 退出码 ${cliResult.status}: ${errDetail.slice(-500)}`);
