@@ -491,7 +491,7 @@ async function generateAiAnalysisV2(
     var cliResult = spawnSync(
       'claude',
       ['-p', '--no-session-persistence', '--model', 'claude-opus-4-6',
-       '--system-prompt-file', sysPromptFile],
+       '--append-system-prompt-file', sysPromptFile],
       {
         timeout: 300_000,
         encoding: 'utf8',
