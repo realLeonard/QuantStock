@@ -601,7 +601,7 @@ def collect_limit_up_reasons(sb: Client) -> None:
             timeout=180,
         )
         if proc.returncode != 0:
-            print(f'  [limitUpReasons] Node 脚本失败: {proc.stderr.strip()[:200]}')
+            print(f'  [limitUpReasons] Node 脚本失败: {proc.stderr.strip()[-500:]}')
             return
 
         data = json.loads(proc.stdout)

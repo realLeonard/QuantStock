@@ -106,8 +106,8 @@ async function downloadImage(url: string): Promise<{ buffer: Buffer; mediaType: 
   const isJpeg = head[0] === 0xff && head[1] === 0xd8;
   let mediaType: 'image/png' | 'image/jpeg' = isJpeg ? 'image/jpeg' : 'image/png';
 
-  // 大图压缩：>2MB 时缩到 1200px 宽 JPEG，避免 base64 超出代理限制
-  if (buf.byteLength > 2 * 1024 * 1024) {
+  // 大图压缩：>1.5MB 时缩到 1200px 宽 JPEG，避免 base64 超出代理限制
+  if (buf.byteLength > 1.5 * 1024 * 1024) {
     try {
       const sharp = (await import('sharp')).default;
       const compressed = await sharp(buf)
