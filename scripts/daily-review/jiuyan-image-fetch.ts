@@ -250,19 +250,19 @@ async function parseWithVision(buffer: Buffer, mediaType: 'image/png' | 'image/j
   fs.writeFileSync(tmpImg, buffer);
 
   try {
-    // --bare 跳过 LSP/plugin sync/keychain 等启动开销，避免 CI 无头环境 hang
-    // --bare 只认 ANTHROPIC_API_KEY，需要把 ANTHROPIC_AUTH_TOKEN 映射过去
-    const apiKey = process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY || '';
     const result = spawnSync(
       'claude',
-      ['-p', '--bare', '--model', 'claude-opus-4-6', `_tmp_limit_up${ext}`],
+      ['-p', '--no-session-persistence', '--model', 'claude-opus-4-6', `_tmp_limit_up${ext}`],
       {
         timeout: 300_000,
         encoding: 'utf8',
         maxBuffer: 10 * 1024 * 1024,
         input: PROMPT,
         cwd,
-        env: { ...process.env, ANTHROPIC_API_KEY: apiKey },
+        env: {
+          ...process.env,
+          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+        },
       },
     );
     if (result.status !== 0) {
