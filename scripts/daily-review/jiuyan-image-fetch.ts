@@ -17,7 +17,10 @@
 
 import * as crypto from 'node:crypto';
 import * as https from 'node:https';
-import Anthropic from '@anthropic-ai/sdk';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const SIGN_SECRET = 'Uu0KfOB8iUP69d3c';
 const API_HOST = 'app.jiuyangongshe.com';
@@ -241,33 +244,43 @@ const PROMPT = `这是一张"韭研公社今天涨停复盘简图"的表格图�
 - 输出 JSON 的 themes[i].count 必须等于其 stocks 数组长度（以图片分隔行的 *N 为准时，若实际行数不一致以实际行数为准）`;
 
 async function parseWithVision(buffer: Buffer, mediaType: 'image/png' | 'image/jpeg'): Promise<LimitUpThemeOut[]> {
-  const claude = new Anthropic({ timeout: 180_000, maxRetries: 1 });
-  const base64 = buffer.toString('base64');
+  const ext = mediaType === 'image/jpeg' ? '.jpg' : '.png';
+  const cwd = process.cwd();
+  const tmpImg = path.join(cwd, `_tmp_limit_up${ext}`);
+  fs.writeFileSync(tmpImg, buffer);
 
-  const message = await claude.messages.create({
-    model: 'claude-opus-4-6',
-    max_tokens: 16384,
-    messages: [
+  try {
+    // 通过 Claude Code CLI 调用 Vision（代理只接受 CLI 请求）
+    const result = spawnSync(
+      'claude',
+      ['-p', '--model', 'claude-opus-4-6', `_tmp_limit_up${ext}`],
       {
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
-          { type: 'text', text: PROMPT },
-        ],
+        timeout: 300_000,
+        encoding: 'utf8',
+        maxBuffer: 10 * 1024 * 1024,
+        input: PROMPT,
+        cwd,
+        env: { ...process.env },
       },
-    ],
-  });
+    );
+    if (result.status !== 0) {
+      const errDetail = result.stderr || result.stdout || '';
+      throw new Error(`CLI 退出码 ${result.status}: ${errDetail.slice(-500)}`);
+    }
+    const rawText = result.stdout;
 
-  const rawText = message.content[0].type === 'text' ? message.content[0].text : '';
-  const text = rawText.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '');
-  const startIdx = text.indexOf('{');
-  if (startIdx === -1) throw new Error(`Vision 未返回 JSON：${text.slice(0, 200)}`);
-  let jsonStr = fixInnerQuotes(text.slice(startIdx));
-  jsonStr = trimToJsonEnd(jsonStr);
-  jsonStr = repairTruncatedJson(jsonStr);
+    const text = rawText.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '');
+    const startIdx = text.indexOf('{');
+    if (startIdx === -1) throw new Error(`Vision 未返回 JSON：${text.slice(0, 200)}`);
+    let jsonStr = fixInnerQuotes(text.slice(startIdx));
+    jsonStr = trimToJsonEnd(jsonStr);
+    jsonStr = repairTruncatedJson(jsonStr);
 
-  const parsed = JSON.parse(jsonStr) as { themes?: LimitUpThemeOut[] };
-  return parsed.themes ?? [];
+    const parsed = JSON.parse(jsonStr) as { themes?: LimitUpThemeOut[] };
+    return parsed.themes ?? [];
+  } finally {
+    try { fs.unlinkSync(tmpImg); } catch {}
+  }
 }
 
 async function main() {
