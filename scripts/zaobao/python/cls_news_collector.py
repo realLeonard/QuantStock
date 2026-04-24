@@ -574,8 +574,8 @@ def collect_limit_up_reasons(sb: Client) -> None:
     if not is_trading_day(now_bj.strftime('%Y-%m-%d')):
         print(f'  [limitUpReasons] 非交易日（周末/节假日），跳过')
         return
-    if not (17 <= now_bj.hour < 19):
-        print(f'  [limitUpReasons] 当前 {now_bj.strftime("%H:%M")} BJ，不在 17:00-19:00 窗口，跳过')
+    if not (17 <= now_bj.hour < 20):
+        print(f'  [limitUpReasons] 当前 {now_bj.strftime("%H:%M")} BJ，不在 17:00-20:00 窗口，跳过')
         return
 
     pick_date = now_bj.strftime('%Y-%m-%d')
