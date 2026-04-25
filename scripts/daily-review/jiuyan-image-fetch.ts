@@ -347,7 +347,8 @@ async function main() {
   const imageUrl = await fetchDiagramUrl(date, session);
   console.error(`     → ${imageUrl}`);
 
-  console.error(`[2/2] Claude Opus 4.6 Vision 解析（URL 直传）...`);
+  console.error(`[2/3] 下载图片...`);
+  console.error(`[3/3] Claude Opus 4.6 Vision 解析（本地文件 + Read 工具）...`);
   const themes = await parseWithVision(imageUrl);
 
   // 规范化 count = stocks.length
