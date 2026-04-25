@@ -254,7 +254,7 @@ async function parseWithVision(imageUrl: string): Promise<LimitUpThemeOut[]> {
 
   const result = spawnSync(
     'claude',
-    ['-p', '--no-session-persistence', '--dangerously-skip-permissions', '--model', 'claude-opus-4-6'],
+    ['-p', '--bare', '--no-session-persistence', '--dangerously-skip-permissions', '--model', 'claude-opus-4-6'],
     {
       timeout: 300_000,
       encoding: 'utf8',
