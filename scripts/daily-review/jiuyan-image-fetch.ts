@@ -251,7 +251,7 @@ async function parseWithVision(buffer: Buffer, mediaType: 'image/png' | 'image/j
   try {
     const result = spawnSync(
       'claude',
-      ['-p', '--bare', '--no-session-persistence', '--model', 'claude-opus-4-6', `_tmp_limit_up${ext}`],
+      ['-p', '--no-session-persistence', '--model', 'claude-opus-4-6', `_tmp_limit_up${ext}`],
       {
         timeout: 300_000,
         encoding: 'utf8',
@@ -260,7 +260,6 @@ async function parseWithVision(buffer: Buffer, mediaType: 'image/png' | 'image/j
         cwd,
         env: {
           ...process.env,
-          ANTHROPIC_API_KEY: process.env.ANTHROPIC_AUTH_TOKEN || '',
           CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
         },
       },
