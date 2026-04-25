@@ -58,11 +58,24 @@ jobs:
           JIUYAN_SESSION: ${{ secrets.JIUYAN_SESSION }}
           ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
           ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+          CLAUDE_DEBUG_DIR: ${{ runner.temp }}/claude-debug
         shell: bash
         run: |
+          mkdir -p "$CLAUDE_DEBUG_DIR"
           DATE_ARG="${{ github.event.inputs.date }}"
           if [ -z "$DATE_ARG" ]; then
             DATE_ARG=$(TZ=Asia/Shanghai date +%Y-%m-%d)
           fi
           echo "=== 测试日期: $DATE_ARG ==="
           npx tsx scripts/daily-review/jiuyan-image-fetch.ts "$DATE_ARG" 2>&1
+
+      # 无论上一步是否失败，都把 CLI 的 --debug-file 日志上传成 artifact，
+      # 便于事后定位 hang / 退出码异常 / 模型输出非预期等任意问题。
+      - name: 上传 Claude CLI debug 日志
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-debug-logs
+          path: ${{ runner.temp }}/claude-debug/*.log
+          retention-days: 7
+          if-no-files-found: ignore
