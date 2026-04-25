@@ -32,6 +32,19 @@ jobs:
       - name: 安装 Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code@latest
 
+      - name: 诊断 CLI 环境
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+        shell: bash
+        run: |
+          echo "=== claude 版本 ==="
+          claude --version || echo "claude --version 失败"
+          echo "=== ANTHROPIC_API_KEY 长度: ${#ANTHROPIC_API_KEY} ==="
+          echo "=== ANTHROPIC_BASE_URL: $ANTHROPIC_BASE_URL ==="
+          echo "=== 测试 CLI 管道模式 ==="
+          echo "回复OK" | timeout 30 claude -p --no-session-persistence 2>&1 || echo "CLI 管道测试退出码: $?"
+
       - name: 运行韭研 Vision 解析
         env:
           JIUYAN_SESSION: ${{ secrets.JIUYAN_SESSION }}
