@@ -18,7 +18,7 @@
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as https from 'node:https';
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 
 const SIGN_SECRET = 'Uu0KfOB8iUP69d3c';
 const API_HOST = 'app.jiuyangongshe.com';
@@ -241,36 +241,90 @@ const PROMPT = `这是一张"韭研公社今天涨停复盘简图"的表格图�
 - 若某板块内没有股票，丢弃该板块
 - 输出 JSON 的 themes[i].count 必须等于其 stocks 数组长度（以图片分隔行的 *N 为准时，若实际行数不一致以实际行数为准）`;
 
-async function parseWithVision(imageUrl: string): Promise<LimitUpThemeOut[]> {
-  // 下载原图到本地，让 CLI 用 Read 工具读取（避免 URL 文本无法触发 Vision）
-  const resp = await fetch(imageUrl, { signal: AbortSignal.timeout(30_000) });
-  if (!resp.ok) throw new Error(`图片下载失败 HTTP ${resp.status}`);
-  const buf = Buffer.from(await resp.arrayBuffer());
-  const tmpPath = '/tmp/limit-up-diagram.png';
-  fs.writeFileSync(tmpPath, buf);
-  console.error(`     → 图片已保存到 ${tmpPath} (${(buf.byteLength / 1024).toFixed(0)}KB)`);
+const CLI_TIMEOUT_MS = 300_000;
+const CLI_DEBUG_DIR = process.env.CLAUDE_DEBUG_DIR || '/tmp';
 
-  const fullPrompt = `请用 Read 工具读取图片文件 ${tmpPath}，然后根据图片内容完成以下任务：\n\n${PROMPT}`;
+/**
+ * 用 spawn 调 Claude Code CLI，实时收集 stdout/stderr，
+ * 超时或失败时把 stderr + --debug-file 现场都打印出来，避免黑盒。
+ */
+function runClaudeCli(input: string, args: string[]): Promise<string> {
+  const debugLog = `${CLI_DEBUG_DIR}/claude-debug-${Date.now()}.log`;
+  const fullArgs = [...args, '--debug', '--debug-file', debugLog];
+  console.error(`     → CLI debug 日志: ${debugLog}`);
 
-  const result = spawnSync(
-    'claude',
-    ['-p', '--bare', '--no-session-persistence', '--dangerously-skip-permissions', '--model', 'claude-opus-4-6'],
-    {
-      timeout: 300_000,
-      encoding: 'utf8',
-      maxBuffer: 10 * 1024 * 1024,
-      input: fullPrompt,
+  return new Promise((resolve, reject) => {
+    const child = spawn('claude', fullArgs, {
       env: {
         ...process.env,
         CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
       },
-    },
-  );
-  if (result.status !== 0) {
-    const errDetail = result.stderr || result.stdout || '';
-    throw new Error(`CLI 退出码 ${result.status}: ${errDetail.slice(-500)}`);
-  }
-  const rawText = result.stdout;
+    });
+
+    const stdoutChunks: Buffer[] = [];
+    const stderrChunks: Buffer[] = [];
+
+    child.stdout.on('data', (d: Buffer) => stdoutChunks.push(d));
+    child.stderr.on('data', (d: Buffer) => {
+      stderrChunks.push(d);
+      // stderr 实时转发，CI 日志能边跑边看
+      process.stderr.write(d);
+    });
+
+    const dumpDebug = (label: string) => {
+      try {
+        const debug = fs.readFileSync(debugLog, 'utf8');
+        console.error(`=== ${label} CLI debug 日志末尾 4000 字符 ===\n${debug.slice(-4000)}`);
+      } catch (e) {
+        console.error(`=== ${label} 读取 debug 日志失败: ${(e as Error).message} ===`);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      const stderrStr = Buffer.concat(stderrChunks).toString('utf8');
+      console.error(`=== CLI 超时 ${CLI_TIMEOUT_MS}ms，dump 现场 ===`);
+      console.error(`累积 stderr 末尾 2000 字符:\n${stderrStr.slice(-2000)}`);
+      dumpDebug('超时');
+      child.kill('SIGTERM');
+      // 5 秒后还没退就 SIGKILL
+      setTimeout(() => child.kill('SIGKILL'), 5_000);
+    }, CLI_TIMEOUT_MS);
+
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      reject(new Error(`CLI 启动失败: ${err.message}`));
+    });
+
+    child.on('close', (code, signal) => {
+      clearTimeout(timer);
+      const stdout = Buffer.concat(stdoutChunks).toString('utf8');
+      const stderr = Buffer.concat(stderrChunks).toString('utf8');
+      if (code === 0) {
+        resolve(stdout);
+        return;
+      }
+      dumpDebug('失败');
+      reject(
+        new Error(
+          `CLI 退出码 ${code} 信号 ${signal}\nstderr 末尾 1500 字符:\n${stderr.slice(-1500)}`,
+        ),
+      );
+    });
+
+    child.stdin.write(input);
+    child.stdin.end();
+  });
+}
+
+async function parseWithVision(imageUrl: string): Promise<LimitUpThemeOut[]> {
+  const fullPrompt = `![涨停简图](${imageUrl})\n\n${PROMPT}`;
+  const rawText = await runClaudeCli(fullPrompt, [
+    '-p',
+    '--no-session-persistence',
+    '--dangerously-skip-permissions',
+    '--model',
+    'claude-opus-4-6',
+  ]);
 
   const text = rawText.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '');
   const startIdx = text.indexOf('{');
