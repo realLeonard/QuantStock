@@ -493,6 +493,7 @@ async function generateAiAnalysisV2(
       input: fullPrompt,
       env: {
         ...process.env,
+        ANTHROPIC_API_KEY: process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY || '',
         CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
       },
     },
