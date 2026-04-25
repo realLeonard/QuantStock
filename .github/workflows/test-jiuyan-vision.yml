@@ -42,7 +42,6 @@ jobs:
           cat > ~/.claude/settings.json << EOF
           {
             "env": {
-              "ANTHROPIC_API_KEY": "$ANTHROPIC_AUTH_TOKEN",
               "ANTHROPIC_AUTH_TOKEN": "$ANTHROPIC_AUTH_TOKEN",
               "ANTHROPIC_BASE_URL": "$ANTHROPIC_BASE_URL",
               "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
@@ -51,8 +50,8 @@ jobs:
           EOF
           echo "=== CLI 版本 ==="
           claude --version || true
-          echo "=== 管道测试（--bare）==="
-          echo "回复OK" | timeout 60 claude -p --bare --no-session-persistence 2>&1 || echo "退出码: $?"
+          echo "=== 管道测试 ==="
+          echo "回复OK" | timeout 60 claude -p --no-session-persistence 2>&1 || echo "退出码: $?"
 
       - name: 运行韭研 Vision 解析
         env:
