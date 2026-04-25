@@ -17,8 +17,6 @@
 
 import * as crypto from 'node:crypto';
 import * as https from 'node:https';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const SIGN_SECRET = 'Uu0KfOB8iUP69d3c';
@@ -243,45 +241,40 @@ const PROMPT = `这是一张"韭研公社今天涨停复盘简图"的表格图�
 - 输出 JSON 的 themes[i].count 必须等于其 stocks 数组长度（以图片分隔行的 *N 为准时，若实际行数不一致以实际行数为准）`;
 
 async function parseWithVision(buffer: Buffer, mediaType: 'image/png' | 'image/jpeg'): Promise<LimitUpThemeOut[]> {
-  const ext = mediaType === 'image/jpeg' ? '.jpg' : '.png';
-  const cwd = process.cwd();
-  const tmpImg = path.join(cwd, `_tmp_limit_up${ext}`);
-  fs.writeFileSync(tmpImg, buffer);
+  const b64 = buffer.toString('base64');
+  const dataUri = `data:${mediaType};base64,${b64}`;
+  // 将图片以 data URI 内联到 prompt，避免 CLI 文件参数在管道模式下 hang
+  const fullPrompt = `![涨停简图](${dataUri})\n\n${PROMPT}`;
 
-  try {
-    const result = spawnSync(
-      'claude',
-      ['-p', '--no-session-persistence', '--model', 'claude-opus-4-6', `_tmp_limit_up${ext}`],
-      {
-        timeout: 300_000,
-        encoding: 'utf8',
-        maxBuffer: 10 * 1024 * 1024,
-        input: PROMPT,
-        cwd,
-        env: {
-          ...process.env,
-          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
-        },
+  const result = spawnSync(
+    'claude',
+    ['-p', '--no-session-persistence', '--model', 'claude-opus-4-6'],
+    {
+      timeout: 300_000,
+      encoding: 'utf8',
+      maxBuffer: 10 * 1024 * 1024,
+      input: fullPrompt,
+      env: {
+        ...process.env,
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
       },
-    );
-    if (result.status !== 0) {
-      const errDetail = result.stderr || result.stdout || '';
-      throw new Error(`CLI 退出码 ${result.status}: ${errDetail.slice(-500)}`);
-    }
-    const rawText = result.stdout;
-
-    const text = rawText.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '');
-    const startIdx = text.indexOf('{');
-    if (startIdx === -1) throw new Error(`Vision 未返回 JSON：${text.slice(0, 200)}`);
-    let jsonStr = fixInnerQuotes(text.slice(startIdx));
-    jsonStr = trimToJsonEnd(jsonStr);
-    jsonStr = repairTruncatedJson(jsonStr);
-
-    const parsed = JSON.parse(jsonStr) as { themes?: LimitUpThemeOut[] };
-    return parsed.themes ?? [];
-  } finally {
-    try { fs.unlinkSync(tmpImg); } catch {}
+    },
+  );
+  if (result.status !== 0) {
+    const errDetail = result.stderr || result.stdout || '';
+    throw new Error(`CLI 退出码 ${result.status}: ${errDetail.slice(-500)}`);
   }
+  const rawText = result.stdout;
+
+  const text = rawText.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '');
+  const startIdx = text.indexOf('{');
+  if (startIdx === -1) throw new Error(`Vision 未返回 JSON：${text.slice(0, 200)}`);
+  let jsonStr = fixInnerQuotes(text.slice(startIdx));
+  jsonStr = trimToJsonEnd(jsonStr);
+  jsonStr = repairTruncatedJson(jsonStr);
+
+  const parsed = JSON.parse(jsonStr) as { themes?: LimitUpThemeOut[] };
+  return parsed.themes ?? [];
 }
 
 async function main() {
