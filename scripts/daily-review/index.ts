@@ -481,6 +481,7 @@ async function generateAiAnalysisV2(
 
   console.log('  [ai] 调用 Claude CLI 生成 v2 结构化复盘...');
   const fullPrompt = `${SYSTEM_PROMPT_V2}\n\n---\n\n以下是 ${data.report_date} 的 A 股收盘数据，请严格按 JSON schema 返回 v2 结构化分析：\n\n${userContent}`;
+  console.log(`  [ai] prompt 长度: ${fullPrompt.length} 字符`);
 
   var cliResult = spawnSync(
     'claude',
@@ -490,11 +491,23 @@ async function generateAiAnalysisV2(
       encoding: 'utf8',
       maxBuffer: 10 * 1024 * 1024,
       input: fullPrompt,
+      env: {
+        ...process.env,
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+      },
     },
   );
+
+  console.log(`  [ai] CLI 退出码: ${cliResult.status}, signal: ${cliResult.signal || 'none'}`);
+  console.log(`  [ai] stdout 长度: ${(cliResult.stdout || '').length}, stderr 长度: ${(cliResult.stderr || '').length}`);
+  if (cliResult.stderr) {
+    console.log(`  [ai] stderr: ${cliResult.stderr.slice(-1000)}`);
+  }
   if (cliResult.status !== 0) {
-    const errDetail = cliResult.stderr || cliResult.stdout || '';
-    throw new Error(`CLI 退出码 ${cliResult.status}: ${errDetail.slice(-500)}`);
+    if (cliResult.stdout) {
+      console.log(`  [ai] stdout (前500字): ${cliResult.stdout.slice(0, 500)}`);
+    }
+    throw new Error(`CLI 退出码 ${cliResult.status}: ${(cliResult.stderr || cliResult.stdout || '').slice(-500)}`);
   }
   const rawText = cliResult.stdout;
 
