@@ -17,7 +17,9 @@
 
 import * as crypto from 'node:crypto';
 import * as https from 'node:https';
-import Anthropic from '@anthropic-ai/sdk';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const SIGN_SECRET = 'Uu0KfOB8iUP69d3c';
 const API_HOST = 'app.jiuyangongshe.com';
@@ -241,46 +243,46 @@ const PROMPT = `这是一张"韭研公社今天涨停复盘简图"的表格图�
 - 输出 JSON 的 themes[i].count 必须等于其 stocks 数组长度（以图片分隔行的 *N 为准时，若实际行数不一致以实际行数为准）`;
 
 async function parseWithVision(buffer: Buffer, mediaType: 'image/png' | 'image/jpeg'): Promise<LimitUpThemeOut[]> {
-  const client = new Anthropic({
-    apiKey: process.env.ANTHROPIC_AUTH_TOKEN,
-    baseURL: process.env.ANTHROPIC_BASE_URL || undefined,
-  });
+  const ext = mediaType === 'image/jpeg' ? '.jpg' : '.png';
+  const cwd = process.cwd();
+  const tmpImg = path.join(cwd, `_tmp_limit_up${ext}`);
+  fs.writeFileSync(tmpImg, buffer);
 
-  const response = await client.messages.create({
-    model: 'claude-opus-4-6',
-    max_tokens: 8192,
-    messages: [{
-      role: 'user',
-      content: [
-        {
-          type: 'image',
-          source: {
-            type: 'base64',
-            media_type: mediaType,
-            data: buffer.toString('base64'),
-          },
+  try {
+    const result = spawnSync(
+      'claude',
+      ['-p', '--no-session-persistence', '--model', 'claude-opus-4-6', `_tmp_limit_up${ext}`],
+      {
+        timeout: 300_000,
+        encoding: 'utf8',
+        maxBuffer: 10 * 1024 * 1024,
+        input: PROMPT,
+        cwd,
+        env: {
+          ...process.env,
+          ANTHROPIC_API_KEY: process.env.ANTHROPIC_AUTH_TOKEN || '',
+          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
         },
-        { type: 'text', text: PROMPT },
-      ],
-    }],
-  });
+      },
+    );
+    if (result.status !== 0) {
+      const errDetail = result.stderr || result.stdout || '';
+      throw new Error(`CLI 退出码 ${result.status}: ${errDetail.slice(-500)}`);
+    }
+    const rawText = result.stdout;
 
-  const rawText = response.content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map(b => b.text)
-    .join('');
+    const text = rawText.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '');
+    const startIdx = text.indexOf('{');
+    if (startIdx === -1) throw new Error(`Vision 未返回 JSON：${text.slice(0, 200)}`);
+    let jsonStr = fixInnerQuotes(text.slice(startIdx));
+    jsonStr = trimToJsonEnd(jsonStr);
+    jsonStr = repairTruncatedJson(jsonStr);
 
-  console.error(`     → tokens: input=${response.usage.input_tokens} output=${response.usage.output_tokens}`);
-
-  const text = rawText.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '');
-  const startIdx = text.indexOf('{');
-  if (startIdx === -1) throw new Error(`Vision 未返回 JSON：${text.slice(0, 200)}`);
-  let jsonStr = fixInnerQuotes(text.slice(startIdx));
-  jsonStr = trimToJsonEnd(jsonStr);
-  jsonStr = repairTruncatedJson(jsonStr);
-
-  const parsed = JSON.parse(jsonStr) as { themes?: LimitUpThemeOut[] };
-  return parsed.themes ?? [];
+    const parsed = JSON.parse(jsonStr) as { themes?: LimitUpThemeOut[] };
+    return parsed.themes ?? [];
+  } finally {
+    try { fs.unlinkSync(tmpImg); } catch {}
+  }
 }
 
 async function main() {

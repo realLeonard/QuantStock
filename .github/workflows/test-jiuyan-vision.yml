@@ -29,6 +29,9 @@ jobs:
       - name: 安装 Node 依赖
         run: npm ci
 
+      - name: 安装 Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code@latest
+
       - name: 运行韭研 Vision 解析
         env:
           JIUYAN_SESSION: ${{ secrets.JIUYAN_SESSION }}
