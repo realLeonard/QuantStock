@@ -240,11 +240,8 @@ const PROMPT = `这是一张"韭研公社今天涨停复盘简图"的表格图�
 - 若某板块内没有股票，丢弃该板块
 - 输出 JSON 的 themes[i].count 必须等于其 stocks 数组长度（以图片分隔行的 *N 为准时，若实际行数不一致以实际行数为准）`;
 
-async function parseWithVision(buffer: Buffer, mediaType: 'image/png' | 'image/jpeg'): Promise<LimitUpThemeOut[]> {
-  const b64 = buffer.toString('base64');
-  const dataUri = `data:${mediaType};base64,${b64}`;
-  // 将图片以 data URI 内联到 prompt，避免 CLI 文件参数在管道模式下 hang
-  const fullPrompt = `![涨停简图](${dataUri})\n\n${PROMPT}`;
+async function parseWithVision(imageUrl: string): Promise<LimitUpThemeOut[]> {
+  const fullPrompt = `![涨停简图](${imageUrl})\n\n${PROMPT}`;
 
   const result = spawnSync(
     'claude',
@@ -287,12 +284,8 @@ async function main() {
   const imageUrl = await fetchDiagramUrl(date, session);
   console.error(`     → ${imageUrl}`);
 
-  console.error(`[2/3] 下载图片...`);
-  const { buffer, mediaType } = await downloadImage(imageUrl);
-  console.error(`     → ${(buffer.byteLength / 1024).toFixed(1)}KB ${mediaType}`);
-
-  console.error(`[3/3] Claude Opus 4.6 Vision 解析...`);
-  const themes = await parseWithVision(buffer, mediaType);
+  console.error(`[2/2] Claude Opus 4.6 Vision 解析（URL 直传）...`);
+  const themes = await parseWithVision(imageUrl);
 
   // 规范化 count = stocks.length
   for (const t of themes) t.count = t.stocks.length;
