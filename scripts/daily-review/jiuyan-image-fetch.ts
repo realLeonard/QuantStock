@@ -16,6 +16,7 @@
  */
 
 import * as crypto from 'node:crypto';
+import * as fs from 'node:fs';
 import * as https from 'node:https';
 import { spawnSync } from 'node:child_process';
 
@@ -241,7 +242,15 @@ const PROMPT = `这是一张"韭研公社今天涨停复盘简图"的表格图�
 - 输出 JSON 的 themes[i].count 必须等于其 stocks 数组长度（以图片分隔行的 *N 为准时，若实际行数不一致以实际行数为准）`;
 
 async function parseWithVision(imageUrl: string): Promise<LimitUpThemeOut[]> {
-  const fullPrompt = `![涨停简图](${imageUrl})\n\n${PROMPT}`;
+  // 下载原图到本地临时文件，让 CLI 用 Read 工具读取（避免 base64 超限和网络超时）
+  const resp = await fetch(imageUrl, { signal: AbortSignal.timeout(30_000) });
+  if (!resp.ok) throw new Error(`图片下载失败 HTTP ${resp.status}`);
+  const buf = Buffer.from(await resp.arrayBuffer());
+  const tmpPath = '/tmp/limit-up-diagram.png';
+  fs.writeFileSync(tmpPath, buf);
+  console.error(`     → 图片已保存到 ${tmpPath} (${(buf.byteLength / 1024).toFixed(0)}KB)`);
+
+  const fullPrompt = `请用 Read 工具读取图片文件 ${tmpPath}，然后根据图片内容完成以下任务：\n\n${PROMPT}`;
 
   const result = spawnSync(
     'claude',
@@ -284,7 +293,8 @@ async function main() {
   const imageUrl = await fetchDiagramUrl(date, session);
   console.error(`     → ${imageUrl}`);
 
-  console.error(`[2/2] Claude Opus 4.6 Vision 解析（URL 直传）...`);
+  console.error(`[2/3] 下载图片...`);
+  console.error(`[3/3] Claude Opus 4.6 Vision 解析（本地文件 + Read 工具）...`);
   const themes = await parseWithVision(imageUrl);
 
   // 规范化 count = stocks.length
