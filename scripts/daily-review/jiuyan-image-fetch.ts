@@ -316,12 +316,29 @@ function runClaudeCli(input: string, args: string[]): Promise<string> {
   });
 }
 
+async function downloadImageToTmp(imageUrl: string): Promise<string> {
+  // 复用上面的 downloadImage（自带 >2MB 大图压缩逻辑），再落盘到 /tmp
+  const { buffer, mediaType } = await downloadImage(imageUrl);
+  const ext = mediaType === 'image/jpeg' ? 'jpg' : 'png';
+  const tmpPath = `/tmp/limit-up-diagram-${Date.now()}.${ext}`;
+  fs.writeFileSync(tmpPath, buffer);
+  console.error(`     → 图片已保存到 ${tmpPath} (${(buffer.byteLength / 1024).toFixed(0)}KB)`);
+  return tmpPath;
+}
+
 async function parseWithVision(imageUrl: string): Promise<LimitUpThemeOut[]> {
-  const fullPrompt = `![涨停简图](${imageUrl})\n\n${PROMPT}`;
+  // 先把图片下载到本地，让 CLI 用 Read 工具读取本地文件 —— 链路最短：
+  // 单次 LLM 调用，无 WebFetch + Read 双跳，且不依赖 CLI 对 markdown image 的自动解析
+  const tmpPath = await downloadImageToTmp(imageUrl);
+  const fullPrompt = `请用 Read 工具读取本地图片文件 ${tmpPath}，然后按下方任务要求分析图片内容并输出 JSON：\n\n${PROMPT}`;
   const rawText = await runClaudeCli(fullPrompt, [
     '-p',
     '--no-session-persistence',
     '--dangerously-skip-permissions',
+    // 屏蔽 MCP 自动发现：CI 上 ~/.claude.json 会带入 playwright MCP，污染调用链路
+    '--mcp-config',
+    '{"mcpServers":{}}',
+    '--strict-mcp-config',
     '--model',
     'claude-opus-4-6',
   ]);
@@ -347,7 +364,7 @@ async function main() {
   const imageUrl = await fetchDiagramUrl(date, session);
   console.error(`     → ${imageUrl}`);
 
-  console.error(`[2/3] 下载图片...`);
+  console.error(`[2/3] 下载图片到本地...`);
   console.error(`[3/3] Claude Opus 4.6 Vision 解析（本地文件 + Read 工具）...`);
   const themes = await parseWithVision(imageUrl);
 
