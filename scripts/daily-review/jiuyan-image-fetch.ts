@@ -251,7 +251,7 @@ async function parseWithVision(buffer: Buffer, mediaType: 'image/png' | 'image/j
   try {
     const result = spawnSync(
       'claude',
-      ['-p', '--no-session-persistence', '--model', 'claude-opus-4-6', `_tmp_limit_up${ext}`],
+      ['-p', '--bare', '--no-session-persistence', '--model', 'claude-opus-4-6', `_tmp_limit_up${ext}`],
       {
         timeout: 300_000,
         encoding: 'utf8',

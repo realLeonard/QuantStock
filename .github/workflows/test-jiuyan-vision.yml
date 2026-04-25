@@ -42,8 +42,8 @@ jobs:
           claude --version || echo "claude --version 失败"
           echo "=== ANTHROPIC_API_KEY 长度: ${#ANTHROPIC_API_KEY} ==="
           echo "=== ANTHROPIC_BASE_URL: $ANTHROPIC_BASE_URL ==="
-          echo "=== 测试 CLI 管道模式 ==="
-          echo "回复OK" | timeout 30 claude -p --no-session-persistence 2>&1 || echo "CLI 管道测试退出码: $?"
+          echo "=== 测试 CLI 管道模式（--bare）==="
+          echo "回复OK" | timeout 30 claude -p --bare --no-session-persistence 2>&1 || echo "CLI 管道测试退出码: $?"
 
       - name: 运行韭研 Vision 解析
         env:
