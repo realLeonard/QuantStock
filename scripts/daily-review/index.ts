@@ -485,7 +485,7 @@ async function generateAiAnalysisV2(
 
   var cliResult = spawnSync(
     'claude',
-    ['-p', '--bare', '--no-session-persistence', '--model', 'claude-opus-4-6'],
+    ['-p', '--no-session-persistence', '--model', 'claude-opus-4-6'],
     {
       timeout: 300_000,
       encoding: 'utf8',
