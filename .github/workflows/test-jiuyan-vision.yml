@@ -1,0 +1,47 @@
+name: 测试韭研 Vision 解析
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: '日期（YYYY-MM-DD），留空=今天'
+        required: false
+        default: ''
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  test-vision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 安装 Node 依赖
+        run: npm ci
+
+      - name: 安装 Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code@latest
+
+      - name: 运行韭研 Vision 解析
+        env:
+          JIUYAN_SESSION: ${{ secrets.JIUYAN_SESSION }}
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+        shell: bash
+        run: |
+          DATE_ARG="${{ github.event.inputs.date }}"
+          if [ -z "$DATE_ARG" ]; then
+            DATE_ARG=$(TZ=Asia/Shanghai date +%Y-%m-%d)
+          fi
+          echo "=== 测试日期: $DATE_ARG ==="
+          npx tsx scripts/daily-review/jiuyan-image-fetch.ts "$DATE_ARG" 2>&1
