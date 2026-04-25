@@ -482,6 +482,8 @@ async function generateAiAnalysisV2(
   console.log('  [ai] 调用 Claude CLI 生成 v2 结构化复盘...');
   const fullPrompt = `${SYSTEM_PROMPT_V2}\n\n---\n\n以下是 ${data.report_date} 的 A 股收盘数据，请严格按 JSON schema 返回 v2 结构化分析：\n\n${userContent}`;
   console.log(`  [ai] prompt 长度: ${fullPrompt.length} 字符`);
+  // debug: 保存 prompt 用于离线测试
+  try { require('fs').writeFileSync('/tmp/daily-review-prompt.txt', fullPrompt); } catch {}
 
   var cliResult = spawnSync(
     'claude',

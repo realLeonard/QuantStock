@@ -43,8 +43,9 @@ jobs:
           set -e
           cd /www/wwwroot/quantstock
 
-          # 加载环境变量
+          # 加载环境变量（去掉推送相关）
           set -a && source .env.server && set +a
+          unset WXPUSHER_TOKEN WXPUSHER_UID BARK_KEY
 
           # 拉取最新代码
           git checkout -- package-lock.json 2>/dev/null || true
