@@ -571,14 +571,16 @@ def collect_limit_up_reasons(sb: Client) -> None:
     通过 Node.js 脚本 scripts/daily-review/jiuyan-image-fetch.ts 下载图片并调 Claude Opus 4.6 Vision 解析。
     """
     now_bj = datetime.now(ZoneInfo('Asia/Shanghai'))
-    if not is_trading_day(now_bj.strftime('%Y-%m-%d')):
-        print(f'  [limitUpReasons] 非交易日（周末/节假日），跳过')
-        return
-    if not (17 <= now_bj.hour < 20):
-        print(f'  [limitUpReasons] 当前 {now_bj.strftime("%H:%M")} BJ，不在 17:00-20:00 窗口，跳过')
-        return
+    # TODO: 测试完恢复时间窗口限制
+    # if not is_trading_day(now_bj.strftime('%Y-%m-%d')):
+    #     print(f'  [limitUpReasons] 非交易日（周末/节假日），跳过')
+    #     return
+    # if not (17 <= now_bj.hour < 20):
+    #     print(f'  [limitUpReasons] 当前 {now_bj.strftime("%H:%M")} BJ，不在 17:00-20:00 窗口，跳过')
+    #     return
 
-    pick_date = now_bj.strftime('%Y-%m-%d')
+    # TODO: 测试完恢复为 now_bj.strftime('%Y-%m-%d')
+    pick_date = '2026-04-24'
 
     try:
         # 幂等：已存在则跳过
