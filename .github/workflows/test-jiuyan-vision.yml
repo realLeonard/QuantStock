@@ -39,6 +39,7 @@ jobs:
           echo "=== 任务: $TASK | 日期: $DATE_ARG ==="
 
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
             ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << ENDSSH
           set -e
           cd /www/wwwroot/quantstock
