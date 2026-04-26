@@ -568,8 +568,13 @@ async function main() {
   console.error(`[2/2] 通义千问 VL 解析...`);
   const themes = await parseWithQwen(imageUrl);
 
-  // 规范化 count = stocks.length
-  for (const t of themes) t.count = t.stocks.length;
+  // 规范化：count = stocks.length，code 去掉 .SH/.SZ 后缀
+  for (const t of themes) {
+    t.count = t.stocks.length;
+    for (const s of t.stocks) {
+      s.code = s.code.replace(/\.\w+$/, '');
+    }
+  }
   const totalStocks = themes.reduce((s, t) => s + t.count, 0);
   console.error(`     → ${themes.length} 板块 / ${totalStocks} 股票`);
 
