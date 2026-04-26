@@ -326,6 +326,39 @@ async function downloadImageToTmp(imageUrl: string): Promise<string> {
   return tmpPath;
 }
 
+async function parseWithVision(imageUrl: string): Promise<LimitUpThemeOut[]> {
+  const tmpPath = await downloadImageToTmp(imageUrl);
+
+  // 把 prompt 写到文件，CLI 通过 Read 工具读取（避免 stdin 过大导致 hang）
+  const promptPath = `/tmp/jiuyan-vision-prompt-${Date.now()}.txt`;
+  fs.writeFileSync(promptPath, PROMPT);
+
+  const cliInput = [
+    `请用 Read 工具读取图片文件 ${tmpPath}，`,
+    `然后用 Read 工具读取 ${promptPath} 中的指令，`,
+    `严格按照指令要求输出纯 JSON，不要输出 markdown 代码块或任何前后缀文字。`,
+  ].join('');
+
+  console.error(`     → CLI 输入: ${cliInput.length} 字符`);
+
+  const raw = await runClaudeCli(cliInput, [
+    '-p', '--no-session-persistence',
+    '--allowedTools', 'Read',
+    '--model', 'claude-sonnet-4-6',
+  ]);
+
+  console.error(`     → CLI 返回 ${raw.length} 字符`);
+  const text = raw.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '');
+  const startIdx = text.indexOf('{');
+  if (startIdx === -1) throw new Error(`Vision 未返回 JSON：${text.slice(0, 200)}`);
+  let jsonStr = fixInnerQuotes(text.slice(startIdx));
+  jsonStr = trimToJsonEnd(jsonStr);
+  jsonStr = repairTruncatedJson(jsonStr);
+
+  const parsed = JSON.parse(jsonStr) as { themes?: LimitUpThemeOut[] };
+  return parsed.themes ?? [];
+}
+
 async function parseWithGpt(imageUrl: string): Promise<LimitUpThemeOut[]> {
   const { buffer, mediaType } = await downloadImage(imageUrl);
   const b64 = buffer.toString('base64');
@@ -396,8 +429,8 @@ async function main() {
   console.error(`     → ${imageUrl}`);
 
   console.error(`[2/3] 下载图片...`);
-  console.error(`[3/3] GPT-5.4 Vision 解析...`);
-  const themes = await parseWithGpt(imageUrl);
+  console.error(`[3/3] Claude Vision 解析...`);
+  const themes = await parseWithVision(imageUrl);
 
   // 规范化 count = stocks.length
   for (const t of themes) t.count = t.stocks.length;
