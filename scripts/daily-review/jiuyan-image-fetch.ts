@@ -344,7 +344,7 @@ async function parseWithVision(imageUrl: string): Promise<LimitUpThemeOut[]> {
   const raw = await runClaudeCli(cliInput, [
     '-p', '--no-session-persistence',
     '--allowedTools', 'Read',
-    '--model', 'claude-sonnet-4-6',
+    '--model', 'claude-opus-4-6',
   ]);
 
   console.error(`     → CLI 返回 ${raw.length} 字符`);
