@@ -30,19 +30,11 @@ jobs:
         run: pip install -r requirements.txt
         working-directory: scripts/zaobao/python
 
-      # 第 7 步「采集韭研涨停原因」会通过 npx tsx 调用 scripts/daily-review/jiuyan-image-fetch.ts，
-      # 该脚本依赖 @anthropic-ai/sdk 做 Vision 解析，所以这里需要装 Node 依赖
+      # 第 7 步「采集韭研涨停原因」通过 npx tsx 调用 jiuyan-image-fetch.ts（千问 Vision 解析）
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: 安装 Node 依赖（韭研 Vision 解析 + sharp 图片压缩）
-        run: npm ci
-
-      - name: 安装 Claude Code CLI（韭研 Vision 解析）
-        run: npm install -g @anthropic-ai/claude-code@latest
+          node-version: '22'
 
       - name: 执行快讯采集
         id: collect
@@ -51,8 +43,7 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           BARK_KEY: ${{ secrets.BARK_KEY }}
           JIUYAN_SESSION: ${{ secrets.JIUYAN_SESSION }}
-          ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
-          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
         shell: bash
         run: |
           set -o pipefail
