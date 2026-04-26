@@ -5,6 +5,13 @@ import { fetchExistingThemes, importTheme, updateThemeStocks, updateThemeMeta, c
 
 const isTest = process.argv.includes('--test');
 
+// 判断是否为每日末次运行（23:15 BJ）— 末次运行才对已有主题执行 Vision 解析更新股票池
+// 非末次运行：已有主题只刷元数据（overview/sort_order/title_color），节省 Vision token
+const isLastRun = (() => {
+  const bjHour = new Date(Date.now() + 8 * 3600 * 1000).getUTCHours();
+  return bjHour >= 23;
+})();
+
 // 永久跳过的主题 ID（与 smart-sync.ts 保持一致）
 const SKIP_IDS = new Set([
   '7df6369f82f34e15ae1f7f6d6342efa3', // 北交所(251029)：股票过多，手动排除
@@ -30,16 +37,20 @@ interface ItemResult {
 // ─── 主流程 ──────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log(`[韭研公社爬虫] ${isTest ? '测试模式（只处理 1 条新主题）' : '全量同步模式'}`);
+  const modeDesc = isTest
+    ? '测试模式（只处理 1 条新主题）'
+    : isLastRun
+      ? '完整同步模式（末次运行，含 Vision 图片解析）'
+      : '轻量同步模式（非末次，已有主题仅刷元数据）';
+  console.log(`[韭研公社爬虫] ${modeDesc}`);
   console.log('---');
 
   // 启动时检查环境变量，快速定位配置缺失问题
   console.log('环境检查:');
-  console.log(`  SUPABASE_URL        : ${process.env.SUPABASE_URL ? '✅' : '❌ 未设置'}`);
-  console.log(`  SUPABASE_ANON_KEY   : ${process.env.SUPABASE_ANON_KEY ? '✅' : '❌ 未设置'}`);
-  console.log(`  ANTHROPIC_BASE_URL  : ${process.env.ANTHROPIC_BASE_URL ?? '（未设置，使用官方默认）'}`);
-  console.log(`  ANTHROPIC_AUTH_TOKEN: ${process.env.ANTHROPIC_AUTH_TOKEN ? '✅' : '❌ 未设置'}`);
-  console.log(`  JY_TOKEN            : ${process.env.JY_TOKEN ? '✅' : '❌ 未设置'}`);
+  console.log(`  SUPABASE_URL      : ${process.env.SUPABASE_URL ? '✅' : '❌ 未设置'}`);
+  console.log(`  SUPABASE_ANON_KEY : ${process.env.SUPABASE_ANON_KEY ? '✅' : '❌ 未设置'}`);
+  console.log(`  DASHSCOPE_API_KEY : ${process.env.DASHSCOPE_API_KEY ? '✅' : '❌ 未设置'}`);
+  console.log(`  JY_TOKEN          : ${process.env.JY_TOKEN ? '✅' : '❌ 未设置'}`);
   console.log('---');
 
   const [existingThemes, allItems] = await Promise.all([
@@ -117,16 +128,37 @@ async function main() {
       }
     }
 
-    // 第一轮：依次处理需要 Vision 的主题（新增 + 前15重抓）
+    // 第一轮：新增主题始终走完整 Vision 流程
     for (const item of newItems) {
       const pos = posMap.get(item.industry_id) ?? 9999;
       results.push(await processItem(item, 'insert', pos));
       await sleep(1200);
     }
-    for (const item of fullUpdateItemsToProcess) {
-      const pos = posMap.get(item.industry_id)!;
-      results.push(await processItem(item, 'update', pos));
-      await sleep(1200);
+
+    // 已有主题更新：末次运行走 Vision 重抓股票池，非末次仅刷元数据
+    if (isLastRun) {
+      for (const item of fullUpdateItemsToProcess) {
+        const pos = posMap.get(item.industry_id)!;
+        results.push(await processItem(item, 'update', pos));
+        await sleep(1200);
+      }
+    } else if (fullUpdateItemsToProcess.length > 0) {
+      console.log(`\n非末次运行，${fullUpdateItemsToProcess.length} 个已有主题仅刷元数据（跳过 Vision）`);
+      for (const item of fullUpdateItemsToProcess) {
+        const pos = posMap.get(item.industry_id)!;
+        try {
+          await updateThemeMeta(
+            item.industry_id,
+            item.content || '',
+            pos,
+            item.title_red === 1 ? 'red' : null,
+          );
+          console.log(`  [元数据] ${item.title}`);
+        } catch (e) {
+          console.error(`  [元数据失败] ${item.title}: ${(e as Error).message}`);
+        }
+        await sleep(200);
+      }
     }
 
     // 第二轮：重试真正失败的（排除 skipped_empty，它们依靠下次运行自然重试）
@@ -136,7 +168,8 @@ async function main() {
       console.log(`重试 ${toRetry.length} 个失败主题...`);
       await sleep(5_000);
 
-      const itemMap = new Map([...newItems, ...fullUpdateItemsToProcess].map(i => [i.industry_id, i]));
+      const retryPool = isLastRun ? [...newItems, ...fullUpdateItemsToProcess] : [...newItems];
+      const itemMap = new Map(retryPool.map(i => [i.industry_id, i]));
       for (const r of toRetry) {
         const item = itemMap.get(r.id);
         if (!item) continue;
