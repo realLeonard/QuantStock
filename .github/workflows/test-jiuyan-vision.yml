@@ -11,8 +11,13 @@ on:
           - jiuyan-vision
           - daily-review
           - zaobao
+          - theme-sync
       date:
         description: '日期（YYYY-MM-DD），留空=今天'
+        required: false
+        default: ''
+      theme_id:
+        description: '主题 ID（仅 theme-sync 类型需要）'
         required: false
         default: ''
 
@@ -34,6 +39,7 @@ jobs:
         run: |
           TASK="${{ github.event.inputs.task }}"
           DATE_ARG="${{ github.event.inputs.date }}"
+          THEME_ID="${{ github.event.inputs.theme_id }}"
           if [ -z "$DATE_ARG" ]; then
             DATE_ARG=$(TZ=Asia/Shanghai date +%Y-%m-%d)
           fi
@@ -53,6 +59,7 @@ jobs:
           export JIUYAN_SIGN_SECRET="${{ secrets.JIUYAN_SIGN_SECRET }}"
           export DASHSCOPE_API_KEY="${{ secrets.DASHSCOPE_API_KEY }}"
           export ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}"
+          export JY_TOKEN="${{ secrets.JY_TOKEN }}"
           export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 
           # 拉取最新代码
@@ -66,9 +73,17 @@ jobs:
             echo "====== 每日复盘 AI 总结 ======"
             npx tsx scripts/daily-review/index.ts --date "$DATE_ARG" 2>&1
           elif [ "$TASK" = "zaobao" ]; then
-            echo "====== 早报 CLI 测试（仅读库+生成，不采集/不推送）======"
+            echo "====== 早报 CLI 测试 ======"
             npm install --prefix scripts/zaobao 2>&1 || true
             npx tsx scripts/zaobao/test-cli-generate.ts "$DATE_ARG" 2>&1
+          elif [ "$TASK" = "theme-sync" ]; then
+            echo "====== 单概念主题同步 ======"
+            if [ -z "$THEME_ID" ]; then
+              echo "❌ theme-sync 需要填写主题 ID"
+              exit 1
+            fi
+            npm install --prefix scripts/scraper 2>&1 || true
+            npx tsx scripts/scraper/sync-single.ts --id "$THEME_ID" 2>&1
           fi
 
           echo "====== 完成 ======"
