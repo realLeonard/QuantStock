@@ -63,7 +63,7 @@ jobs:
             npx tsx scripts/daily-review/index.ts --date "$DATE_ARG" 2>&1
           elif [ "$TASK" = "zaobao" ]; then
             echo "====== 早报 CLI 测试（仅读库+生成，不采集/不推送）======"
-            cd scripts/zaobao && npm install && cd ../..
+            npm install --prefix scripts/zaobao 2>&1 || true
             npx tsx scripts/zaobao/test-cli-generate.ts "$DATE_ARG" 2>&1
           fi
 
