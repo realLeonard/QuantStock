@@ -1,4 +1,4 @@
-name: 手动测试（韭研Vision / 每日复盘）
+name: 手动测试（韭研Vision / 每日复盘 / 早报CLI）
 
 on:
   workflow_dispatch:
@@ -10,6 +10,7 @@ on:
         options:
           - jiuyan-vision
           - daily-review
+          - zaobao
       date:
         description: '日期（YYYY-MM-DD），留空=今天'
         required: false
@@ -60,6 +61,10 @@ jobs:
           elif [ "$TASK" = "daily-review" ]; then
             echo "====== 每日复盘 AI 总结 ======"
             npx tsx scripts/daily-review/index.ts --date "$DATE_ARG" 2>&1
+          elif [ "$TASK" = "zaobao" ]; then
+            echo "====== 早报 CLI 测试（仅读库+生成，不采集/不推送）======"
+            cd scripts/zaobao && npm install && cd ../..
+            npx tsx scripts/zaobao/test-cli-generate.ts "$DATE_ARG" 2>&1
           fi
 
           echo "====== 完成 ======"
