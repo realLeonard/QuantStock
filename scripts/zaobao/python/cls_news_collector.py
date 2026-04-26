@@ -568,19 +568,17 @@ def collect_limit_up_reasons(sb: Client) -> None:
     幂等：当日已有记录则跳过。
 
     数据源：韭研公社「涨停简图」PNG（每日收盘后生成）
-    通过 Node.js 脚本 scripts/daily-review/jiuyan-image-fetch.ts 下载图片并调 Claude Opus 4.6 Vision 解析。
+    通过 Node.js 脚本 scripts/daily-review/jiuyan-image-fetch.ts 调通义千问 Vision 解析。
     """
     now_bj = datetime.now(ZoneInfo('Asia/Shanghai'))
-    # TODO: 测试完恢复时间窗口限制
-    # if not is_trading_day(now_bj.strftime('%Y-%m-%d')):
-    #     print(f'  [limitUpReasons] 非交易日（周末/节假日），跳过')
-    #     return
-    # if not (17 <= now_bj.hour < 20):
-    #     print(f'  [limitUpReasons] 当前 {now_bj.strftime("%H:%M")} BJ，不在 17:00-20:00 窗口，跳过')
-    #     return
+    if not is_trading_day(now_bj.strftime('%Y-%m-%d')):
+        print(f'  [limitUpReasons] 非交易日（周末/节假日），跳过')
+        return
+    if not (17 <= now_bj.hour < 20):
+        print(f'  [limitUpReasons] 当前 {now_bj.strftime("%H:%M")} BJ，不在 17:00-20:00 窗口，跳过')
+        return
 
-    # TODO: 测试完恢复为 now_bj.strftime('%Y-%m-%d')
-    pick_date = '2026-04-24'
+    pick_date = now_bj.strftime('%Y-%m-%d')
 
     try:
         # 幂等：已存在则跳过
