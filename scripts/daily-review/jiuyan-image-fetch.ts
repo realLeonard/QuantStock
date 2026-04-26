@@ -326,23 +326,54 @@ async function downloadImageToTmp(imageUrl: string): Promise<string> {
   return tmpPath;
 }
 
-async function parseWithVision(imageUrl: string): Promise<LimitUpThemeOut[]> {
-  // 先把图片下载到本地，让 CLI 用 Read 工具读取本地文件 —— 链路最短：
-  // 单次 LLM 调用，无 WebFetch + Read 双跳，且不依赖 CLI 对 markdown image 的自动解析
-  const tmpPath = await downloadImageToTmp(imageUrl);
-  const fullPrompt = `请用 Read 工具读取本地图片文件 ${tmpPath}，然后按下方任务要求分析图片内容并输出 JSON：\n\n${PROMPT}`;
-  const rawText = await runClaudeCli(fullPrompt, [
-    '-p',
-    '--no-session-persistence',
-    '--dangerously-skip-permissions',
-    // 屏蔽 MCP 自动发现：CI 上 ~/.claude.json 会带入 playwright MCP，污染调用链路
-    '--mcp-config',
-    '{"mcpServers":{}}',
-    '--strict-mcp-config',
-    '--model',
-    'claude-opus-4-6',
-  ]);
+async function parseWithGpt(imageUrl: string): Promise<LimitUpThemeOut[]> {
+  const { buffer, mediaType } = await downloadImage(imageUrl);
+  const b64 = buffer.toString('base64');
+  console.error(`     → base64 长度: ${(b64.length / 1024).toFixed(0)}KB`);
 
+  const baseUrl = process.env.ANTHROPIC_BASE_URL;
+  const token = process.env.ANTHROPIC_AUTH_TOKEN;
+  if (!baseUrl || !token) throw new Error('缺少 ANTHROPIC_BASE_URL 或 ANTHROPIC_AUTH_TOKEN');
+
+  const body = JSON.stringify({
+    model: 'gpt-5.4',
+    stream: true,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: PROMPT },
+          { type: 'image_url', image_url: { url: `data:${mediaType};base64,${b64}` } },
+        ],
+      },
+    ],
+    max_tokens: 8192,
+  });
+
+  const resp = await fetch(`${baseUrl}/v1/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body,
+    signal: AbortSignal.timeout(300_000),
+  });
+  if (!resp.ok) throw new Error(`GPT API 错误 HTTP ${resp.status}: ${await resp.text()}`);
+
+  // 解析 SSE 流，拼接 content
+  const rawResp = await resp.text();
+  let rawText = '';
+  for (const line of rawResp.split('\n')) {
+    if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
+    try {
+      const chunk = JSON.parse(line.slice(6));
+      const content = chunk.choices?.[0]?.delta?.content;
+      if (content) rawText += content;
+    } catch {}
+  }
+
+  console.error(`     → GPT 返回 ${rawText.length} 字符`);
   const text = rawText.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '');
   const startIdx = text.indexOf('{');
   if (startIdx === -1) throw new Error(`Vision 未返回 JSON：${text.slice(0, 200)}`);
@@ -364,9 +395,9 @@ async function main() {
   const imageUrl = await fetchDiagramUrl(date, session);
   console.error(`     → ${imageUrl}`);
 
-  console.error(`[2/3] 下载图片到本地...`);
-  console.error(`[3/3] Claude Opus 4.6 Vision 解析（本地文件 + Read 工具）...`);
-  const themes = await parseWithVision(imageUrl);
+  console.error(`[2/3] 下载图片...`);
+  console.error(`[3/3] GPT-5.4 Vision 解析...`);
+  const themes = await parseWithGpt(imageUrl);
 
   // 规范化 count = stocks.length
   for (const t of themes) t.count = t.stocks.length;
