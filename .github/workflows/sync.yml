@@ -16,17 +16,7 @@ jobs:
       - id: check
         shell: bash
         run: |
-          BJ_DOW=$(TZ=Asia/Shanghai date +%u)    # 1..7 (6=Sat, 7=Sun)
-          BJ_HOUR=$(TZ=Asia/Shanghai date +%-H)
-          echo "BJ dow=$BJ_DOW hour=$BJ_HOUR"
-          if [ "$BJ_DOW" -le 5 ]; then
-            echo "run=1" >> "$GITHUB_OUTPUT"
-          elif [ "$BJ_HOUR" = "9" ] || [ "$BJ_HOUR" = "17" ]; then
-            echo "run=1" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=0" >> "$GITHUB_OUTPUT"
-            echo "::notice::周末非 09:15/17:15 时段，跳过本次同步（BJ 周${BJ_DOW} ${BJ_HOUR}:15）"
-          fi
+          echo "run=1" >> "$GITHUB_OUTPUT"
 
   sync:
     needs: gate
