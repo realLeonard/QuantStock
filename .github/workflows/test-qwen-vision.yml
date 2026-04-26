@@ -1,0 +1,29 @@
+name: 临时测试 Qwen Vision（验证后删除）
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 安装依赖
+        run: npm install
+        working-directory: scripts/scraper
+
+      - name: 测试 Qwen Vision 解析
+        env:
+          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+          JY_TOKEN: ${{ secrets.JY_TOKEN }}
+        run: npx tsx test-vision-sample.ts
+        working-directory: scripts/scraper
