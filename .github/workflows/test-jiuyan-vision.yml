@@ -1,4 +1,4 @@
-name: 手动测试（韭研Vision / 每日复盘 / 早报CLI）
+name: 手动测试（韭研涨停图/每日复盘/每日早报/概念主题）
 
 on:
   workflow_dispatch:
