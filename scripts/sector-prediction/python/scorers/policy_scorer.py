@@ -3,13 +3,9 @@
 子因子：
   1. 相关新闻数量          — 30分
   2. 新闻等级权重          — 30分
-  3. Claude NLP 解读       — 40分
+  3. Claude NLP 解读       — 40分（通过 Claude CLI + Opus 模型）
 
 数据源：newsItems_cls 近3天
-Claude 调用方式：
-  1. 先关键词匹配，筛出有新闻关联的板块
-  2. 将全部 A 级新闻 + 补充 B 级新闻（凑够上限）打包
-  3. 只让 Claude 评估有新闻关联的板块，减少 token
 """
 
 from __future__ import annotations
@@ -17,7 +13,12 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from utils import call_claude_cli
 
 _BJ_TZ = timezone(timedelta(hours=8))
 
@@ -131,15 +132,12 @@ def _call_claude_nlp(
     sectors_with_news: list[str],
 ) -> dict[str, float]:
     """
-    调用 Claude API 批量评估新闻对板块的利好/利空。
+    通过 Claude CLI (Opus) 批量评估新闻对板块的利好/利空。
     只评估有新闻关联的板块。
     返回 {sector_name: nlp_score(0-100)}
     """
-    api_key = os.environ.get('ANTHROPIC_AUTH_TOKEN') or os.environ.get('ANTHROPIC_API_KEY')
-    base_url = os.environ.get('ANTHROPIC_BASE_URL', 'https://api.anthropic.com')
-
-    if not api_key:
-        print('  [policy] 未配置 ANTHROPIC_AUTH_TOKEN，跳过 Claude NLP 评分')
+    if not os.environ.get('ANTHROPIC_API_KEY'):
+        print('  [policy] 未配置 ANTHROPIC_API_KEY，跳过 Claude NLP 评分')
         return {}
 
     if not sectors_with_news:
@@ -165,29 +163,12 @@ def _call_claude_nlp(
 直接返回 JSON，不要其他文字。"""
 
     try:
-        import httpx
-        resp = httpx.post(
-            f'{base_url}/v1/messages',
-            headers={
-                'x-api-key': api_key,
-                'anthropic-version': '2023-06-01',
-                'content-type': 'application/json',
-            },
-            json={
-                'model': 'claude-sonnet-4-20250514',
-                'max_tokens': 2000,
-                'messages': [{'role': 'user', 'content': prompt}],
-            },
-            timeout=60,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        text = data['content'][0]['text'].strip()
-
+        text = call_claude_cli(prompt, label='policy-nlp', timeout=120)
         json_match = re.search(r'\{[\s\S]*\}', text)
         if json_match:
             scores = json.loads(json_match.group())
             return {k: float(v) for k, v in scores.items() if isinstance(v, (int, float))}
+        print(f'  [policy] Claude 返回无法解析 JSON: {text[:100]}')
     except Exception as e:
         print(f'  [policy] Claude NLP 调用失败: {e}')
 

@@ -79,9 +79,14 @@ jobs:
           INIT_DAYS: ${{ inputs.init_days }}
           FORCE_RUN: ${{ inputs.force_run }}
 
-      - name: 安装评分依赖
+      - uses: actions/setup-node@v4
         if: success() && inputs.mode == 'daily'
-        run: pip install httpx
+        with:
+          node-version: '22'
+
+      - name: 安装 Claude CLI
+        if: success() && inputs.mode == 'daily'
+        run: npm install -g @anthropic-ai/claude-code
 
       - name: 运行评分（含回填+6维评分+市场分级+生命周期）
         if: success() && inputs.mode == 'daily'
@@ -92,13 +97,8 @@ jobs:
           PYTHONUNBUFFERED: '1'
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
-          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
-
-      - uses: actions/setup-node@v4
-        if: success() && inputs.mode == 'daily'
-        with:
-          node-version: '20'
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
 
       - name: 推送评分结果
         if: success() && inputs.mode == 'daily'

@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from utils import clamp, match_sector_name, normalize_sector_name, mean
+from utils import call_claude_cli, clamp, match_sector_name, normalize_sector_name, mean
 
 _BJ_TZ = timezone(timedelta(hours=8))
 
@@ -73,13 +73,10 @@ def _keyword_match(sector_name: str, text: str) -> bool:
 
 
 def _call_claude_policy(all_news: list[dict], sector_name: str) -> float | None:
-    """调用 Claude 评估新闻对该板块的利好/利空程度"""
-    api_key = os.environ.get('ANTHROPIC_AUTH_TOKEN') or os.environ.get('ANTHROPIC_API_KEY')
-    base_url = os.environ.get('ANTHROPIC_BASE_URL', 'https://api.anthropic.com')
-    if not api_key:
+    """通过 Claude CLI (Opus) 评估新闻对该板块的利好/利空程度"""
+    if not os.environ.get('ANTHROPIC_API_KEY'):
         return None
 
-    # 筛选与该板块相关的新闻
     matched = []
     for n in all_news:
         text = (n.get('title') or '') + (n.get('summary') or '')
@@ -104,23 +101,7 @@ def _call_claude_policy(all_news: list[dict], sector_name: str) -> float | None:
 只返回数字，不要其他文字。"""
 
     try:
-        import httpx
-        resp = httpx.post(
-            f'{base_url}/v1/messages',
-            headers={
-                'x-api-key': api_key,
-                'anthropic-version': '2023-06-01',
-                'content-type': 'application/json',
-            },
-            json={
-                'model': 'claude-sonnet-4-20250514',
-                'max_tokens': 100,
-                'messages': [{'role': 'user', 'content': prompt}],
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        text = resp.json()['content'][0]['text'].strip()
+        text = call_claude_cli(prompt, label=f'catalyst-{sector_name}', timeout=60)
         nums = re.findall(r'\d+', text)
         if nums:
             score = float(nums[0])
@@ -314,9 +295,8 @@ def calc_catalyst_score(
         if _news_cache is None:
             _news_cache = _get_recent_news(sb, days=3)
             print(f'  [catalyst] 新闻缓存: {len(_news_cache)} 条')
-            api_key = os.environ.get('ANTHROPIC_AUTH_TOKEN') or os.environ.get('ANTHROPIC_API_KEY')
-            if not api_key:
-                print('  [catalyst] 未配置 ANTHROPIC_AUTH_TOKEN，跳过 Claude NLP')
+            if not os.environ.get('ANTHROPIC_API_KEY'):
+                print('  [catalyst] 未配置 ANTHROPIC_API_KEY，跳过 Claude NLP')
 
         # 检查该板块是否有新闻
         has_news = any(
