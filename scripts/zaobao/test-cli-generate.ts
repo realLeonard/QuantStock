@@ -1,7 +1,7 @@
 /**
  * 早报 CLI 测试脚本
- * 只做：读数据库 → 组装 prompt → 调 Claude CLI 生成 → 输出到 stdout
- * 不做：数据采集、保存 DB、推送通知
+ * 读数据库 → 组装 prompt → 调 Claude CLI 生成 → 输出到 stdout → 写入 dailyReport
+ * 不做：数据采集、推送通知
  *
  * 用法：npx tsx test-cli-generate.ts [YYYY-MM-DD]
  */
@@ -11,6 +11,7 @@ import * as fs from 'node:fs';
 import { resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { SYSTEM_PROMPT, buildUserPrompt } from './prompts';
 import { formatReviewForZaobao, type DailyReviewRow, type LimitUpReasonsRow } from './formatters/review-data';
@@ -157,7 +158,7 @@ async function main() {
   console.error(`\n[test-cli] 日期: ${date}，类型: ${reportType}`);
 
   // Step 1: 读取数据库
-  console.error('[1/4] 读取数据库...');
+  console.error('[1/5] 读取数据库...');
 
   let dataDate = date;
   if (reportType === 'weekly') {
@@ -199,7 +200,7 @@ async function main() {
   console.error(`  复盘数据: ${reviewDate ?? '无'}`);
 
   // Step 2: 组装 prompt
-  console.error('[2/4] 组装 prompt...');
+  console.error('[2/5] 组装 prompt...');
   const userPrompt = buildUserPrompt({
     date, reportType, aShareData, intlData, macroData,
     newsItems, breadthHistory, previousSummary,
@@ -213,7 +214,7 @@ async function main() {
   console.error(`  prompt 长度: ${fullPrompt.length} 字符，已写入 ${promptPath}`);
 
   // Step 3: 调用 Claude CLI
-  console.error('[3/4] 调用 Claude CLI (claude-opus-4-6)...');
+  console.error('[3/5] 调用 Claude CLI (claude-opus-4-6)...');
   const cliInput = `请用 Read 工具读取文件 ${promptPath}，然后严格按照文件中的指令要求生成投资早报。直接输出早报内容，不要输出 markdown 代码块包裹。`;
 
   const startMs = Date.now();
@@ -245,8 +246,51 @@ async function main() {
 
   // Step 4: 输出结果
   const output = result.stdout.trim();
-  console.error(`[4/4] 生成完成，输出 ${output.length} 字符\n`);
+  console.error(`[4/5] 生成完成，输出 ${output.length} 字符\n`);
   console.log(output);
+
+  // Step 5: 写入 DB（upsert，存在则更新，不存在则新增）
+  console.error('[5/5] 写入 dailyReport...');
+  const summaryMatch = output.match(/①\s*\*{0,2}【市场基调】\*{0,2}([^\n]+)/);
+  let summary: string;
+  if (summaryMatch) {
+    summary = summaryMatch[1].replace(/\*\*/g, '').trim();
+    if (summary.length < 50) {
+      const afterIdx = output.indexOf(summaryMatch[0]) + summaryMatch[0].length;
+      const remaining = output.slice(afterIdx).split('\n');
+      for (const line of remaining) {
+        const cleaned = line.replace(/\*\*/g, '').replace(/^[②③④⑤⑥⑦⑧⑨⑩]\s*/, '').replace(/【.*?】/g, '').trim();
+        if (cleaned.length > 10 && !/^[━─\-*#>|]/.test(cleaned)) {
+          summary += '。' + cleaned;
+          if (summary.length >= 120) break;
+        }
+      }
+      summary = summary.slice(0, 200);
+    }
+  } else {
+    summary = output.replace(/\*\*/g, '').slice(0, 120);
+  }
+
+  // CLI 耗时长，先轻量读取刷新 undici 连接池
+  const sbWrite = getSupabase();
+  await sbWrite.from('dailyReport').select('id').limit(1);
+
+  const { error: upsertErr } = await sbWrite
+    .from('dailyReport')
+    .upsert({
+      id: randomUUID(),
+      report_date: date,
+      report_type: reportType,
+      content: output,
+      summary,
+      created_at: Date.now(),
+    }, { onConflict: 'report_date' });
+
+  if (upsertErr) {
+    console.error(`  ✗ 写入失败: ${upsertErr.message}`);
+  } else {
+    console.error(`  ✓ 已保存到 dailyReport（${date}）`);
+  }
 }
 
 main().catch(err => {
