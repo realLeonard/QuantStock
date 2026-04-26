@@ -6,7 +6,7 @@ on:
 jobs:
   collect-and-review:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
       - name: 配置 SSH

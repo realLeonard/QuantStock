@@ -19,7 +19,7 @@ export function callClaude(prompt: string, label: string): string {
     '--allowedTools', 'Read',
     '--model', 'claude-opus-4-6',
   ], {
-    timeout: 600_000,
+    timeout: 900_000,
     encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024,
     input: cliInput,
