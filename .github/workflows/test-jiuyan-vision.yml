@@ -48,6 +48,7 @@ jobs:
           set -a && source .env.server && set +a
           unset WXPUSHER_TOKEN WXPUSHER_UID BARK_KEY
           export JIUYAN_SESSION="${{ secrets.JIUYAN_SESSION }}"
+          export DASHSCOPE_API_KEY="${{ secrets.DASHSCOPE_API_KEY }}"
 
           # 拉取最新代码
           git checkout -- package-lock.json 2>/dev/null || true

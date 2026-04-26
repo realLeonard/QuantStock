@@ -446,6 +446,56 @@ async function parseWithVision(imageUrl: string): Promise<LimitUpThemeOut[]> {
   return merged;
 }
 
+async function parseWithQwen(imageUrl: string): Promise<LimitUpThemeOut[]> {
+  const apiKey = process.env.DASHSCOPE_API_KEY;
+  if (!apiKey) throw new Error('缺少 DASHSCOPE_API_KEY 环境变量');
+
+  const body = JSON.stringify({
+    model: 'qwen3-vl-plus',
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: PROMPT },
+          { type: 'image_url', image_url: { url: imageUrl } },
+        ],
+      },
+    ],
+    max_tokens: 8192,
+  });
+
+  console.error(`     → 调用通义千问 qwen3-vl-plus...`);
+  const resp = await fetch(
+    'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body,
+      signal: AbortSignal.timeout(300_000),
+    },
+  );
+  if (!resp.ok) throw new Error(`Qwen API 错误 HTTP ${resp.status}: ${await resp.text()}`);
+
+  const result = await resp.json() as {
+    choices?: { message?: { content?: string } }[];
+  };
+  const rawText = result.choices?.[0]?.message?.content ?? '';
+
+  console.error(`     → Qwen 返回 ${rawText.length} 字符`);
+  const text = rawText.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '');
+  const startIdx = text.indexOf('{');
+  if (startIdx === -1) throw new Error(`Qwen 未返回 JSON：${text.slice(0, 200)}`);
+  let jsonStr = fixInnerQuotes(text.slice(startIdx));
+  jsonStr = trimToJsonEnd(jsonStr);
+  jsonStr = repairTruncatedJson(jsonStr);
+
+  const parsed = JSON.parse(jsonStr) as { themes?: LimitUpThemeOut[] };
+  return parsed.themes ?? [];
+}
+
 async function parseWithGpt(imageUrl: string): Promise<LimitUpThemeOut[]> {
   const { buffer, mediaType } = await downloadImage(imageUrl);
   const b64 = buffer.toString('base64');
@@ -509,14 +559,14 @@ async function main() {
   const date = process.argv[2] || new Date().toISOString().slice(0, 10);
   const session = process.env.JIUYAN_SESSION;
   if (!session) throw new Error('缺少 JIUYAN_SESSION 环境变量');
-  if (!process.env.ANTHROPIC_AUTH_TOKEN) throw new Error('缺少 ANTHROPIC_AUTH_TOKEN 环境变量');
+  if (!process.env.DASHSCOPE_API_KEY) throw new Error('缺少 DASHSCOPE_API_KEY 环境变量');
 
   console.error(`[1/2] 拉取 ${date} 涨停简图 URL...`);
   const imageUrl = await fetchDiagramUrl(date, session);
   console.error(`     → ${imageUrl}`);
 
-  console.error(`[2/2] 切图 + Claude Vision 并行解析...`);
-  const themes = await parseWithVision(imageUrl);
+  console.error(`[2/2] 通义千问 VL 解析...`);
+  const themes = await parseWithQwen(imageUrl);
 
   // 规范化 count = stocks.length
   for (const t of themes) t.count = t.stocks.length;
