@@ -42,3 +42,7 @@ scripts/scraper/sync-plan.json
 # Coze 敏感凭证
 scripts/coze-report/.coze-cookies.json
 
+# 文档和 SQL 脚本（不入仓库）
+docs/
+*.sql
+
