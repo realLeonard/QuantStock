@@ -482,17 +482,24 @@ async function generateAiAnalysisV2(
   console.log('  [ai] 调用 Claude CLI 生成 v2 结构化复盘...');
   const fullPrompt = `${SYSTEM_PROMPT_V2}\n\n---\n\n以下是 ${data.report_date} 的 A 股收盘数据，请严格按 JSON schema 返回 v2 结构化分析：\n\n${userContent}`;
   console.log(`  [ai] prompt 长度: ${fullPrompt.length} 字符`);
-  // debug: 保存 prompt 用于离线测试
-  try { (await import('fs')).writeFileSync('/tmp/daily-review-prompt.txt', fullPrompt); } catch (e) { console.error('  [debug] prompt dump 失败:', e); }
+  const fs = await import('fs');
+  const promptPath = `/tmp/daily-review-prompt-${Date.now()}.txt`;
+  fs.writeFileSync(promptPath, fullPrompt);
+  console.log(`  [ai] prompt 已写入 ${promptPath}`);
 
+  const cliInput = `请用 Read 工具读取文件 ${promptPath}，然后严格按照文件中的指令要求输出 JSON。不要输出任何 markdown 代码块或前后缀文字，只输出纯 JSON。`;
   var cliResult = spawnSync(
     'claude',
-    ['-p', '--no-session-persistence', '--model', 'claude-opus-4-6'],
+    [
+      '-p', '--no-session-persistence',
+      '--dangerously-skip-permissions',
+      '--model', 'claude-opus-4-6',
+    ],
     {
       timeout: 600_000,
       encoding: 'utf8',
       maxBuffer: 10 * 1024 * 1024,
-      input: fullPrompt,
+      input: cliInput,
       env: {
         ...process.env,
         CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
