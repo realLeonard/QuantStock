@@ -748,7 +748,9 @@ async function main() {
       ].join('\n');
       data.ai_summary = fallbackText;
 
-      const { error } = await sb
+      // CLI 耗时长（~10min），原 sb 连接可能已超时，重新创建客户端写入
+      const sbWrite = getSupabase();
+      const { error } = await sbWrite
         .from('dailyReview')
         .update({ ai_analysis: analysis, ai_summary: fallbackText })
         .eq('id', data.id);
