@@ -489,7 +489,7 @@ async function generateAiAnalysisV2(
     'claude',
     ['-p', '--no-session-persistence', '--model', 'claude-opus-4-6'],
     {
-      timeout: 300_000,
+      timeout: 600_000,
       encoding: 'utf8',
       maxBuffer: 10 * 1024 * 1024,
       input: fullPrompt,
