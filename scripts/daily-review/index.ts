@@ -756,10 +756,13 @@ async function main() {
       ].join('\n');
       data.ai_summary = fallbackText;
 
-      // CLI 耗时长（~10min），连接可能已超时，重建客户端 + 重试
+      // CLI 耗时长（~10min），undici 全局连接池里的连接已死
+      // 先做一次轻量读取刷新连接池，再写入
+      const sbWrite = getSupabase();
+      await sbWrite.from('dailyReview').select('id').limit(1);
+
       let writeOk = false;
       for (let attempt = 1; attempt <= 3; attempt++) {
-        const sbWrite = getSupabase();
         const { error } = await sbWrite
           .from('dailyReview')
           .update({ ai_analysis: analysis, ai_summary: fallbackText })
