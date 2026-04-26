@@ -28,10 +28,10 @@ SUPABASE_SERVICE_KEY=<从 Supabase 控制台 Settings → API 获取 service_rol
 JWT_SECRET=<openssl rand -base64 32 生成>
 
 # CORS 允许的额外来源（逗号分隔）
-ALLOWED_ORIGINS=http://120.77.156.253,http://120.77.156.253:3000
+ALLOWED_ORIGINS=http://<服务器IP>,http://<服务器IP>:3000
 
 # Next.js 前端 - Hono API 地址（Next.js 运行时读取）
-NEXT_PUBLIC_API_BASE_URL=http://120.77.156.253:3001
+NEXT_PUBLIC_API_BASE_URL=http://<服务器IP>:3001
 ```
 
 > ⚠️ service_role key 拥有绕过 RLS 的超级权限，只能在服务端使用，绝不能写入前端代码
@@ -107,7 +107,7 @@ curl http://localhost:3000
 # 管理后台（3000 端口）
 server {
     listen 80;
-    server_name 120.77.156.253;   # 备案后改为域名
+    server_name <服务器IP>;   # 备案后改为域名
 
     location / {
         proxy_pass http://127.0.0.1:3000;
@@ -122,7 +122,7 @@ server {
 # Hono API（3001 端口，移动端直连，也可通过 /api 子路径代理）
 server {
     listen 3001;
-    server_name 120.77.156.253;
+    server_name <服务器IP>;
 
     location / {
         proxy_pass http://127.0.0.1:3001;
@@ -146,7 +146,7 @@ nginx -t && nginx -s reload
 打包前修改 `apps/mobile/.env.production`：
 
 ```env
-VITE_API_BASE_URL=http://120.77.156.253:3001
+VITE_API_BASE_URL=http://<服务器IP>:3001
 ```
 
 重新打包 APK 后安装到设备测试。
@@ -157,27 +157,27 @@ VITE_API_BASE_URL=http://120.77.156.253:3001
 
 ```bash
 # 1. API 健康检查
-curl http://120.77.156.253:3001/api/health
+curl http://<服务器IP>:3001/api/health
 # 预期：{"status":"ok","ts":...}
 
 # 2. 未带 token 访问受保护接口 → 401
-curl http://120.77.156.253:3001/api/themes
+curl http://<服务器IP>:3001/api/themes
 # 预期：{"error":"未授权，缺少 Authorization header"}
 
 # 3. 登录并获取 token
-curl -X POST http://120.77.156.253:3001/api/auth/login \
+curl -X POST http://<服务器IP>:3001/api/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"admin123"}'
+  -d '{"username":"admin","password":"<你的密码>"}'
 # 预期：{"data":{"token":"eyJ...","user":{"username":"admin","role":"admin"}}}
 
 # 4. 带 token 访问主题接口
 TOKEN=<上一步拿到的 token>
-curl http://120.77.156.253:3001/api/themes \
+curl http://<服务器IP>:3001/api/themes \
   -H "Authorization: Bearer $TOKEN"
 # 预期：{"data":[...]}
 
 # 5. 移动端接口（需要有效 Supabase JWT）
-curl -X POST http://120.77.156.253:3001/api/mobile/user/sync \
+curl -X POST http://<服务器IP>:3001/api/mobile/user/sync \
   -H "Authorization: Bearer <supabase_access_token>"
 ```
 

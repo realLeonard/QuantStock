@@ -4,9 +4,10 @@
  * 改用 uni.request 封装，兼容小程序/App/H5 多端
  */
 
-// HBuilderX Vue3 模式下用 import.meta.env，硬编码 fallback 避免 ts 报错
-const SUPABASE_URL = 'https://wtogbmrbcgpmbtybkvle.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_uZ_vO2W3YB0hD3OUVcX76w_XN9NoDn2';
+// @ts-ignore — HBuilderX Vue3 模式下 import.meta.env 可用
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+// @ts-ignore
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 /** 用于存储当前登录用户的 JWT */
 let _accessToken: string | null = null;

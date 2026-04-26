@@ -349,9 +349,7 @@ Web 后台
 - **推送内容：** 全量推送10个模块（后续可简化）
 - **格式：** Markdown（contentType: 3）
 - **复用：** `scripts/zaobao/notify.ts` 的 `sendWxPush()` 函数
-- **配置：**
-  - Token: `AT_ZwHJFTB6epjY2bxftdHzf0DtRsm3JvRs`
-  - UID: `UID_fbyM7USUtlBiPrvLeBbmQJDmuEzh`
+- **配置：** 见 GitHub Secrets（WXPUSHER_TOKEN / WXPUSHER_UID）
 
 ## 五、后台页面
 

@@ -32,7 +32,7 @@ module.exports = {
         // SUPABASE_URL=
         // SUPABASE_SERVICE_KEY=
         // JWT_SECRET=
-        // ALLOWED_ORIGINS=http://120.77.156.253,http://120.77.156.253:3000
+        // ALLOWED_ORIGINS=（在 .env.server 中配置允许的来源域名）
       },
       max_restarts: 10,
       restart_delay: 3000,

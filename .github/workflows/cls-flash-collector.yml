@@ -43,6 +43,7 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           BARK_KEY: ${{ secrets.BARK_KEY }}
           JIUYAN_SESSION: ${{ secrets.JIUYAN_SESSION }}
+          JIUYAN_SIGN_SECRET: ${{ secrets.JIUYAN_SIGN_SECRET }}
           DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
         shell: bash
         run: |

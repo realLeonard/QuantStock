@@ -16,7 +16,7 @@
 import * as crypto from 'node:crypto';
 import * as https from 'node:https';
 
-const SIGN_SECRET = 'Uu0KfOB8iUP69d3c';
+const SIGN_SECRET = process.env.JIUYAN_SIGN_SECRET || '';
 const API_HOST = 'app.jiuyangongshe.com';
 const DIAGRAM_PATH = '/jystock-app/api/v1/action/diagram-url';
 

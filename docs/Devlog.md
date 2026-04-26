@@ -443,7 +443,7 @@ CREATE TABLE "appVersionControl" (
 **背景**：系统原使用硬编码账号（admin/123456）+ sessionStorage，无法支持多人协作，密码明文比对存在安全隐患。
 
 **核心改动**：
-1. **数据库**：新增 `adminUsers` 表（id, username, password_hash, role, created_at），RLS 已开启，初始账号 `admin / admin123`
+1. **数据库**：新增 `adminUsers` 表（id, username, password_hash, role, created_at），RLS 已开启，初始账号 `admin`（密码需自行设置）
 2. **密码安全**：引入 `bcryptjs`（cost=10），彻底替代明文比对
 3. **三角色体系**：viewer（只读）/ editor（增删改）/ admin（全权 + 用户管理）
 4. **新增文件**：
