@@ -316,47 +316,136 @@ function runClaudeCli(input: string, args: string[]): Promise<string> {
   });
 }
 
-async function downloadImageToTmp(imageUrl: string): Promise<string> {
-  // 复用上面的 downloadImage（自带 >2MB 大图压缩逻辑），再落盘到 /tmp
-  const { buffer, mediaType } = await downloadImage(imageUrl);
-  const ext = mediaType === 'image/jpeg' ? 'jpg' : 'png';
-  const tmpPath = `/tmp/limit-up-diagram-${Date.now()}.${ext}`;
-  fs.writeFileSync(tmpPath, buffer);
-  console.error(`     → 图片已保存到 ${tmpPath} (${(buffer.byteLength / 1024).toFixed(0)}KB)`);
-  return tmpPath;
+async function splitAndSaveImages(imageUrl: string): Promise<string[]> {
+  const resp = await fetch(imageUrl, { signal: AbortSignal.timeout(30_000) });
+  if (!resp.ok) throw new Error(`图片下载失败 HTTP ${resp.status}`);
+  const buf = Buffer.from(await resp.arrayBuffer());
+
+  const sharp = (await import('sharp')).default;
+  const meta = await sharp(buf).metadata();
+  const width = meta.width!;
+  const height = meta.height!;
+
+  // 重叠区域约 15% 的高度，确保切割线附近的行在两张图里都完整
+  const overlap = Math.round(height * 0.15);
+  const midPoint = Math.round(height / 2);
+  const topHeight = midPoint + Math.round(overlap / 2);
+  const bottomStart = midPoint - Math.round(overlap / 2);
+  const bottomHeight = height - bottomStart;
+
+  const ts = Date.now();
+  const topPath = `/tmp/limit-up-top-${ts}.png`;
+  const bottomPath = `/tmp/limit-up-bottom-${ts}.png`;
+
+  await sharp(buf)
+    .extract({ left: 0, top: 0, width, height: topHeight })
+    .toFile(topPath);
+  await sharp(buf)
+    .extract({ left: 0, top: bottomStart, width, height: bottomHeight })
+    .toFile(bottomPath);
+
+  const topSize = fs.statSync(topPath).size;
+  const bottomSize = fs.statSync(bottomPath).size;
+  console.error(`     → 原图 ${width}x${height}, 切割点 ${midPoint}px, 重叠 ${overlap}px`);
+  console.error(`     → 上半张: ${topPath} (0~${topHeight}px, ${(topSize / 1024).toFixed(0)}KB)`);
+  console.error(`     → 下半张: ${bottomPath} (${bottomStart}~${height}px, ${(bottomSize / 1024).toFixed(0)}KB)`);
+
+  return [topPath, bottomPath];
 }
 
-async function parseWithVision(imageUrl: string): Promise<LimitUpThemeOut[]> {
-  const tmpPath = await downloadImageToTmp(imageUrl);
-
-  // 把 prompt 写到文件，CLI 通过 Read 工具读取（避免 stdin 过大导致 hang）
-  const promptPath = `/tmp/jiuyan-vision-prompt-${Date.now()}.txt`;
+async function parseImageChunk(
+  imagePath: string,
+  label: string,
+): Promise<LimitUpThemeOut[]> {
+  const promptPath = `/tmp/jiuyan-vision-prompt-${label}-${Date.now()}.txt`;
   fs.writeFileSync(promptPath, PROMPT);
 
   const cliInput = [
-    `请用 Read 工具读取图片文件 ${tmpPath}，`,
+    `请用 Read 工具读取图片文件 ${imagePath}，`,
     `然后用 Read 工具读取 ${promptPath} 中的指令，`,
     `严格按照指令要求输出纯 JSON，不要输出 markdown 代码块或任何前后缀文字。`,
   ].join('');
 
-  console.error(`     → CLI 输入: ${cliInput.length} 字符`);
+  console.error(`     → [${label}] CLI 输入: ${cliInput.length} 字符`);
 
   const raw = await runClaudeCli(cliInput, [
     '-p', '--no-session-persistence',
     '--allowedTools', 'Read',
-    '--model', 'claude-opus-4-6',
+    '--model', 'claude-sonnet-4-6',
   ]);
 
-  console.error(`     → CLI 返回 ${raw.length} 字符`);
+  console.error(`     → [${label}] CLI 返回 ${raw.length} 字符`);
   const text = raw.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '');
   const startIdx = text.indexOf('{');
-  if (startIdx === -1) throw new Error(`Vision 未返回 JSON：${text.slice(0, 200)}`);
+  if (startIdx === -1) throw new Error(`[${label}] Vision 未返回 JSON：${text.slice(0, 200)}`);
   let jsonStr = fixInnerQuotes(text.slice(startIdx));
   jsonStr = trimToJsonEnd(jsonStr);
   jsonStr = repairTruncatedJson(jsonStr);
 
   const parsed = JSON.parse(jsonStr) as { themes?: LimitUpThemeOut[] };
   return parsed.themes ?? [];
+}
+
+function mergeThemes(
+  top: LimitUpThemeOut[],
+  bottom: LimitUpThemeOut[],
+): LimitUpThemeOut[] {
+  const merged: LimitUpThemeOut[] = [];
+  const seenCodes = new Set<string>();
+
+  for (const theme of top) {
+    const deduped: LimitUpStockOut[] = [];
+    for (const s of theme.stocks) {
+      if (!seenCodes.has(s.code)) {
+        seenCodes.add(s.code);
+        deduped.push(s);
+      }
+    }
+    if (deduped.length > 0) {
+      merged.push({ name: theme.name, count: deduped.length, stocks: deduped });
+    }
+  }
+
+  for (const theme of bottom) {
+    const existing = merged.find((m) => m.name === theme.name);
+    const newStocks: LimitUpStockOut[] = [];
+    for (const s of theme.stocks) {
+      if (!seenCodes.has(s.code)) {
+        seenCodes.add(s.code);
+        newStocks.push(s);
+      }
+    }
+    if (newStocks.length === 0) continue;
+    if (existing) {
+      existing.stocks.push(...newStocks);
+      existing.count = existing.stocks.length;
+    } else {
+      merged.push({ name: theme.name, count: newStocks.length, stocks: newStocks });
+    }
+  }
+
+  return merged;
+}
+
+async function parseWithVision(imageUrl: string): Promise<LimitUpThemeOut[]> {
+  const imagePaths = await splitAndSaveImages(imageUrl);
+
+  console.error(`     → 并行解析两张子图...`);
+  const [topThemes, bottomThemes] = await Promise.all([
+    parseImageChunk(imagePaths[0], '上半'),
+    parseImageChunk(imagePaths[1], '下半'),
+  ]);
+
+  const topCount = topThemes.reduce((s, t) => s + t.stocks.length, 0);
+  const bottomCount = bottomThemes.reduce((s, t) => s + t.stocks.length, 0);
+  console.error(`     → 上半: ${topThemes.length} 板块 / ${topCount} 股票`);
+  console.error(`     → 下半: ${bottomThemes.length} 板块 / ${bottomCount} 股票`);
+
+  const merged = mergeThemes(topThemes, bottomThemes);
+  const mergedCount = merged.reduce((s, t) => s + t.stocks.length, 0);
+  console.error(`     → 合并去重后: ${merged.length} 板块 / ${mergedCount} 股票`);
+
+  return merged;
 }
 
 async function parseWithGpt(imageUrl: string): Promise<LimitUpThemeOut[]> {
@@ -424,12 +513,11 @@ async function main() {
   if (!session) throw new Error('缺少 JIUYAN_SESSION 环境变量');
   if (!process.env.ANTHROPIC_AUTH_TOKEN) throw new Error('缺少 ANTHROPIC_AUTH_TOKEN 环境变量');
 
-  console.error(`[1/3] 拉取 ${date} 涨停简图 URL...`);
+  console.error(`[1/2] 拉取 ${date} 涨停简图 URL...`);
   const imageUrl = await fetchDiagramUrl(date, session);
   console.error(`     → ${imageUrl}`);
 
-  console.error(`[2/3] 下载图片...`);
-  console.error(`[3/3] Claude Vision 解析...`);
+  console.error(`[2/2] 切图 + Claude Vision 并行解析...`);
   const themes = await parseWithVision(imageUrl);
 
   // 规范化 count = stocks.length
