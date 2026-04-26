@@ -149,6 +149,10 @@ def collect_fund_flow(sb: Client, today: str) -> dict:
             'large_net': item['large_net'],
             'medium_net': item['medium_net'],
             'small_net': item['small_net'],
+            'super_large_net_pct': item['super_large_pct'],
+            'large_net_pct': item['large_pct'],
+            'medium_net_pct': item['medium_pct'],
+            'small_net_pct': item['small_pct'],
             'fund_leading_stock': item['leading_stock'],
         }
 
