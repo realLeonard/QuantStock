@@ -16,8 +16,8 @@ import * as dotenv from 'dotenv';
 import { resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
-import Anthropic from '@anthropic-ai/sdk';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { callClaude } from './utils/claude-cli';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 dotenv.config({ path: resolve(__dirname, '../../apps/web/.env.local') });
@@ -143,18 +143,8 @@ const EXTRACT_SYSTEM = `你是板块名映射助手。给定一份 A 股早报�
 }`;
 
 async function extractSectors(reportContent: string): Promise<{ watch: SectorPick[]; avoid: SectorPick[] }> {
-  const client = new Anthropic();
-  const msg = await client.messages.create({
-    model: 'claude-opus-4-6',
-    max_tokens: 2500,
-    system: EXTRACT_SYSTEM,
-    messages: [{ role: 'user', content: `早报原文：\n\n${reportContent}` }],
-  });
-
-  const text = msg.content
-    .filter(b => b.type === 'text')
-    .map(b => (b as { type: 'text'; text: string }).text)
-    .join('\n');
+  const fullPrompt = `${EXTRACT_SYSTEM}\n\n早报原文：\n\n${reportContent}`;
+  const text = callClaude(fullPrompt, 'zaobao-review');
 
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error(`Claude 未返回 JSON：${text.slice(0, 200)}`);

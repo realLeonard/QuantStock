@@ -3,7 +3,6 @@
  * 读取 Supabase rawMarketData + newsItems + marketBreadth → 调用 Claude API → 存入 dailyReport 表
  */
 
-import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
 import { SYSTEM_PROMPT, buildUserPrompt } from './prompts';
@@ -13,6 +12,7 @@ import { loadYesterdayReviewBlock, loadRecentHitRate } from './formatters/review
 import { reviewOneDay } from './review-picks';
 import { sendBarkAlert } from './utils/bark';
 import { isTradingDay } from '../shared/trading-calendar';
+import { callClaude } from './utils/claude-cli';
 
 // ===== 环境变量 =====
 function getEnv() {
@@ -20,9 +20,6 @@ function getEnv() {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '';
   if (!url) throw new Error('缺少环境变量：NEXT_PUBLIC_SUPABASE_URL');
   if (!key) throw new Error('缺少环境变量：NEXT_PUBLIC_SUPABASE_ANON_KEY');
-  if (!process.env.ANTHROPIC_AUTH_TOKEN && !process.env.ANTHROPIC_API_KEY) {
-    throw new Error('缺少环境变量：ANTHROPIC_AUTH_TOKEN');
-  }
   return { url, key };
 }
 
@@ -237,7 +234,7 @@ async function loadPreviousSummary(date: string): Promise<string | undefined> {
 // ===== 交易日判断（公共模块，含法定节假日） =====
 const isTradeDay = isTradingDay;
 
-// ===== 调用 Claude API 生成报告 =====
+// ===== 调用 Claude CLI 生成报告 =====
 async function generateReport(params: {
   date: string;
   reportType: 'trading' | 'weekly';
@@ -253,47 +250,13 @@ async function generateReport(params: {
   yesterdayReviewBlock?: string;
   recentHitRate?: string;
 }): Promise<{ content: string; summary: string }> {
-  const client = new Anthropic({ timeout: 5 * 60 * 1000 }); // 5分钟超时
   const userPrompt = buildUserPrompt(params);
+  const fullPrompt = `${SYSTEM_PROMPT}\n\n---\n\n${userPrompt}`;
 
-  const model = process.env.ZAOBAO_MODEL || 'claude-opus-4-6';
-  console.log(`  [Claude] 调用 ${model} 生成报告（streaming）...`);
-  const MAX_RETRIES = 3;
-  let message;
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      message = await client.messages.stream({
-        model,
-        max_tokens: 8192,
-        messages: [{ role: 'user', content: userPrompt }],
-        system: SYSTEM_PROMPT,
-      }).finalMessage();
-      break;
-    } catch (err: unknown) {
-      const status = (err as { status?: number }).status;
-      // 5xx（含 524 Cloudflare 超时）和 429 限流均可重试
-      if ((status && (status >= 500 || status === 429)) && attempt < MAX_RETRIES) {
-        const delaySec = 30 * attempt; // 递增等待：30s, 60s
-        console.warn(`  [Claude] ${status} 错误，${delaySec}秒后重试（第 ${attempt}/${MAX_RETRIES - 1} 次）...`);
-        await new Promise(r => setTimeout(r, delaySec * 1000));
-      } else {
-        throw err;
-      }
-    }
-  }
-
-  if (!message) throw new Error('Claude API 调用失败，重试后仍无响应');
-  const { input_tokens, output_tokens } = message.usage;
-  const costUsd = (input_tokens * 3 + output_tokens * 15) / 1_000_000;
-  console.log(`  [Claude] token 用量: input=${input_tokens} output=${output_tokens} 合计=${input_tokens + output_tokens} 约$${costUsd.toFixed(4)}`);
-
-  const content = message.content
-    .filter(block => block.type === 'text')
-    .map(block => (block as { type: 'text'; text: string }).text)
-    .join('\n');
+  console.log(`  [Claude] 调用 Claude CLI 生成报告，prompt ${fullPrompt.length} 字符...`);
+  const content = callClaude(fullPrompt, 'zaobao-generate');
 
   // 提取①市场基调作为摘要（兼容 **加粗** 标记）
-  // 若基调一行太短（<50字），追加后续非空行补充到 200 字
   const summaryMatch = content.match(/①\s*\*{0,2}【市场基调】\*{0,2}([^\n]+)/);
   let summary: string;
   if (summaryMatch) {

@@ -8,7 +8,6 @@
     "generate:date": "tsx index.ts --date"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
     "@supabase/supabase-js": "^2.47.10",
     "axios": "^1.7.9",
     "dotenv": "^16.4.5"
