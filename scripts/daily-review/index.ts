@@ -756,14 +756,23 @@ async function main() {
       ].join('\n');
       data.ai_summary = fallbackText;
 
-      // CLI 耗时长（~10min），原 sb 连接可能已超时，重新创建客户端写入
-      const sbWrite = getSupabase();
-      const { error } = await sbWrite
-        .from('dailyReview')
-        .update({ ai_analysis: analysis, ai_summary: fallbackText })
-        .eq('id', data.id);
-      if (error) {
-        console.error(`  [warn] 回写失败: ${error.message}`);
+      // CLI 耗时长（~10min），连接可能已超时，重建客户端 + 重试
+      let writeOk = false;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const sbWrite = getSupabase();
+        const { error } = await sbWrite
+          .from('dailyReview')
+          .update({ ai_analysis: analysis, ai_summary: fallbackText })
+          .eq('id', data.id);
+        if (!error) {
+          writeOk = true;
+          break;
+        }
+        console.warn(`  [warn] 回写第 ${attempt} 次失败: ${error.message}`);
+        if (attempt < 3) await new Promise(r => setTimeout(r, 2000));
+      }
+      if (!writeOk) {
+        console.error('  ✗ 回写 3 次均失败，跳过');
       } else {
         console.log(`  ✓ v2 分析已生成并保存`);
         console.log(`    headline: ${analysis.headline}`);
