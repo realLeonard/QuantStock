@@ -492,7 +492,7 @@ async function generateAiAnalysisV2(
     'claude',
     [
       '-p', '--no-session-persistence',
-      '--dangerously-skip-permissions',
+      '--allowedTools', 'Read',
       '--model', 'claude-opus-4-6',
     ],
     {
