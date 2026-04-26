@@ -1,8 +1,7 @@
-import Anthropic from '@anthropic-ai/sdk';
 import sharp from 'sharp';
 
-// 自动读取环境变量：ANTHROPIC_AUTH_TOKEN + ANTHROPIC_BASE_URL（与 Claude Code 共用同一代理配置）
-const claude = new Anthropic({ timeout: 120_000, maxRetries: 0 });
+const DASHSCOPE_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
+const QWEN_MODEL = 'qwen3-vl-plus';
 
 export interface StockRow {
   cat1: string;
@@ -223,24 +222,7 @@ async function downloadImage(imgUrl: string): Promise<{ buffer: Buffer; mediaTyp
 
 // ─── 主函数 ──────────────────────────────────────────────────────────────────
 
-export async function parseTableImage(imgUrl: string): Promise<StockRow[]> {
-  const { buffer, mediaType } = await downloadImage(imgUrl);
-  const base64 = buffer.toString('base64');
-
-  const message = await withRetry(
-    () => claude.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 8192,
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: { type: 'base64', media_type: mediaType as 'image/png' | 'image/jpeg', data: base64 },
-          },
-          {
-            type: 'text',
-            text: `这是一张中国股市产业链表格图片。表格通常有"分类"（大类/子类/细分，最多三级）、"个股"（股票名）、"相关性"（描述文字）列。
+const VISION_PROMPT = `这是一张中国股市产业链表格图片。表格通常有"分类"（大类/子类/细分，最多三级）、"个股"（股票名）、"相关性"（描述文字）列。
 
 【第一步：分析分类结构】
 如果表格有分类列，请先从上到下找出所有可见的分类标签，确定每个分类标签在表格中覆盖哪些行（合并单元格的起止行）。分类标签通常位于合并单元格区域的顶部，其下方所有行直到下一个分类标签出现前，都属于同一分类。
@@ -258,18 +240,49 @@ export async function parseTableImage(imgUrl: string): Promise<StockRow[]> {
 - 如果表格根本没有分类列（只有股票名），cat1/cat2/cat3 全部填 ""，不要用主题名或其他文字代替
 - "相关性"列是该股票与主题的关联描述（通常在股票名旁边或下方），如无内容填 ""
 - relation 字段保留完整内容，不要截断
-- 每行对应一个 stocks 数组，包含该行所有股票及其相关性`,
-          },
-        ],
-      }],
-    }),
+- 每行对应一个 stocks 数组，包含该行所有股票及其相关性`;
+
+export async function parseTableImage(imgUrl: string): Promise<StockRow[]> {
+  const apiKey = process.env.DASHSCOPE_API_KEY;
+  if (!apiKey) throw new Error('缺少 DASHSCOPE_API_KEY 环境变量');
+
+  const { buffer, mediaType } = await downloadImage(imgUrl);
+  const base64 = buffer.toString('base64');
+
+  const resp = await withRetry(
+    async () => {
+      const r = await fetch(`${DASHSCOPE_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: QWEN_MODEL,
+          max_tokens: 8192,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: VISION_PROMPT },
+              { type: 'image_url', image_url: { url: `data:${mediaType};base64,${base64}` } },
+            ],
+          }],
+        }),
+        signal: AbortSignal.timeout(120_000),
+      });
+      if (!r.ok) {
+        const body = await r.text();
+        throw new Error(`Qwen API HTTP ${r.status}: ${body.slice(0, 300)}`);
+      }
+      return r.json() as Promise<{ choices?: { message?: { content?: string } }[] }>;
+    },
     isRetryableApiError,
-    3,       // 最多3次
-    5_000,   // 基础延迟 5s，指数增长：5s → 10s → 20s
-    'Claude API',
+    3,
+    5_000,
+    'Qwen API',
   );
 
-  const rawText = message.content[0].type === 'text' ? message.content[0].text : '';
+  const rawText = resp.choices?.[0]?.message?.content ?? '';
   const text = rawText.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '');
   const startIdx = text.indexOf('{');
   if (startIdx === -1) {
