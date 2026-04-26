@@ -430,11 +430,9 @@ function mergeThemes(
 async function parseWithVision(imageUrl: string): Promise<LimitUpThemeOut[]> {
   const imagePaths = await splitAndSaveImages(imageUrl);
 
-  console.error(`     → 并行解析两张子图...`);
-  const [topThemes, bottomThemes] = await Promise.all([
-    parseImageChunk(imagePaths[0], '上半'),
-    parseImageChunk(imagePaths[1], '下半'),
-  ]);
+  console.error(`     → 串行解析两张子图（避免代理并发限制）...`);
+  const topThemes = await parseImageChunk(imagePaths[0], '上半');
+  const bottomThemes = await parseImageChunk(imagePaths[1], '下半');
 
   const topCount = topThemes.reduce((s, t) => s + t.stocks.length, 0);
   const bottomCount = bottomThemes.reduce((s, t) => s + t.stocks.length, 0);
