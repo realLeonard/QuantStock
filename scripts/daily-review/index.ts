@@ -520,10 +520,18 @@ async function generateAiAnalysisV2(
   }
   const rawText = cliResult.stdout;
 
-  // 兼容 Claude 可能包裹 ```json```
+  // 兼容 Claude 输出：可能包裹 ```json```，或在 JSON 前/后附带文字说明
   let jsonStr = rawText.trim();
   const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (codeBlockMatch) jsonStr = codeBlockMatch[1].trim();
+  if (codeBlockMatch) {
+    jsonStr = codeBlockMatch[1].trim();
+  } else {
+    const firstBrace = jsonStr.indexOf('{');
+    const lastBrace = jsonStr.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      jsonStr = jsonStr.slice(firstBrace, lastBrace + 1);
+    }
+  }
 
   const analysis = JSON.parse(jsonStr) as AiAnalysisV2;
   analysis.version = 'v2';
