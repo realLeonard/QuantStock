@@ -287,7 +287,9 @@ async function saveReport(params: {
   content: string;
   summary: string;
 }): Promise<void> {
+  // Claude CLI 耗时长，undici 连接池可能已 stale，先轻量读取刷新
   const sb = getSupabase();
+  await sb.from('dailyReport').select('id').limit(1);
 
   const record = {
     id: randomUUID(),
