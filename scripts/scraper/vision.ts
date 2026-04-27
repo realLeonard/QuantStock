@@ -1,7 +1,7 @@
 import sharp from 'sharp';
 
 const DASHSCOPE_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
-const QWEN_MODEL = 'qwen3-vl-plus';
+const QWEN_MODEL = 'qwen3.6-plus';
 
 export interface StockRow {
   cat1: string;
@@ -247,24 +247,98 @@ export const VISION_PROMPT = `这是一张中国股市产业链表格图片。�
 - relation 字段保留完整内容，不要截断
 - 每行对应一个 stocks 数组，包含该行所有股票及其相关性`;
 
-// 判断文本是否像股票名称（2-5个汉字，可带 *ST/ST 前缀和 A/B 后缀）
-function isLikelyStockName(text: string): boolean {
-  if (!text) return false;
-  return /^(\*?ST)?[一-龥]{2,5}[AB]?$/.test(text.trim());
+// 类别后缀，不是股票名
+const CATEGORY_SUFFIXES = /[链端侧层]$/;
+
+// 信源/来源标签，不是股票名
+const SOURCE_LABELS = new Set([
+  '网传', '公告', '互动', '工商', '官网', '媒体', '研报',
+  '公开信息', '机构纪要', '公众号', '调研纪要', '券商研报',
+  '参股', '控股', '自有产品', '股权相关', '参股或关联',
+]);
+
+// 去掉股票名尾部的"等"字
+function stripTrailingEtc(name: string): string {
+  return name.replace(/等$/, '');
 }
 
-// 后处理：当 relation 像股票名时，拆成独立 stock 条目
+// 判断文本是否像股票名称（2-7个汉字，可带 *ST/ST 前缀和 A/B 后缀）
+function isLikelyStockName(text: string): boolean {
+  if (!text) return false;
+  const t = stripTrailingEtc(text.trim());
+  if (!t) return false;
+  if (CATEGORY_SUFFIXES.test(t)) return false;
+  if (SOURCE_LABELS.has(t)) return false;
+  return /^(\*?ST)?[一-龥]{2,7}[AB]?$/.test(t);
+}
+
+// 去掉股票名后面的括号注释，如 "七匹狼（控股股东持股）" → "七匹狼"
+function stripParenthetical(name: string): string {
+  return name.replace(/[（(][^）)]*[）)]?$/, '').trim();
+}
+
+// 尝试将空格/逗号分隔的文本拆成多个股票名
+function splitStockNames(text: string): string[] {
+  const parts = text.split(/[\s,，、]+/)
+    .map(s => stripTrailingEtc(stripParenthetical(s.trim())))
+    .filter(Boolean);
+  if (parts.length > 1 && parts.every(p => isLikelyStockName(p))) return parts;
+  return [];
+}
+
+// relation 去掉标点符号后不足 2 个字视为无效值
+function sanitizeRelation(rel: string): string {
+  if (!rel) return '';
+  const clean = rel.replace(/[\s\-—─―~、，。；：！？()（）""\"'+*/\\]/g, '');
+  return clean.length < 2 ? '' : rel;
+}
+
+// 后处理：修正字段映射
 function normalizeRows(rows: StockRow[]): StockRow[] {
   return rows.map(row => {
+    // 规则三：cat2 像股票名，且 name 都不像股票名 → cat2 才是真正的股票名
+    if (row.cat2 && isLikelyStockName(row.cat2) && row.stocks.length > 0
+      && row.stocks.every(s => !isLikelyStockName(s.name))) {
+      return {
+        ...row,
+        cat2: '',
+        stocks: row.stocks.map(s => ({
+          name: row.cat2,
+          highlight: s.highlight,
+          relation: sanitizeRelation([s.name, s.relation].filter(Boolean).join(' ')),
+        })),
+      };
+    }
+
     const normalized: StockRow['stocks'] = [];
     for (const s of row.stocks) {
+      // relation 里有多个股票名 → name 是分类标签，拆 relation 为独立股票
+      if (s.relation) {
+        const relNames = splitStockNames(s.relation);
+        if (relNames.length > 1) {
+          if (!row.cat2 && s.name) row = { ...row, cat2: s.name };
+          for (const n of relNames) {
+            normalized.push({ name: n, highlight: '', relation: '' });
+          }
+          continue;
+        }
+      }
+
+      const splitNames = splitStockNames(s.name);
+      if (splitNames.length > 1) {
+        for (const n of splitNames) {
+          normalized.push({ name: n, highlight: '', relation: '' });
+        }
+        continue;
+      }
+
       if (s.relation && isLikelyStockName(s.relation) && s.relation !== s.name) {
         normalized.push({ name: s.name, highlight: s.highlight, relation: '' });
         normalized.push({ name: s.relation, highlight: '', relation: '' });
       } else {
         normalized.push({
           ...s,
-          relation: s.relation === s.name ? '' : s.relation,
+          relation: sanitizeRelation(s.relation === s.name ? '' : s.relation),
         });
       }
     }
@@ -290,6 +364,7 @@ export async function parseTableImage(imgUrl: string): Promise<StockRow[]> {
         body: JSON.stringify({
           model: QWEN_MODEL,
           max_tokens: 8192,
+          enable_thinking: false,
           messages: [{
             role: 'user',
             content: [
@@ -298,7 +373,7 @@ export async function parseTableImage(imgUrl: string): Promise<StockRow[]> {
             ],
           }],
         }),
-        signal: AbortSignal.timeout(120_000),
+        signal: AbortSignal.timeout(180_000),
       });
       if (!r.ok) {
         const body = await r.text();

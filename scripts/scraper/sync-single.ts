@@ -4,6 +4,7 @@
  * 用法：npx tsx sync-single.ts --id <theme_id>
  */
 import 'dotenv/config';
+import { writeFileSync } from 'fs';
 import { fetchList, type ThemeItem } from './fetcher.js';
 import { parseTableImage, type StockRow } from './vision.js';
 import { fetchExistingThemes, importTheme, updateThemeStocks } from './importer.js';
@@ -105,6 +106,11 @@ async function main() {
     }
     if (i < imgUrls.length - 1) await sleep(600);
   }
+
+  // 保存 Vision 原始解析结果（供调试用）
+  const cacheFile = `vision-cache-${themeId.slice(0, 8)}.json`;
+  writeFileSync(cacheFile, JSON.stringify({ rows }, null, 2));
+  console.log(`  缓存已保存: ${cacheFile}`);
 
   const cleanTitle = item.title.replace(/[（(].*/u, '').trim();
   const stocks = rows.flatMap(r =>

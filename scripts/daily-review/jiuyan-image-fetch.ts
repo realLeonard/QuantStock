@@ -6,7 +6,7 @@
  *
  * 步骤：
  *   1. 调 /api/v1/action/diagram-url 拿到当天涨停简图 PNG 的 OSS URL
- *   2. 调通义千问 qwen3-vl-plus 解析成结构化 JSON（按板块分组）
+ *   2. 调通义千问 qwen3.6-plus 解析成结构化 JSON（按板块分组）
  *
  * 依赖环境变量：
  *   - JIUYAN_SESSION       韭研 SESSION cookie（登录态）
@@ -216,7 +216,8 @@ async function parseWithQwen(imageUrl: string): Promise<LimitUpThemeOut[]> {
   if (!apiKey) throw new Error('缺少 DASHSCOPE_API_KEY 环境变量');
 
   const body = JSON.stringify({
-    model: 'qwen3-vl-plus',
+    model: 'qwen3.6-plus',
+    enable_thinking: false,
     messages: [
       {
         role: 'user',
@@ -229,7 +230,7 @@ async function parseWithQwen(imageUrl: string): Promise<LimitUpThemeOut[]> {
     max_tokens: 8192,
   });
 
-  console.error(`     → 调用通义千问 qwen3-vl-plus...`);
+  console.error(`     → 调用通义千问 qwen3.6-plus...`);
   const resp = await fetch(
     'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
     {
