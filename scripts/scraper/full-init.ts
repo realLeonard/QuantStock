@@ -306,7 +306,7 @@ async function processItem(item: ThemeItem): Promise<ThemeResult> {
       cat2: sanitizeCat(r.cat2, cleanTitle),
       cat3: sanitizeCat(r.cat3, cleanTitle),
       highlight: s.highlight,
-      relation: s.relation,
+      relation: s.relation === s.name ? '' : s.relation,
     }))
   );
 

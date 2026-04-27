@@ -222,7 +222,7 @@ async function downloadImage(imgUrl: string): Promise<{ buffer: Buffer; mediaTyp
 
 // ─── 主函数 ──────────────────────────────────────────────────────────────────
 
-const VISION_PROMPT = `这是一张中国股市产业链表格图片。表格通常有"分类"（大类/子类/细分，最多三级）、"个股"（股票名）、"相关性"（描述文字）列。
+export const VISION_PROMPT = `这是一张中国股市产业链表格图片。表格通常有"分类"（大类/子类/细分，最多三级）、"个股"（股票名）、"相关性"（描述文字）列。
 
 【第一步：分析分类结构】
 如果表格有分类列，请先从上到下找出所有可见的分类标签，确定每个分类标签在表格中覆盖哪些行（合并单元格的起止行）。分类标签通常位于合并单元格区域的顶部，其下方所有行直到下一个分类标签出现前，都属于同一分类。
@@ -233,14 +233,44 @@ const VISION_PROMPT = `这是一张中国股市产业链表格图片。表格通
 
 提取规则：
 - 保持图片中的原始顺序，不要重新排序
-- 【重要】仔细观察每个股票名称的文字颜色：红色、深红色、朱红色字体的股票 highlight 填 "red"；橙色字体填 "orange"；普通黑色/深色字体填 ""
+- highlight 统一填 ""，不做颜色识别
 - 合并单元格（rowspan）中分类文字出现在顶部，请严格按照视觉边界确定每个合并单元格覆盖的行范围，不要提前或延后切换分类
 - 忽略水印文字、风险提示行、表头行
+- 【重要：忽略"信源"列】如果表格中有"信源"列，直接跳过该列，不要将其内容填入任何字段。在判断表格列结构时也不要把"信源"列计入
 - 如果没有子类列，cat2 填 ""；如果没有细分列，cat3 填 ""
 - 如果表格根本没有分类列（只有股票名），cat1/cat2/cat3 全部填 ""，不要用主题名或其他文字代替
 - "相关性"列是该股票与主题的关联描述（通常在股票名旁边或下方），如无内容填 ""
+- 【重要：无"个股"列的情况】如果表格没有"个股"列，只有"分类"和"相关性"（或类似的两列结构），则"相关性"列的内容就是股票名，应填入 name 字段，relation 填 ""
+- 【重要：多列股票名的情况】如果分类列之后有多列，且各列内容都是短文本股票名称（2-5个字，不是描述性语句），则每个股票名都是独立的 stock 条目，全部填入 name 字段，relation 填 ""。不要把一列股票名填入 name、另一列填入 relation
+- 【重要：只有"分类"列的情况】如果表格只有"分类"表头，没有"个股"和"相关性"表头，则除"分类"列外的其余列内容全部归入 relation 字段（多列内容用空格拼接），name 从 relation 中无法区分时填 ""
+- 【重要：无表头或表头不可识别】如果表格完全没有表头行，或表头无法识别为"分类""个股""相关性"等关键词，则按列的位置顺序默认映射：第1列→分类（cat1），第2列→个股（name），第3列→相关性（relation）；只有两列时：第1列→分类，第2列→个股，relation 填 ""；只有一列时：该列→个股，cat1/cat2/cat3 和 relation 全部填 ""
 - relation 字段保留完整内容，不要截断
 - 每行对应一个 stocks 数组，包含该行所有股票及其相关性`;
+
+// 判断文本是否像股票名称（2-5个汉字，可带 *ST/ST 前缀和 A/B 后缀）
+function isLikelyStockName(text: string): boolean {
+  if (!text) return false;
+  return /^(\*?ST)?[一-龥]{2,5}[AB]?$/.test(text.trim());
+}
+
+// 后处理：当 relation 像股票名时，拆成独立 stock 条目
+function normalizeRows(rows: StockRow[]): StockRow[] {
+  return rows.map(row => {
+    const normalized: StockRow['stocks'] = [];
+    for (const s of row.stocks) {
+      if (s.relation && isLikelyStockName(s.relation) && s.relation !== s.name) {
+        normalized.push({ name: s.name, highlight: s.highlight, relation: '' });
+        normalized.push({ name: s.relation, highlight: '', relation: '' });
+      } else {
+        normalized.push({
+          ...s,
+          relation: s.relation === s.name ? '' : s.relation,
+        });
+      }
+    }
+    return { ...row, stocks: normalized };
+  });
+}
 
 export async function parseTableImage(imgUrl: string): Promise<StockRow[]> {
   const apiKey = process.env.DASHSCOPE_API_KEY;
@@ -294,13 +324,13 @@ export async function parseTableImage(imgUrl: string): Promise<StockRow[]> {
   jsonStr = repairTruncatedJson(jsonStr);
   try {
     const parsed = JSON.parse(jsonStr) as { rows?: StockRow[] };
-    return parsed.rows ?? [];
+    return normalizeRows(parsed.rows ?? []);
   } catch {
     console.warn('  Vision JSON 解析失败，尝试正则兜底...');
     const fallback = extractRowsByRegex(text);
     if (fallback.length > 0) {
       console.warn(`  正则兜底成功，提取 ${fallback.length} 行`);
-      return fallback;
+      return normalizeRows(fallback);
     }
     console.warn('  正则兜底也失败，原始响应:', text.slice(0, 200));
     return [];
