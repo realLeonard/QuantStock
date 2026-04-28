@@ -64,7 +64,12 @@ def main():
     kline_result = write_daily_kline(sb, sectors, today)
 
     # [3/4] 采集资金流
-    fund_result = collect_fund_flow(sb, today)
+    skip_fund = os.environ.get('SKIP_FUND_FLOW', '').lower() in ('1', 'true', 'yes')
+    if skip_fund:
+        print('[3/4] 跳过资金流采集（SKIP_FUND_FLOW=1，由阿里云 SSH 单独执行）')
+        fund_result = {'total': 0, 'matched': 0, 'unmatched_names': []}
+    else:
+        fund_result = collect_fund_flow(sb, today)
 
     # [4/4] 汇总日志
     print()
@@ -72,19 +77,23 @@ def main():
     print('[4/4] 汇总')
     print(f'  板块总数: {len(sectors)}')
     print(f'  K 线 — 成功: {kline_result["success"]}（新增 {kline_result["inserted"]}，更新 {kline_result["updated"]}）')
-    print(f'  资金流 — 匹配: {fund_result["matched"]}/{fund_result["total"]}')
+    if skip_fund:
+        print('  资金流 — 跳过（阿里云单独采集）')
+    else:
+        print(f'  资金流 — 匹配: {fund_result["matched"]}/{fund_result["total"]}')
     fund_rate = (
         f'{fund_result["matched"] / fund_result["total"] * 100:.1f}%'
         if fund_result['total'] else 'N/A'
     )
-    print(f'  资金流匹配率: {fund_rate}')
+    if not skip_fund:
+        print(f'  资金流匹配率: {fund_rate}')
     print('=' * 60)
 
     # 任一数据源有严重问题时以非零退出（触发 Bark 失败通知）
     errors = []
     if kline_result['success'] < len(sectors) * 0.5:
         errors.append(f'K 线成功率不足 50%（{kline_result["success"]}/{len(sectors)}）')
-    if fund_result['total'] > 0 and fund_result['matched'] < fund_result['total'] * 0.5:
+    if not skip_fund and fund_result['total'] > 0 and fund_result['matched'] < fund_result['total'] * 0.5:
         errors.append(f'资金流匹配率不足 50%（{fund_result["matched"]}/{fund_result["total"]}）')
     if not sectors:
         errors.append('板块列表为空')

@@ -78,6 +78,34 @@ jobs:
           SKIP_MASTER: ${{ inputs.skip_master }}
           INIT_DAYS: ${{ inputs.init_days }}
           FORCE_RUN: ${{ inputs.force_run }}
+          SKIP_FUND_FLOW: '1'
+
+      - name: 配置 SSH
+        if: success() && inputs.mode == 'daily'
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" | base64 -d > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: 采集资金流（阿里云）
+        if: success() && inputs.mode == 'daily'
+        run: |
+          DATE_ARG=""
+          if [ -n "${{ inputs.date }}" ]; then
+            DATE_ARG="--date ${{ inputs.date }}"
+          fi
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << ENDSSH
+          set -e
+          cd /www/wwwroot/quantstock
+          set -a && source .env.server && set +a
+          git checkout -- package-lock.json 2>/dev/null || true
+          git pull origin main
+          cd scripts/sector-prediction/python
+          python3.11 collect_fund_flow_only.py $DATE_ARG
+          ENDSSH
 
       - uses: actions/setup-node@v4
         if: success() && inputs.mode == 'daily'
