@@ -1,16 +1,18 @@
-"""资金流采集：Playwright 浏览器 JSONP → sector_daily
+"""资金流采集：Playwright HTTP 请求 → sector_daily
 
-在东财页面中注入 JSONP script 标签请求资金流 API，
-用真实浏览器 TLS 指纹绕过东财检测。
+通过 Playwright context.request 直接请求东财资金流 API，
+使用真实浏览器 TLS 指纹，比 JSONP script 注入更稳定。
 """
 
+import json
 import math
+import re
 import uuid
 
 from supabase import Client
 
 from db import now_utc_ms
-from browser import get_page
+from browser import get_context
 
 
 def _safe_float(val, default=0.0) -> float:
@@ -25,64 +27,64 @@ def _safe_float(val, default=0.0) -> float:
         return default
 
 
-def _fetch_fund_flow_jsonp() -> list[dict] | None:
-    """
-    通过 Playwright JSONP 请求东财概念板块资金流 API。
-    返回全部板块资金流列表。
-    """
-    page = get_page()
+_API_BASE = 'https://push2.eastmoney.com/api/qt/clist/get'
+_COMMON_PARAMS = (
+    '&po=1&np=1'
+    '&ut=b2884a393a59ad64002292a3e90d46a5'
+    '&fltt=2&invt=2&fid0=f62'
+    '&fs=m:90+t:3&stat=1'
+    '&fields=f12,f14,f2,f3,f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f204,f205,f124'
+)
 
+
+def _fetch_fund_flow_http() -> list[dict] | None:
+    """通过 Playwright context.request 请求东财概念板块资金流 API。"""
+    ctx = get_context()
     all_items = []
     page_num = 1
     page_size = 100
 
     while True:
+        cb = f'jQuery_{page_num}'
+        url = (
+            f'{_API_BASE}?cb={cb}&pn={page_num}&pz={page_size}'
+            f'{_COMMON_PARAMS}'
+        )
         try:
-            result = page.evaluate('''({ pn, pz }) => {
-                return new Promise((resolve, reject) => {
-                    const cb = 'ff_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-                    window[cb] = (data) => {
-                        delete window[cb];
-                        try { document.head.removeChild(s); } catch(e) {}
-                        if (data && data.data && data.data.diff) {
-                            resolve({ items: data.data.diff, total: data.data.total });
-                        } else {
-                            resolve({ items: [], total: 0 });
-                        }
-                    };
-                    const s = document.createElement('script');
-                    s.src = 'https://push2.eastmoney.com/api/qt/clist/get?cb=' + cb
-                        + '&pn=' + pn + '&pz=' + pz
-                        + '&po=1&np=1'
-                        + '&ut=b2884a393a59ad64002292a3e90d46a5'
-                        + '&fltt=2&invt=2&fid0=f62'
-                        + '&fs=m:90+t:3&stat=1'
-                        + '&fields=f12,f14,f2,f3,f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f204,f205,f124'
-                        + '&_=' + Date.now();
-                    s.onerror = () => {
-                        delete window[cb];
-                        try { document.head.removeChild(s); } catch(e) {}
-                        reject('load_error');
-                    };
-                    document.head.appendChild(s);
-                    setTimeout(() => {
-                        if (window[cb]) { delete window[cb]; reject('timeout'); }
-                    }, 10000);
-                });
-            }''', {'pn': page_num, 'pz': page_size})
+            resp = ctx.request.get(url, headers={
+                'Referer': 'https://data.eastmoney.com/',
+                'User-Agent': (
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                    'AppleWebKit/537.36 (KHTML, like Gecko) '
+                    'Chrome/131.0.0.0 Safari/537.36'
+                ),
+            })
+            text = resp.text()
         except Exception as e:
-            print(f'  [error] 资金流 JSONP 请求失败: {e}')
+            print(f'  [error] 资金流 HTTP 请求失败: {e}')
             return None
 
-        items = result.get('items', [])
-        total = result.get('total', 0)
+        # 剥离 JSONP 包裹：jQuery_1({...})
+        m = re.search(r'\((\{.*\})\)', text, re.DOTALL)
+        if not m:
+            print(f'  [error] 资金流返回格式异常: {text[:200]}')
+            return None
 
-        if not items:
+        try:
+            data = json.loads(m.group(1))
+        except json.JSONDecodeError as e:
+            print(f'  [error] 资金流 JSON 解析失败: {e}')
+            return None
+
+        diff = data.get('data', {}).get('diff') if data.get('data') else None
+        total = data.get('data', {}).get('total', 0) if data.get('data') else 0
+
+        if not diff:
             if page_num == 1:
                 return None
             break
 
-        for item in items:
+        for item in diff:
             all_items.append({
                 'name': str(item.get('f14', '')).strip(),
                 'change_pct': _safe_float(item.get('f3')),
@@ -118,7 +120,7 @@ def collect_fund_flow(sb: Client, today: str) -> dict:
     print('[3/4] 采集资金流...')
     now = now_utc_ms()
 
-    items = _fetch_fund_flow_jsonp()
+    items = _fetch_fund_flow_http()
     if items is None or len(items) == 0:
         print('  [error] 资金流 API 返回为空')
         return {'total': 0, 'matched': 0, 'unmatched_names': []}
