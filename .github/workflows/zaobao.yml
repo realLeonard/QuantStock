@@ -7,7 +7,31 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/shared
+      - id: check
+        run: |
+          RESULT=$(python3 -c "
+          import sys; sys.path.insert(0, 'scripts/shared')
+          from trading_calendar import is_trading_day_today
+          print('1' if is_trading_day_today() else '0')
+          ")
+          echo "run=$RESULT" >> "$GITHUB_OUTPUT"
+          if [ "$RESULT" = "0" ]; then
+            echo '非交易日，跳过早报'
+          else
+            echo '交易日，执行早报'
+          fi
+
   collect-and-generate:
+    needs: gate
+    if: needs.gate.outputs.run == '1'
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
