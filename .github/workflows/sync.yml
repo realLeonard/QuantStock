@@ -13,17 +13,21 @@ jobs:
     outputs:
       run: ${{ steps.check.outputs.run }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/shared
       - id: check
-        shell: bash
         run: |
-          BJ_DOW=$(TZ=Asia/Shanghai date +%u)
-          BJ_HOUR=$(TZ=Asia/Shanghai date +%-H)
-          if [ "$BJ_DOW" -le 5 ]; then
-            echo "run=1" >> "$GITHUB_OUTPUT"
-          elif [ "$BJ_HOUR" = "9" ] || [ "$BJ_HOUR" = "17" ]; then
-            echo "run=1" >> "$GITHUB_OUTPUT"
+          RESULT=$(python3 -c "
+          import sys; sys.path.insert(0, 'scripts/shared')
+          from trading_calendar import is_trading_day_today
+          print('1' if is_trading_day_today() else '0')
+          ")
+          echo "run=$RESULT" >> "$GITHUB_OUTPUT"
+          if [ "$RESULT" = "0" ]; then
+            echo '非交易日，跳过同步'
           else
-            echo "run=0" >> "$GITHUB_OUTPUT"
+            echo '交易日，执行同步'
           fi
 
   sync:
