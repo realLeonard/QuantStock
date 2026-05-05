@@ -78,47 +78,6 @@ jobs:
           SKIP_MASTER: ${{ inputs.skip_master }}
           INIT_DAYS: ${{ inputs.init_days }}
           FORCE_RUN: ${{ inputs.force_run }}
-          SKIP_FUND_FLOW: '1'
-
-      - name: 配置 SSH
-        if: success() && inputs.mode == 'daily'
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_SSH_KEY }}" | base64 -d > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
-
-      - name: 采集资金流（阿里云）
-        id: fund_flow
-        if: success() && inputs.mode == 'daily'
-        continue-on-error: true
-        run: |
-          DATE_ARG=""
-          if [ -n "${{ inputs.date }}" ]; then
-            DATE_ARG="--date ${{ inputs.date }}"
-          fi
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-            -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
-            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << ENDSSH
-          set -e
-          cd /www/wwwroot/quantstock
-          set -a && source .env.server && set +a
-          git checkout -- package-lock.json 2>/dev/null || true
-          git pull origin main
-          cd scripts/sector-prediction/python
-          python3.11 collect_fund_flow_only.py $DATE_ARG
-          ENDSSH
-
-      - name: Bark 资金流失败通知
-        if: steps.fund_flow.outcome == 'failure'
-        run: |
-          BARK_KEY="${{ secrets.BARK_KEY }}"
-          if [ -z "$BARK_KEY" ]; then exit 0; fi
-          TITLE="资金流采集失败"
-          BODY="阿里云 SSH 执行 collect_fund_flow_only.py 失败，请检查日志"
-          TITLE_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$TITLE")
-          BODY_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$BODY")
-          curl -s "https://api.day.app/${BARK_KEY}/${TITLE_ENC}/${BODY_ENC}?group=QuantStock" || true
 
       - uses: actions/setup-node@v4
         if: success() && inputs.mode == 'daily'

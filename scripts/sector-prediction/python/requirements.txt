@@ -2,3 +2,4 @@ playwright>=1.40.0
 supabase>=2.10.0
 python-dotenv>=1.0.1
 numpy>=1.24.0
+curl_cffi>=0.7.0
