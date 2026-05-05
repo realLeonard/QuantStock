@@ -311,11 +311,15 @@ async function saveReport(params: {
 export async function generateDailyReport(date: string): Promise<void> {
   console.log(`\n[generate] 开始生成 ${date} 早报...`);
 
+  if (!isTradeDay(date)) {
+    console.log(`${date} 非交易日（周末/法定节假日），跳过早报生成`);
+    return;
+  }
+
   getEnv();
 
-  // 提前判断报告类型
-  const reportType = isTradeDay(date) ? 'trading' : 'weekly';
-  console.log(`  [generate] 报告类型: ${reportType === 'trading' ? '交易日早报' : '周日周报'}`);
+  const reportType: 'trading' = 'trading';
+  console.log(`  [generate] 报告类型: 交易日早报`);
 
   // ===== Step 0: T-1 板块回测（失败不阻塞） =====
   const yesterdayForReview = addDays(date, -1);
