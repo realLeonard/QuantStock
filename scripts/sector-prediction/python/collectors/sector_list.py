@@ -2,6 +2,7 @@
 
 import math
 import re
+import time
 import uuid
 
 from supabase import Client
@@ -52,7 +53,22 @@ def _fetch_sector_list_jsonp() -> list[dict] | None:
     """
     通过 Playwright 在东财页面中用 JSONP 拉取概念板块列表。
     等同于 akshare 的 stock_board_concept_name_em()，但用浏览器绕过 TLS 检测。
+    失败自动重试 1 次（间隔 10s）。
     """
+    try:
+        return _fetch_sector_list_jsonp_once()
+    except Exception as e:
+        print(f'  [warn] 板块列表请求失败，10s 后重试: {e}')
+        time.sleep(10)
+        try:
+            return _fetch_sector_list_jsonp_once()
+        except Exception as e2:
+            print(f'  [error] 板块列表请求重试仍失败: {e2}')
+            return None
+
+
+def _fetch_sector_list_jsonp_once() -> list[dict] | None:
+    """单次尝试拉取板块列表"""
     page = get_page()
 
     all_items = []
