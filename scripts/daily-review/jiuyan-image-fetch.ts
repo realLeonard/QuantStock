@@ -129,6 +129,8 @@ function repairTruncatedJson(str: string): string {
     else if (ch === '}' || ch === ']') stack.pop();
   }
   if (inString) str += '"';
+  // 清理截断产生的尾部逗号，避免 "Expected double-quoted property name" 错误
+  str = str.replace(/,\s*$/, '');
   return str + stack.reverse().join('');
 }
 
@@ -227,7 +229,7 @@ async function parseWithQwen(imageUrl: string): Promise<LimitUpThemeOut[]> {
         ],
       },
     ],
-    max_tokens: 8192,
+    max_tokens: 30000,
   });
 
   console.error(`     → 调用通义千问 qwen3.6-plus...`);
@@ -246,11 +248,17 @@ async function parseWithQwen(imageUrl: string): Promise<LimitUpThemeOut[]> {
   if (!resp.ok) throw new Error(`Qwen API 错误 HTTP ${resp.status}: ${await resp.text()}`);
 
   const result = await resp.json() as {
-    choices?: { message?: { content?: string } }[];
+    choices?: { message?: { content?: string; finish_reason?: string } }[];
   };
-  const rawText = result.choices?.[0]?.message?.content ?? '';
+  const choice = result.choices?.[0];
+  const rawText = choice?.message?.content ?? '';
+  const finishReason = (choice as { finish_reason?: string } | undefined)?.finish_reason
+    ?? (choice?.message as { finish_reason?: string } | undefined)?.finish_reason;
 
   console.error(`     → Qwen 返回 ${rawText.length} 字符`);
+  if (finishReason === 'length') {
+    console.error(`     ⚠️ 输出被 max_tokens 截断，将尝试修复 JSON`);
+  }
   const text = rawText.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '');
   const startIdx = text.indexOf('{');
   if (startIdx === -1) throw new Error(`Qwen 未返回 JSON：${text.slice(0, 200)}`);
