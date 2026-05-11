@@ -1,14 +1,14 @@
-"""板块列表采集：东财概念板块列表 API（JSONP）→ sector_master + sector_daily K线"""
+"""板块列表采集：curl_cffi + Chrome TLS 指纹 → sector_master + sector_daily K线"""
 
 import math
 import re
 import time
 import uuid
 
+from curl_cffi import requests as cffi_requests
 from supabase import Client
 
 from db import now_utc_ms
-from browser import get_page
 
 # 非真实概念板块的关键词（筛选类/规模类/季报类）
 _EXCLUDE_KEYWORDS = [
@@ -49,79 +49,70 @@ def _safe_int(val, default=0) -> int:
         return default
 
 
-def _fetch_sector_list_jsonp() -> list[dict] | None:
+_HEADERS = {
+    'Referer': 'https://data.eastmoney.com/',
+    'User-Agent': (
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+        'AppleWebKit/537.36 (KHTML, like Gecko) '
+        'Chrome/131.0.0.0 Safari/537.36'
+    ),
+}
+
+_API_URL = 'https://push2.eastmoney.com/api/qt/clist/get'
+_COMMON_PARAMS = {
+    'po': '1', 'np': '1',
+    'ut': 'b2884a393a59ad64002292a3e90d46a5',
+    'fltt': '2', 'invt': '2',
+    'fid': 'f3', 'fs': 'm:90+t:3',
+    'fields': 'f12,f14,f2,f3,f4,f5,f6,f7,f8,f10,f15,f16,f17,f20,f104,f105,f106,f107,f128,f136,f124',
+}
+
+
+def _fetch_sector_list() -> list[dict] | None:
     """
-    通过 Playwright 在东财页面中用 JSONP 拉取概念板块列表。
-    等同于 akshare 的 stock_board_concept_name_em()，但用浏览器绕过 TLS 检测。
+    通过 curl_cffi + Chrome TLS 指纹拉取东财概念板块列表。
     失败自动重试 1 次（间隔 10s）。
     """
     try:
-        return _fetch_sector_list_jsonp_once()
+        return _fetch_sector_list_once()
     except Exception as e:
         print(f'  [warn] 板块列表请求失败，10s 后重试: {e}')
         time.sleep(10)
         try:
-            return _fetch_sector_list_jsonp_once()
+            return _fetch_sector_list_once()
         except Exception as e2:
             print(f'  [error] 板块列表请求重试仍失败: {e2}')
             return None
 
 
-def _fetch_sector_list_jsonp_once() -> list[dict] | None:
-    """单次尝试拉取板块列表"""
-    page = get_page()
-
+def _fetch_sector_list_once() -> list[dict] | None:
+    """单次尝试通过 curl_cffi 拉取板块列表"""
     all_items = []
     page_num = 1
     page_size = 100
 
     while True:
-        result = page.evaluate('''({ pn, pz }) => {
-            return new Promise((resolve, reject) => {
-                const cb = 'sl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-                window[cb] = (data) => {
-                    delete window[cb];
-                    try { document.head.removeChild(s); } catch(e) {}
-                    if (data && data.data && data.data.diff) {
-                        resolve({ items: data.data.diff, total: data.data.total });
-                    } else {
-                        resolve({ items: [], total: 0 });
-                    }
-                };
-                const s = document.createElement('script');
-                s.src = 'https://push2.eastmoney.com/api/qt/clist/get?cb=' + cb
-                    + '&pn=' + pn + '&pz=' + pz
-                    + '&po=1&np=1&fltt=2&invt=2'
-                    + '&fid=f3&fs=m:90+t:3'
-                    + '&fields=f12,f14,f2,f3,f4,f5,f6,f7,f8,f10,f15,f16,f17,f20,f104,f105,f106,f107,f128,f136,f124'
-                    + '&_=' + Date.now();
-                s.onerror = () => {
-                    delete window[cb];
-                    try { document.head.removeChild(s); } catch(e) {}
-                    reject('load_error');
-                };
-                document.head.appendChild(s);
-                setTimeout(() => {
-                    if (window[cb]) { delete window[cb]; reject('timeout'); }
-                }, 10000);
-            });
-        }''', {'pn': page_num, 'pz': page_size})
+        params = {**_COMMON_PARAMS, 'pn': str(page_num), 'pz': str(page_size)}
+        resp = cffi_requests.get(
+            _API_URL, params=params, headers=_HEADERS,
+            impersonate='chrome', timeout=15,
+        )
+        data = resp.json()
 
-        items = result.get('items', [])
-        total = result.get('total', 0)
+        diff = data.get('data', {}).get('diff') if data.get('data') else None
+        total = data.get('data', {}).get('total', 0) if data.get('data') else 0
 
-        if not items:
+        if not diff:
             if page_num == 1:
                 return None
             break
 
-        for item in items:
+        for item in diff:
             all_items.append({
                 'name': str(item.get('f14', '')).strip(),
                 'bk_code': str(item.get('f12', '')).strip(),
                 'change_pct': _safe_float(item.get('f3')),
                 'leading_stock': str(item.get('f128', '')).strip() if item.get('f128') != '-' else '',
-                # 当日 OHLCV（用于写入 sector_daily）
                 'open': _safe_float(item.get('f17')),
                 'close': _safe_float(item.get('f2')),
                 'high': _safe_float(item.get('f15')),
@@ -130,7 +121,6 @@ def _fetch_sector_list_jsonp_once() -> list[dict] | None:
                 'turnover': _safe_float(item.get('f6')),
                 'amplitude': _safe_float(item.get('f7')),
                 'turnover_rate': _safe_float(item.get('f8')),
-                # v3 新增：涨跌停/涨跌家数/量比
                 'volume_ratio': _safe_float(item.get('f10')),
                 'up_count': _safe_int(item.get('f104')),
                 'down_count': _safe_int(item.get('f105')),
@@ -151,7 +141,7 @@ def sync_sector_master(sb: Client) -> list[dict]:
     返回 active 板块列表（含 name, bk_code）。
     """
     print('[1/4] 刷新板块列表...')
-    items = _fetch_sector_list_jsonp()
+    items = _fetch_sector_list()
     if not items:
         print('  [error] 板块列表 API 返回为空')
         return []
