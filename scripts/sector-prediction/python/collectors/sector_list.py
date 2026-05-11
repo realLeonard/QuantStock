@@ -1,10 +1,12 @@
 """板块列表采集：curl_cffi + Chrome TLS 指纹 → sector_master + sector_daily K线"""
 
 import math
+import os
 import re
 import time
 import uuid
 
+import requests
 from curl_cffi import requests as cffi_requests
 from supabase import Client
 
@@ -85,19 +87,35 @@ def _fetch_sector_list() -> list[dict] | None:
             return None
 
 
+def _do_request(params: dict) -> dict:
+    """发送请求，优先走代理，无代理则直连东财"""
+    proxy_url = os.environ.get('EASTMONEY_PROXY_URL')
+    proxy_key = os.environ.get('PROXY_API_KEY', '')
+
+    if proxy_url:
+        resp = requests.get(
+            proxy_url, params=params,
+            headers={'X-Proxy-Key': proxy_key},
+            timeout=20,
+        )
+        return resp.json()
+
+    resp = cffi_requests.get(
+        _API_URL, params=params, headers=_HEADERS,
+        impersonate='chrome', timeout=15,
+    )
+    return resp.json()
+
+
 def _fetch_sector_list_once() -> list[dict] | None:
-    """单次尝试通过 curl_cffi 拉取板块列表"""
+    """单次尝试拉取板块列表"""
     all_items = []
     page_num = 1
     page_size = 100
 
     while True:
         params = {**_COMMON_PARAMS, 'pn': str(page_num), 'pz': str(page_size)}
-        resp = cffi_requests.get(
-            _API_URL, params=params, headers=_HEADERS,
-            impersonate='chrome', timeout=15,
-        )
-        data = resp.json()
+        data = _do_request(params)
 
         diff = data.get('data', {}).get('diff') if data.get('data') else None
         total = data.get('data', {}).get('total', 0) if data.get('data') else 0

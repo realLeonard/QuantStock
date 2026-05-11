@@ -5,8 +5,10 @@
 """
 
 import math
+import os
 import uuid
 
+import requests
 from curl_cffi import requests as cffi_requests
 from supabase import Client
 
@@ -43,8 +45,28 @@ def _safe_float(val, default=0.0) -> float:
         return default
 
 
+def _do_request(params: dict) -> dict:
+    """发送请求，优先走代理，无代理则直连东财"""
+    proxy_url = os.environ.get('EASTMONEY_PROXY_URL')
+    proxy_key = os.environ.get('PROXY_API_KEY', '')
+
+    if proxy_url:
+        resp = requests.get(
+            proxy_url, params=params,
+            headers={'X-Proxy-Key': proxy_key},
+            timeout=20,
+        )
+        return resp.json()
+
+    resp = cffi_requests.get(
+        _API_URL, params=params, headers=_HEADERS,
+        impersonate='chrome', timeout=15,
+    )
+    return resp.json()
+
+
 def _fetch_fund_flow() -> list[dict] | None:
-    """通过 curl_cffi 请求东财概念板块资金流 API。"""
+    """请求东财概念板块资金流 API，优先走代理。"""
     all_items = []
     page_num = 1
     page_size = 100
@@ -52,11 +74,7 @@ def _fetch_fund_flow() -> list[dict] | None:
     while True:
         params = {**_COMMON_PARAMS, 'pn': str(page_num), 'pz': str(page_size)}
         try:
-            resp = cffi_requests.get(
-                _API_URL, params=params, headers=_HEADERS,
-                impersonate='chrome', timeout=15,
-            )
-            data = resp.json()
+            data = _do_request(params)
         except Exception as e:
             print(f'  [error] 资金流请求失败: {e}')
             return None

@@ -359,4 +359,33 @@ app.get('/mobile/version', mobileAuth, async (c) => {
   }
 });
 
+// ─── 东财 API 代理（供 GitHub Actions 采集脚本使用） ───
+
+app.get('/proxy/eastmoney', async (c) => {
+  const key = c.req.header('X-Proxy-Key');
+  const expected = process.env.PROXY_API_KEY;
+  if (!expected || key !== expected) {
+    return c.json({ error: 'unauthorized' }, 401);
+  }
+
+  const url = new URL('https://push2.eastmoney.com/api/qt/clist/get');
+  for (const [k, v] of Object.entries(c.req.query())) {
+    url.searchParams.set(k, v);
+  }
+
+  try {
+    const resp = await fetch(url.toString(), {
+      headers: {
+        'Referer': 'https://data.eastmoney.com/',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      },
+    });
+    const text = await resp.text();
+    return c.text(text, resp.status as 200);
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 502);
+  }
+});
+
 export default app;

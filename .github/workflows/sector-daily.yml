@@ -109,6 +109,8 @@ jobs:
           SKIP_MASTER: ${{ inputs.skip_master }}
           INIT_DAYS: ${{ inputs.init_days }}
           FORCE_RUN: ${{ inputs.force_run }}
+          EASTMONEY_PROXY_URL: ${{ secrets.EASTMONEY_PROXY_URL }}
+          PROXY_API_KEY: ${{ secrets.PROXY_API_KEY }}
 
       - uses: actions/setup-node@v4
         if: success() && inputs.mode == 'daily'
