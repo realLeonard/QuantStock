@@ -5,6 +5,7 @@ import os
 import re
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 
 import requests
@@ -221,54 +222,47 @@ def _fetch_sector_list_once() -> list[dict] | None:
 
 
 def _ths_fetch_one(ak, name: str, start: str, end: str) -> dict | None:
-    """带超时的单概念 THS K线获取（30秒超时）"""
-    import signal
+    """单概念 THS K线获取（线程安全，超时由调用方控制）"""
+    df = ak.stock_board_concept_index_ths(
+        symbol=name, start_date=start, end_date=end,
+    )
+    if len(df) == 0:
+        return None
 
-    def _alarm(signum, frame):
-        raise TimeoutError(f'{name} 超时')
+    today_row = df.iloc[-1]
+    close = float(today_row['收盘价'])
+    prev_close = float(df.iloc[-2]['收盘价']) if len(df) >= 2 else close
+    high = float(today_row['最高价'])
+    low = float(today_row['最低价'])
 
-    old = signal.signal(signal.SIGALRM, _alarm)
-    signal.alarm(30)
-    try:
-        df = ak.stock_board_concept_index_ths(
-            symbol=name, start_date=start, end_date=end,
-        )
-        if len(df) == 0:
-            return None
+    change_pct = round((close - prev_close) / prev_close * 100, 2) if prev_close else 0
+    amplitude = round((high - low) / prev_close * 100, 2) if prev_close else 0
 
-        today_row = df.iloc[-1]
-        close = float(today_row['收盘价'])
-        prev_close = float(df.iloc[-2]['收盘价']) if len(df) >= 2 else close
-        high = float(today_row['最高价'])
-        low = float(today_row['最低价'])
+    return {
+        'change_pct': change_pct,
+        'leading_stock': '',
+        'open': float(today_row['开盘价']),
+        'close': close,
+        'high': high,
+        'low': low,
+        'volume': int(today_row['成交量']),
+        'turnover': float(today_row['成交额']),
+        'amplitude': amplitude,
+        'turnover_rate': 0,
+        'volume_ratio': 0,
+        'up_count': 0,
+        'down_count': 0,
+        'limit_up_count': 0,
+        'limit_down_count': 0,
+    }
 
-        change_pct = round((close - prev_close) / prev_close * 100, 2) if prev_close else 0
-        amplitude = round((high - low) / prev_close * 100, 2) if prev_close else 0
 
-        return {
-            'change_pct': change_pct,
-            'leading_stock': '',
-            'open': float(today_row['开盘价']),
-            'close': close,
-            'high': high,
-            'low': low,
-            'volume': int(today_row['成交量']),
-            'turnover': float(today_row['成交额']),
-            'amplitude': amplitude,
-            'turnover_rate': 0,
-            'volume_ratio': 0,
-            'up_count': 0,
-            'down_count': 0,
-            'limit_up_count': 0,
-            'limit_down_count': 0,
-        }
-    finally:
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, old)
+_THS_MAX_WORKERS = 8
+_THS_TIMEOUT = 30
 
 
 def _fetch_sector_list_ths(trade_date: str) -> list[dict] | None:
-    """THS 后备：通过 akshare 从同花顺获取概念板块 OHLCV"""
+    """THS 后备：并发获取所有概念板块 OHLCV（8 线程）"""
     try:
         import akshare as ak
     except ImportError:
@@ -285,7 +279,7 @@ def _fetch_sector_list_ths(trade_date: str) -> list[dict] | None:
 
     ths_names = list(concepts['name'])
     code_map = dict(zip(concepts['name'], concepts['code']))
-    print(f'  THS 概念板块数: {len(ths_names)}')
+    print(f'  THS 概念板块数: {len(ths_names)}，并发 {_THS_MAX_WORKERS} 线程')
 
     dt = datetime.strptime(trade_date, '%Y-%m-%d')
     start = (dt - timedelta(days=10)).strftime('%Y%m%d')
@@ -293,20 +287,28 @@ def _fetch_sector_list_ths(trade_date: str) -> list[dict] | None:
 
     results = []
     failed = 0
+    done = 0
 
-    for i, name in enumerate(ths_names):
-        if (i + 1) % 50 == 0:
-            print(f'  进度: {i + 1}/{len(ths_names)}（成功 {len(results)}，失败 {failed}）')
-        try:
-            item = _ths_fetch_one(ak, name, start, end)
-            if item:
-                item['name'] = name
-                item['bk_code'] = str(code_map.get(name, ''))
-                results.append(item)
-        except Exception as e:
-            failed += 1
-            if failed <= 10:
-                print(f'  [warn] THS {name}: {e}')
+    def _worker(name: str):
+        return _ths_fetch_one(ak, name, start, end)
+
+    with ThreadPoolExecutor(max_workers=_THS_MAX_WORKERS) as pool:
+        futures = {pool.submit(_worker, n): n for n in ths_names}
+        for future in as_completed(futures):
+            name = futures[future]
+            done += 1
+            if done % 50 == 0:
+                print(f'  进度: {done}/{len(ths_names)}（成功 {len(results)}，失败 {failed}）')
+            try:
+                item = future.result(timeout=_THS_TIMEOUT)
+                if item:
+                    item['name'] = name
+                    item['bk_code'] = str(code_map.get(name, ''))
+                    results.append(item)
+            except Exception as e:
+                failed += 1
+                if failed <= 10:
+                    print(f'  [warn] THS {name}: {e}')
 
     print(f'  THS OHLCV 获取完成: {len(results)} 条（失败 {failed}）')
     return results if results else None
