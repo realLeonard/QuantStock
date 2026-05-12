@@ -33,6 +33,47 @@ def _is_real_concept(name: str) -> bool:
     return not _EXCLUDE_PATTERN.search(name)
 
 
+def _normalize_name(name: str) -> str:
+    """标准化板块名用于跨源匹配（去括号、去"概念"后缀、去空格）"""
+    n = re.sub(r'[（(].*?[）)]', '', name)
+    n = re.sub(r'概念$', '', n)
+    return n.replace(' ', '').strip()
+
+
+def _build_ths_to_db_mapping(ths_names: set, db_names: set) -> dict:
+    """建立 THS→DB 板块名映射（精确→标准化→子串）"""
+    mapping = {}
+    for tn in ths_names:
+        if tn in db_names:
+            mapping[tn] = tn
+
+    unmatched_ths = ths_names - set(mapping.keys())
+    used_db = set(mapping.values())
+
+    norm_db = {}
+    for dn in db_names - used_db:
+        k = _normalize_name(dn)
+        if k and k not in norm_db:
+            norm_db[k] = dn
+
+    for tn in list(unmatched_ths):
+        k = _normalize_name(tn)
+        if k in norm_db:
+            mapping[tn] = norm_db.pop(k)
+            unmatched_ths.discard(tn)
+
+    remaining_db = set(norm_db.values())
+    for tn in list(unmatched_ths):
+        for dn in remaining_db:
+            if len(tn) > 2 and len(dn) > 2 and (tn in dn or dn in tn):
+                mapping[tn] = dn
+                remaining_db.discard(dn)
+                unmatched_ths.discard(tn)
+                break
+
+    return mapping
+
+
 def _safe_float(val, default=0.0) -> float:
     """安全转换为 float"""
     try:
@@ -272,21 +313,54 @@ def _fetch_sector_list_ths(trade_date: str) -> list[dict] | None:
 
 
 def _sync_via_ths(sb: Client, trade_date: str) -> list[dict]:
-    """THS 后备路径：不修改 sector_master，只返回 OHLCV 供写入 sector_daily"""
-    active = sb.table('sector_master').select('name,bk_code').eq('is_active', True).execute()
-    existing_names = {r['name'] for r in active.data}
+    """THS 后备路径：模糊匹配板块名 + 新板块写入 sector_master"""
+    active = sb.table('sector_master').select('name,bk_code,id').eq('is_active', True).execute()
+    db_names = {r['name'] for r in active.data}
 
     ths_items = _fetch_sector_list_ths(trade_date)
     if not ths_items:
         return []
 
-    # 只保留 DB 中已存在的板块（避免 THS 独有板块导致数据不一致）
-    matched = [item for item in ths_items if item['name'] in existing_names]
-    unmatched_count = len(ths_items) - len(matched)
+    ths_names = {item['name'] for item in ths_items}
+    name_map = _build_ths_to_db_mapping(ths_names, db_names)
+    mapped_count = len(name_map)
+    new_count = len(ths_names) - mapped_count
 
-    print(f'  THS 匹配 DB 已有板块: {len(matched)}/{len(ths_items)}（{unmatched_count} 个 THS 独有板块已忽略）')
-    print(f'  当前 active 板块总数: {len(matched)}')
-    return matched
+    # 过滤非真实概念（THS 也有"预增""年报"等筛选类板块）
+    ths_items = [it for it in ths_items if _is_real_concept(it['name'])]
+
+    # 将未匹配的 THS 板块添加到 sector_master
+    now = now_utc_ms()
+    to_insert = []
+    for item in ths_items:
+        if item['name'] not in name_map and item['name'] not in db_names:
+            to_insert.append({
+                'id': str(uuid.uuid4()),
+                'name': item['name'],
+                'bk_code': item['bk_code'],
+                'change_pct': item['change_pct'],
+                'leading_stock': '',
+                'is_active': True,
+                'created_at': now,
+                'updated_at': now,
+            })
+
+    if to_insert:
+        for i in range(0, len(to_insert), 100):
+            sb.table('sector_master').insert(to_insert[i:i + 100]).execute()
+        print(f'  新增 {len(to_insert)} 个 THS 板块到 sector_master')
+
+    # 构建最终结果：映射到 DB 名的用 DB 名，新板块用 THS 名
+    results = []
+    for item in ths_items:
+        entry = dict(item)
+        if item['name'] in name_map:
+            entry['name'] = name_map[item['name']]
+        results.append(entry)
+
+    print(f'  THS 板块名映射: {mapped_count} 匹配 + {new_count} 新增 = {len(results)} 个')
+    print(f'  当前 active 板块总数: {len(results)}')
+    return results
 
 
 def sync_sector_master(sb: Client, trade_date: str = '') -> list[dict]:
