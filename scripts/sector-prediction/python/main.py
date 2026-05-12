@@ -55,7 +55,7 @@ def main():
         print(f'  指定采集日期: {today}')
 
     # [1/4] 刷新板块列表
-    sectors = sync_sector_master(sb)
+    sectors = sync_sector_master(sb, trade_date=today)
     if not sectors:
         print('[error] 未获取到任何板块，终止')
         sys.exit(1)

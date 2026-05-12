@@ -80,9 +80,7 @@ jobs:
           python-version: '3.11'
 
       - name: 安装依赖
-        run: |
-          pip install -r scripts/sector-prediction/python/requirements.txt
-          playwright install chromium --with-deps
+        run: pip install -r scripts/sector-prediction/python/requirements.txt
 
       - name: 运行采集
         id: collect
@@ -109,8 +107,6 @@ jobs:
           SKIP_MASTER: ${{ inputs.skip_master }}
           INIT_DAYS: ${{ inputs.init_days }}
           FORCE_RUN: ${{ inputs.force_run }}
-          EASTMONEY_PROXY_URL: ${{ secrets.EASTMONEY_PROXY_URL }}
-          PROXY_API_KEY: ${{ secrets.PROXY_API_KEY }}
 
       - uses: actions/setup-node@v4
         if: success() && inputs.mode == 'daily'

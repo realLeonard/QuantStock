@@ -1,7 +1,6 @@
-"""资金流采集：curl_cffi + Chrome TLS 指纹 → sector_daily
+"""资金流采集：东财 API → sector_daily
 
-通过 curl_cffi 模拟 Chrome TLS 握手请求东财资金流 API，
-绕过东财 JA3 指纹检测。不依赖 Playwright。
+东财资金流接口暂无替代数据源，采集失败时优雅降级（不终止流程）。
 """
 
 import math
@@ -9,10 +8,14 @@ import os
 import uuid
 
 import requests
-from curl_cffi import requests as cffi_requests
 from supabase import Client
 
 from db import now_utc_ms
+
+try:
+    from curl_cffi import requests as cffi_requests
+except ImportError:
+    cffi_requests = None
 
 _HEADERS = {
     'Referer': 'https://data.eastmoney.com/',
@@ -23,7 +26,8 @@ _HEADERS = {
     ),
 }
 
-_API_URL = 'https://push2.eastmoney.com/api/qt/clist/get'
+_API_URL = 'https://79.push2.eastmoney.com/api/qt/clist/get'
+_API_URL_FALLBACK = 'https://push2.eastmoney.com/api/qt/clist/get'
 _COMMON_PARAMS = {
     'po': '1', 'np': '1',
     'ut': 'b2884a393a59ad64002292a3e90d46a5',
@@ -46,23 +50,43 @@ def _safe_float(val, default=0.0) -> float:
 
 
 def _do_request(params: dict) -> dict:
-    """发送请求，优先走代理，无代理则直连东财"""
+    """发送请求：依次尝试代理 → 79.push2 直连 → push2 直连（curl_cffi）"""
     proxy_url = os.environ.get('EASTMONEY_PROXY_URL')
     proxy_key = os.environ.get('PROXY_API_KEY', '')
 
     if proxy_url:
+        try:
+            resp = requests.get(
+                proxy_url, params=params,
+                headers={'X-Proxy-Key': proxy_key},
+                timeout=20,
+            )
+            data = resp.json()
+            if data.get('data', {}).get('diff'):
+                return data
+        except Exception:
+            pass
+
+    # 直连 79.push2
+    try:
         resp = requests.get(
-            proxy_url, params=params,
-            headers={'X-Proxy-Key': proxy_key},
-            timeout=20,
+            _API_URL, params=params, headers=_HEADERS, timeout=15,
+        )
+        data = resp.json()
+        if data.get('data', {}).get('diff'):
+            return data
+    except Exception:
+        pass
+
+    # 回退到 curl_cffi
+    if cffi_requests:
+        resp = cffi_requests.get(
+            _API_URL_FALLBACK, params=params, headers=_HEADERS,
+            impersonate='chrome', timeout=15,
         )
         return resp.json()
 
-    resp = cffi_requests.get(
-        _API_URL, params=params, headers=_HEADERS,
-        impersonate='chrome', timeout=15,
-    )
-    return resp.json()
+    raise RuntimeError('所有东财资金流请求方式均失败')
 
 
 def _fetch_fund_flow() -> list[dict] | None:
@@ -125,7 +149,7 @@ def collect_fund_flow(sb: Client, today: str) -> dict:
 
     items = _fetch_fund_flow()
     if items is None or len(items) == 0:
-        print('  [error] 资金流 API 返回为空')
+        print('  [warn] 资金流 API 不可用（东财可能封锁了当前 IP），跳过资金流采集')
         return {'total': 0, 'matched': 0, 'unmatched_names': []}
 
     print(f'  获取到 {len(items)} 条资金流数据')
