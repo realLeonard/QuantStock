@@ -179,6 +179,53 @@ def _fetch_sector_list_once() -> list[dict] | None:
     return all_items
 
 
+def _ths_fetch_one(ak, name: str, start: str, end: str) -> dict | None:
+    """带超时的单概念 THS K线获取（30秒超时）"""
+    import signal
+
+    def _alarm(signum, frame):
+        raise TimeoutError(f'{name} 超时')
+
+    old = signal.signal(signal.SIGALRM, _alarm)
+    signal.alarm(30)
+    try:
+        df = ak.stock_board_concept_index_ths(
+            symbol=name, start_date=start, end_date=end,
+        )
+        if len(df) == 0:
+            return None
+
+        today_row = df.iloc[-1]
+        close = float(today_row['收盘价'])
+        prev_close = float(df.iloc[-2]['收盘价']) if len(df) >= 2 else close
+        high = float(today_row['最高价'])
+        low = float(today_row['最低价'])
+
+        change_pct = round((close - prev_close) / prev_close * 100, 2) if prev_close else 0
+        amplitude = round((high - low) / prev_close * 100, 2) if prev_close else 0
+
+        return {
+            'change_pct': change_pct,
+            'leading_stock': '',
+            'open': float(today_row['开盘价']),
+            'close': close,
+            'high': high,
+            'low': low,
+            'volume': int(today_row['成交量']),
+            'turnover': float(today_row['成交额']),
+            'amplitude': amplitude,
+            'turnover_rate': 0,
+            'volume_ratio': 0,
+            'up_count': 0,
+            'down_count': 0,
+            'limit_up_count': 0,
+            'limit_down_count': 0,
+        }
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
+
+
 def _fetch_sector_list_ths(trade_date: str) -> list[dict] | None:
     """THS 后备：通过 akshare 从同花顺获取概念板块 OHLCV"""
     try:
@@ -208,51 +255,19 @@ def _fetch_sector_list_ths(trade_date: str) -> list[dict] | None:
 
     for i, name in enumerate(ths_names):
         if (i + 1) % 50 == 0:
-            print(f'  进度: {i + 1}/{len(ths_names)}')
+            print(f'  进度: {i + 1}/{len(ths_names)}（成功 {len(results)}，失败 {failed}）')
         try:
-            df = ak.stock_board_concept_index_ths(
-                symbol=name, start_date=start, end_date=end,
-            )
-            if len(df) == 0:
-                continue
-
-            today_row = df.iloc[-1]
-            close = float(today_row['收盘价'])
-            prev_close = float(df.iloc[-2]['收盘价']) if len(df) >= 2 else close
-            high = float(today_row['最高价'])
-            low = float(today_row['最低价'])
-
-            change_pct = round((close - prev_close) / prev_close * 100, 2) if prev_close else 0
-            amplitude = round((high - low) / prev_close * 100, 2) if prev_close else 0
-
-            results.append({
-                'name': name,
-                'bk_code': str(code_map.get(name, '')),
-                'change_pct': change_pct,
-                'leading_stock': '',
-                'open': float(today_row['开盘价']),
-                'close': close,
-                'high': high,
-                'low': low,
-                'volume': int(today_row['成交量']),
-                'turnover': float(today_row['成交额']),
-                'amplitude': amplitude,
-                'turnover_rate': 0,
-                'volume_ratio': 0,
-                'up_count': 0,
-                'down_count': 0,
-                'limit_up_count': 0,
-                'limit_down_count': 0,
-            })
+            item = _ths_fetch_one(ak, name, start, end)
+            if item:
+                item['name'] = name
+                item['bk_code'] = str(code_map.get(name, ''))
+                results.append(item)
         except Exception as e:
             failed += 1
-            if failed <= 5:
-                print(f'  [warn] THS {name} 失败: {e}')
+            if failed <= 10:
+                print(f'  [warn] THS {name}: {e}')
 
-    if failed:
-        print(f'  THS 获取失败: {failed}/{len(ths_names)}')
-
-    print(f'  THS OHLCV 获取完成: {len(results)} 条')
+    print(f'  THS OHLCV 获取完成: {len(results)} 条（失败 {failed}）')
     return results if results else None
 
 
