@@ -4,6 +4,8 @@
 此模块在 playwright 未安装时仍可导入，close_browser() 为空操作。
 """
 
+from __future__ import annotations
+
 try:
     from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page
     _HAS_PLAYWRIGHT = True
