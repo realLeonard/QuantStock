@@ -316,8 +316,9 @@ def _fetch_sector_list_ths(trade_date: str) -> list[dict] | None:
 
 def _sync_via_ths(sb: Client, trade_date: str) -> list[dict]:
     """THS 后备路径：模糊匹配板块名 + 新板块写入 sector_master"""
-    active = sb.table('sector_master').select('name,bk_code,id').eq('is_active', True).execute()
-    db_names = {r['name'] for r in active.data}
+    # 查全量（含 inactive），避免 name UNIQUE 约束冲突
+    all_sectors = sb.table('sector_master').select('name,bk_code,id,is_active').execute()
+    db_names = {r['name'] for r in all_sectors.data}
 
     ths_items = _fetch_sector_list_ths(trade_date)
     if not ths_items:
@@ -331,26 +332,34 @@ def _sync_via_ths(sb: Client, trade_date: str) -> list[dict]:
     # 过滤非真实概念（THS 也有"预增""年报"等筛选类板块）
     ths_items = [it for it in ths_items if _is_real_concept(it['name'])]
 
-    # 将未匹配的 THS 板块添加到 sector_master
+    # 将未匹配的 THS 板块 upsert 到 sector_master（新增或重新激活）
     now = now_utc_ms()
-    to_insert = []
+    db_id_map = {r['name']: r['id'] for r in all_sectors.data}
+    to_upsert = []
+    seen_names: set[str] = set()
     for item in ths_items:
-        if item['name'] not in name_map and item['name'] not in db_names:
-            to_insert.append({
-                'id': str(uuid.uuid4()),
-                'name': item['name'],
-                'bk_code': item['bk_code'],
-                'change_pct': item['change_pct'],
-                'leading_stock': '',
-                'is_active': True,
-                'created_at': now,
-                'updated_at': now,
-            })
+        if item['name'] in name_map or item['name'] in seen_names:
+            continue
+        seen_names.add(item['name'])
+        row = {
+            'id': db_id_map.get(item['name'], str(uuid.uuid4())),
+            'name': item['name'],
+            'bk_code': item['bk_code'],
+            'change_pct': item['change_pct'],
+            'leading_stock': '',
+            'is_active': True,
+            'updated_at': now,
+        }
+        if item['name'] not in db_names:
+            row['created_at'] = now
+        to_upsert.append(row)
 
-    if to_insert:
-        for i in range(0, len(to_insert), 100):
-            sb.table('sector_master').insert(to_insert[i:i + 100]).execute()
-        print(f'  新增 {len(to_insert)} 个 THS 板块到 sector_master')
+    if to_upsert:
+        for i in range(0, len(to_upsert), 100):
+            sb.table('sector_master').upsert(to_upsert[i:i + 100]).execute()
+        new_count_actual = sum(1 for r in to_upsert if 'created_at' in r)
+        reactivated = len(to_upsert) - new_count_actual
+        print(f'  新增 {new_count_actual} 个 THS 板块，重新激活 {reactivated} 个')
 
     # 构建最终结果：映射到 DB 名的用 DB 名，新板块用 THS 名
     results = []
