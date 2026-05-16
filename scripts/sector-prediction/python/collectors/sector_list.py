@@ -230,24 +230,24 @@ def _ths_fetch_one(ak, name: str, start: str, end: str) -> dict | None:
         return None
 
     today_row = df.iloc[-1]
-    close = float(today_row['收盘价'])
-    prev_close = float(df.iloc[-2]['收盘价']) if len(df) >= 2 else close
-    high = float(today_row['最高价'])
-    low = float(today_row['最低价'])
+    close = _safe_float(today_row['收盘价'])
+    prev_close = _safe_float(df.iloc[-2]['收盘价']) if len(df) >= 2 else close
+    high = _safe_float(today_row['最高价'])
+    low = _safe_float(today_row['最低价'])
 
     change_pct = round((close - prev_close) / prev_close * 100, 2) if prev_close else 0
     amplitude = round((high - low) / prev_close * 100, 2) if prev_close else 0
 
     return {
-        'change_pct': change_pct,
+        'change_pct': _safe_float(change_pct),
         'leading_stock': '',
-        'open': float(today_row['开盘价']),
+        'open': _safe_float(today_row['开盘价']),
         'close': close,
         'high': high,
         'low': low,
-        'volume': int(today_row['成交量']),
-        'turnover': float(today_row['成交额']),
-        'amplitude': amplitude,
+        'volume': _safe_int(today_row['成交量']),
+        'turnover': _safe_float(today_row['成交额']),
+        'amplitude': _safe_float(amplitude),
         'turnover_rate': 0,
         'volume_ratio': 0,
         'up_count': 0,
@@ -522,42 +522,69 @@ def write_daily_kline(sb: Client, sectors: list[dict], trade_date: str) -> dict:
         kline_data = {
             'sector_name': name,
             'trade_date': trade_date,
-            'open': s['open'],
-            'close': s['close'],
-            'high': s['high'],
-            'low': s['low'],
-            'volume': s['volume'],
-            'turnover': s['turnover'],
-            'amplitude': s['amplitude'],
-            'change_pct': s['change_pct'],
-            'turnover_rate': s['turnover_rate'],
+            'open': _safe_float(s['open']),
+            'close': _safe_float(s['close']),
+            'high': _safe_float(s['high']),
+            'low': _safe_float(s['low']),
+            'volume': _safe_float(s['volume']),
+            'turnover': _safe_float(s['turnover']),
+            'amplitude': _safe_float(s['amplitude']),
+            'change_pct': _safe_float(s['change_pct']),
+            'turnover_rate': _safe_float(s['turnover_rate']),
             # v3 新增字段
-            'volume_ratio': s.get('volume_ratio', 0),
-            'up_count': s.get('up_count', 0),
-            'down_count': s.get('down_count', 0),
-            'limit_up_count': s.get('limit_up_count', 0),
-            'limit_down_count': s.get('limit_down_count', 0),
+            'volume_ratio': _safe_float(s.get('volume_ratio', 0)),
+            'up_count': _safe_float(s.get('up_count', 0)),
+            'down_count': _safe_float(s.get('down_count', 0)),
+            'limit_up_count': _safe_float(s.get('limit_up_count', 0)),
+            'limit_down_count': _safe_float(s.get('limit_down_count', 0)),
         }
 
         if name in existing_map:
-            to_update.append((existing_map[name], kline_data))
+            kline_data['id'] = existing_map[name]
+            to_update.append(kline_data)
         else:
             kline_data['id'] = str(uuid.uuid4())
             kline_data['created_at'] = now
             to_insert.append(kline_data)
 
-        success += 1
-
-    # 批量 insert
-    if to_insert:
-        for i in range(0, len(to_insert), 100):
-            batch = to_insert[i:i + 100]
+    # 批量 insert（分批 + 容错）
+    inserted = 0
+    failed_insert = 0
+    for i in range(0, len(to_insert), 100):
+        batch = to_insert[i:i + 100]
+        try:
             sb.table('sector_daily').insert(batch).execute()
+            inserted += len(batch)
+        except Exception as e:
+            failed_insert += len(batch)
+            print(f'  [warn] insert batch {i // 100 + 1} 失败（{len(batch)} 条）: {e}')
 
-    # 逐条 update（只更新 K 线字段，不覆盖资金流字段）
-    for record_id, data in to_update:
-        update_data = {k: v for k, v in data.items() if k not in ('sector_name', 'trade_date')}
-        sb.table('sector_daily').update(update_data).eq('id', record_id).execute()
+    # 批量 update（upsert 只覆盖 K 线字段，on_conflict 保留资金流字段）
+    updated = 0
+    failed_update = 0
+    _KLINE_FIELDS = [
+        'open', 'close', 'high', 'low', 'volume', 'turnover',
+        'amplitude', 'change_pct', 'turnover_rate',
+        'volume_ratio', 'up_count', 'down_count',
+        'limit_up_count', 'limit_down_count',
+    ]
+    for i in range(0, len(to_update), 100):
+        batch = to_update[i:i + 100]
+        rows = [
+            {k: v for k, v in row.items() if k in ('id', 'sector_name', 'trade_date', *_KLINE_FIELDS)}
+            for row in batch
+        ]
+        try:
+            sb.table('sector_daily').upsert(rows, on_conflict='id').execute()
+            updated += len(batch)
+        except Exception as e:
+            failed_update += len(batch)
+            print(f'  [warn] update batch {i // 100 + 1} 失败（{len(batch)} 条）: {e}')
 
-    print(f'  K 线写入完成: {success} 个（新增 {len(to_insert)}，更新 {len(to_update)}），跳过 {skipped}')
-    return {'success': success, 'inserted': len(to_insert), 'updated': len(to_update), 'skipped': skipped}
+    success = inserted + updated
+    total_failed = failed_insert + failed_update
+    msg = f'  K 线写入完成: {success} 个（新增 {inserted}，更新 {updated}），跳过 {skipped}'
+    if total_failed:
+        msg += f'，失败 {total_failed}'
+    print(msg)
+    return {'success': success, 'inserted': inserted, 'updated': updated, 'skipped': skipped}

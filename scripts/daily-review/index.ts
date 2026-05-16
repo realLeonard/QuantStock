@@ -17,6 +17,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { spawnSync } from 'node:child_process';
 import axios from 'axios';
 import { isTradingDay } from '../shared/trading-calendar';
+import { extractAndRepairJson } from './json-repair';
 
 // 加载环境变量
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
@@ -520,19 +521,8 @@ async function generateAiAnalysisV2(
   }
   const rawText = cliResult.stdout;
 
-  // 兼容 Claude 输出：可能包裹 ```json```，或在 JSON 前/后附带文字说明
-  let jsonStr = rawText.trim();
-  const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (codeBlockMatch) {
-    jsonStr = codeBlockMatch[1].trim();
-  } else {
-    const firstBrace = jsonStr.indexOf('{');
-    const lastBrace = jsonStr.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace > firstBrace) {
-      jsonStr = jsonStr.slice(firstBrace, lastBrace + 1);
-    }
-  }
-
+  // 提取 + 修复 AI 返回的 JSON（处理代码块包裹、未转义引号、截断等）
+  const jsonStr = extractAndRepairJson(rawText);
   const analysis = JSON.parse(jsonStr) as AiAnalysisV2;
   analysis.version = 'v2';
   return analysis;
