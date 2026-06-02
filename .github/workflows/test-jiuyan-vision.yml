@@ -61,6 +61,7 @@ jobs:
           export ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}"
           export JY_TOKEN="${{ secrets.JY_TOKEN }}"
           export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+          export CLAUDE_CODE_ATTRIBUTION_HEADER=0
 
           # 拉取最新代码
           git checkout -- package-lock.json 2>/dev/null || true
