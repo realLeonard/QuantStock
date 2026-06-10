@@ -1,4 +1,7 @@
+import { createHash } from 'crypto';
+
 const BASE = 'https://app.jiuyangongshe.com/jystock-app/api/v1';
+const SIGN_KEY = 'Uu0KfOB8iUP69d3c';
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -22,11 +25,13 @@ function isRetryableFetchError(err: Error): boolean {
 }
 
 function headers(): Record<string, string> {
+  const ts = String(Date.now());
+  const token = createHash('md5').update(`${SIGN_KEY}:${ts}`).digest('hex');
   return {
     'Content-Type': 'application/json',
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36',
-    'token': process.env.JY_TOKEN ?? '',
-    'timestamp': String(Date.now()),
+    'token': token,
+    'timestamp': ts,
     'platform': '3',
     'referer': 'https://www.jiuyangongshe.com/',
   };
