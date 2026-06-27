@@ -147,19 +147,34 @@ async function parseWithQwen(imageUrl: string): Promise<LimitUpThemeOut[]> {
   });
 
   console.error(`     → 调用通义千问 qwen3.6-plus...`);
-  const resp = await fetch(
-    'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body,
-      signal: AbortSignal.timeout(300_000),
-    },
-  );
-  if (!resp.ok) throw new Error(`Qwen API 错误 HTTP ${resp.status}: ${await resp.text()}`);
+  let resp!: Response;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      resp = await fetch(
+        'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body,
+          signal: AbortSignal.timeout(300_000),
+        },
+      );
+      if (!resp.ok) throw new Error(`Qwen API 错误 HTTP ${resp.status}: ${await resp.text()}`);
+      break;
+    } catch (e) {
+      const isTimeout = e instanceof Error &&
+        (e.name === 'TimeoutError' || e.message.includes('aborted due to timeout'));
+      if (attempt < 2 && isTimeout) {
+        console.error(`     ⚠️ 通义千问超时，30s 后重试...`);
+        await new Promise(r => setTimeout(r, 30_000));
+        continue;
+      }
+      throw e;
+    }
+  }
 
   const result = await resp.json() as {
     choices?: { message?: { content?: string; finish_reason?: string } }[];
