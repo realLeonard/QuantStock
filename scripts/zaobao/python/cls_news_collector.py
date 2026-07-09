@@ -437,9 +437,9 @@ def collect_flash() -> list:
     """来源四（最低优先级）：财联社快讯（不需要 sign）"""
     try:
         r = requests.get(
-            'https://www.cls.cn/nodeapi/telegraphList',
+            'https://www.cls.cn/api/cache',
             headers={**HEADERS, 'Referer': 'https://www.cls.cn/telegraph'},
-            params={'rn': FLASH_RN, 'app': 'CailianpressWeb', 'os': 'web', 'sv': '8.4.6'},
+            params={'app': 'CailianpressWeb', 'name': 'telegraph', 'os': 'web', 'sv': '8.7.9'},
             timeout=10
         )
         roll_data = r.json().get('data', {}).get('roll_data', [])
