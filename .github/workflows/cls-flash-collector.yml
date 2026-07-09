@@ -65,10 +65,17 @@ jobs:
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         shell: bash
         run: |
+          if echo "$FAIL_LINE" | grep -q "登录失效"; then
+            TITLE="韭研 SESSION 过期，需重新登录"
+          elif echo "$FAIL_LINE" | grep -q "超时"; then
+            TITLE="韭研涨停原因采集超时（可能自动重试）"
+          else
+            TITLE="韭研涨停原因采集失败"
+          fi
           curl -sSf -X POST "https://api.day.app/${BARK_KEY}" \
             -H "Content-Type: application/json" \
             --data "$(jq -n \
-              --arg t "韭研涨停原因采集失败" \
+              --arg t "$TITLE" \
               --arg b "$FAIL_LINE" \
               --arg u "$RUN_URL" \
               '{title:$t, body:$b, url:$u, group:"quantstock", level:"timeSensitive"}')"
