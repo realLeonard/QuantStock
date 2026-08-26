@@ -2,5 +2,5 @@
   "installCommand": "cd ../.. && npm install",
   "buildCommand": "npx next build",
   "framework": "nextjs",
-  "ignoreCommand": "git diff --quiet HEAD~1 HEAD -- apps/web packages"
+  "ignoreCommand": "git diff --quiet HEAD~1 HEAD -- . ../../packages"
 }
