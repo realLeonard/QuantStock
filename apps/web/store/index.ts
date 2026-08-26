@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import type { Theme, AdminUser, SessionUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview, RecentInsights, DailyGoldPick, SectorScore, SectorDaily, SectorRotationMap, SectorPredictionSummary, SectorMaster, StockCode } from '@quantstock/types';
+import type { Theme, AdminUser, SessionUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview, RecentInsights, DailyGoldPick, SectorScore, SectorDaily, SectorRotationMap, SectorPredictionSummary, SectorMaster, StockCode, LoginLog, LoginLogSummary } from '@quantstock/types';
 import { apiClient } from '@/lib/supabase';
 
 export interface NewsItem {
@@ -22,7 +22,8 @@ const API_BASE = '/backend-api';
 
 type NavItem = 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao' | 'breadth' | 'news'
              | 'app-users' | 'app-feedback' | 'app-events' | 'app-version' | 'daily-review' | 'gold'
-             | 'sector-prediction' | 'stock-dict-sector' | 'stock-dict-codes' | 'subscription';
+             | 'sector-prediction' | 'stock-dict-sector' | 'stock-dict-codes' | 'subscription'
+             | 'login-logs';
 
 interface AppState {
   // 数据
@@ -131,6 +132,15 @@ interface AppState {
   createAppVersion: (version: string, isForceUpdate: boolean, valueDesc: string) => Promise<void>;
   updateAppVersion: (id: string, patch: Partial<Omit<AppVersionControl, 'id' | 'created_at'>>) => Promise<void>;
 
+  // 登录日志（仅 admin）
+  loginLogs: LoginLog[];
+  loginLogTotal: number;
+  loginLogPage: number;
+  loginLogUsername: string;
+  loginLogSummary: LoginLogSummary[];
+  loadLoginLogs: (page: number, username?: string) => Promise<void>;
+  loadLoginLogSummary: () => Promise<void>;
+
   // 用户管理 Actions（仅 admin）
   loadUsers: () => Promise<void>;
   createUser: (username: string, password: string, role: UserRole) => Promise<void>;
@@ -172,6 +182,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   stockDictMenuOpen: false,
   sectorMasters: [],
   stockCodes: [],
+  loginLogs: [],
+  loginLogTotal: 0,
+  loginLogPage: 1,
+  loginLogUsername: '',
+  loginLogSummary: [],
 
   setLoading: (v) => set({ isLoading: v }),
 
@@ -649,6 +664,30 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().showToast('❌ 更新失败：' + (e as Error).message);
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  // ===== 加载登录日志（分页流水） =====
+  loadLoginLogs: async (page, username) => {
+    set({ isLoading: true });
+    try {
+      const kw = username?.trim() ?? '';
+      const { items, total } = await apiClient.listLoginLogs(page, 20, kw || undefined);
+      set({ loginLogs: items, loginLogTotal: total, loginLogPage: page, loginLogUsername: kw });
+    } catch (e) {
+      get().showToast('❌ 加载登录日志失败：' + (e as Error).message);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ===== 加载登录风险概览（30 天聚合） =====
+  loadLoginLogSummary: async () => {
+    try {
+      const loginLogSummary = await apiClient.getLoginLogSummary(30);
+      set({ loginLogSummary });
+    } catch (e) {
+      get().showToast('❌ 加载风险概览失败：' + (e as Error).message);
     }
   },
 

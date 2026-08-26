@@ -93,6 +93,11 @@ export default function AdminLayout({ children }: Props) {
     if (nav === 'stock-dict-codes') {
       useAppStore.getState().loadStockCodes();
     }
+    if (nav === 'login-logs') {
+      const s = useAppStore.getState();
+      s.loadLoginLogs(1);
+      s.loadLoginLogSummary();
+    }
   }
 
   function handleLogout() {
@@ -426,6 +431,20 @@ export default function AdminLayout({ children }: Props) {
                     </span>
                     角色管理
                   </div>
+                  <div
+                    className={`nav-item nav-sub-item${currentNav === 'login-logs' ? ' active' : ''}`}
+                    onClick={() => handleNav('login-logs')}
+                  >
+                    <span className="nav-icon">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <circle cx="10" cy="15" r="2.5"/>
+                        <path d="M12 17l2 2"/>
+                      </svg>
+                    </span>
+                    登录日志
+                  </div>
                 </>
               )}
             </nav>
@@ -547,6 +566,7 @@ const NAV_LABEL: Record<string, string> = {
   'stock-dict-sector': '概念板块',
   'stock-dict-codes': '股票代码',
   subscription: '订阅订单',
+  'login-logs': '登录日志',
 };
 
 function Topbar() {

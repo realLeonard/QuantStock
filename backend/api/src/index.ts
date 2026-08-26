@@ -14,8 +14,12 @@ import appUsers from './routes/app-users';
 import versions from './routes/versions';
 import insights from './routes/insights';
 import mobileReports from './routes/mobile-reports';
+import loginLogs from './routes/login-logs';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
+import { UAParser } from 'ua-parser-js';
+import IP2Region from 'ip2region';
+import type { LoginLog, UserRole } from '@quantstock/types';
 
 // ===== 环境变量 =====
 const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
@@ -62,6 +66,61 @@ const loginSchema = z.object({
 const loginIpHits = new Map<string, number[]>();
 const loginUserHits = new Map<string, number[]>();
 
+// ===== 登录日志辅助（ip2region 离线库 + UA 解析，任何失败都不阻塞登录） =====
+let ipRegionSearcher: IP2Region | null | undefined;
+function parseIpRegion(ip: string): string | null {
+  try {
+    if (ipRegionSearcher === undefined) {
+      ipRegionSearcher = new IP2Region();
+    }
+    const r = ipRegionSearcher?.search(ip);
+    if (!r) return null;
+    const region = [r.country, r.province, r.city]
+      .filter((s) => s && s !== '0')
+      .filter((s, i, arr) => arr.indexOf(s) === i)
+      .join(' ');
+    return region || null;
+  } catch {
+    ipRegionSearcher = null;
+    return null;
+  }
+}
+
+interface LoginAttempt {
+  user_id: string | null;
+  username: string;
+  role: UserRole | null;
+  ip: string;
+  userAgent: string | null;
+  success: boolean;
+  fail_reason: string | null;
+}
+
+// 写日志失败只丢审计记录，绝不影响登录主流程
+async function logLogin(attempt: LoginAttempt): Promise<void> {
+  try {
+    const ua = attempt.userAgent ? new UAParser(attempt.userAgent).getResult() : null;
+    const log: LoginLog = {
+      id: randomUUID(),
+      user_id: attempt.user_id,
+      username: attempt.username,
+      role: attempt.role,
+      login_at: Date.now(),
+      ip: attempt.ip || null,
+      ip_region: attempt.ip ? parseIpRegion(attempt.ip) : null,
+      user_agent: attempt.userAgent,
+      browser: ua?.browser.name ? `${ua.browser.name} ${ua.browser.version ?? ''}`.trim() : null,
+      os: ua?.os.name ? `${ua.os.name} ${ua.os.version ?? ''}`.trim() : null,
+      device_type: ua ? (ua.device.type ?? 'desktop') : null,
+      success: attempt.success,
+      fail_reason: attempt.fail_reason,
+    };
+    await db.createLoginLog(log);
+  } catch {
+    // 吞错：审计缺口可接受，登录可用性优先
+  }
+}
+
 app.post('/auth/login', zValidator('json', loginSchema), async (c) => {
   const { username, password } = c.req.valid('json');
 
@@ -76,21 +135,41 @@ app.post('/auth/login', zValidator('json', loginSchema), async (c) => {
     return c.json({ error: '服务端配置错误：缺少 JWT_SECRET' }, 500);
   }
 
+  const userAgent = c.req.header('user-agent') ?? null;
+
   try {
     const user = await db.findUserByUsername(username);
     if (!user) {
+      await logLogin({
+        user_id: null, username, role: null, ip, userAgent,
+        success: false, fail_reason: '用户不存在',
+      });
       return c.json({ error: '用户名或密码错误' }, 401);
     }
 
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) {
+      await logLogin({
+        user_id: user.id, username, role: user.role, ip, userAgent,
+        success: false, fail_reason: '密码错误',
+      });
       return c.json({ error: '用户名或密码错误' }, 401);
     }
 
+    // 单会话互踢：先落库再签 token，防止"库里 jti 与 token 不一致→自踢"。
+    // admin 也写列但校验时豁免（见 middleware/auth.ts）
+    const jti = randomUUID();
+    await db.updateUserSession(user.id, jti);
+
     const token = await signJwt(
-      { sub: user.id, username: user.username, role: user.role },
+      { sub: user.id, username: user.username, role: user.role, jti },
       JWT_SECRET
     );
+
+    await logLogin({
+      user_id: user.id, username, role: user.role, ip, userAgent,
+      success: true, fail_reason: null,
+    });
 
     // subscription_expires_at 仅供前端展示（剩余天数/黄条提醒），
     // 权威校验在 adminAuth 每次查库，不放入 JWT payload
@@ -118,6 +197,7 @@ app.route('/', sectors);
 app.route('/', appUsers);
 app.route('/', insights);
 app.route('/admin-users', adminUsers);
+app.route('/login-logs', loginLogs);
 app.route('/versions', versions);
 
 // ===== 移动端日报/配置路由（mobileAuth + 服务端会员校验） =====

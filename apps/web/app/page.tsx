@@ -20,6 +20,7 @@ import GoldView from '@/components/gold/GoldView';
 import SectorPredictionView from '@/components/sector-prediction/SectorPredictionView';
 import StockDictView from '@/components/stock-dict/StockDictView';
 import SubscriptionView from '@/components/subscription/SubscriptionView';
+import LoginLogsView from '@/components/login-logs/LoginLogsView';
 import ExpiredPage from '@/components/subscription/ExpiredPage';
 import type { SessionUser } from '@quantstock/types';
 
@@ -73,6 +74,7 @@ export default function Home() {
       {currentNav === 'sector-prediction' && <SectorPredictionView />}
       {(currentNav === 'stock-dict-sector' || currentNav === 'stock-dict-codes') && <StockDictView />}
       {currentNav === 'subscription' && <SubscriptionView />}
+      {currentNav === 'login-logs' && <LoginLogsView />}
     </AdminLayout>
   );
 }

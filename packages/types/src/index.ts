@@ -43,6 +43,37 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionPlan, { label: string; price
 // 订阅到期时 Hono API 返回的错误码，前端据此跳转续费页
 export const ERR_SUBSCRIPTION_EXPIRED = 'SUBSCRIPTION_EXPIRED';
 
+// 单会话互踢时 Hono API 返回的错误码，前端据此强制登出
+export const ERR_SESSION_KICKED = 'SESSION_KICKED';
+
+// ===== 登录日志 =====
+export interface LoginLog {
+  id: string;
+  user_id: string | null; // 失败登录（用户不存在）时为空
+  username: string;
+  role: UserRole | null;
+  login_at: number; // UTC 毫秒
+  ip: string | null;
+  ip_region: string | null;
+  user_agent: string | null;
+  browser: string | null;
+  os: string | null;
+  device_type: string | null;
+  success: boolean;
+  fail_reason: string | null;
+}
+
+// 登录日志 30 天风险聚合（按账号）
+export interface LoginLogSummary {
+  username: string;
+  role: UserRole | null;
+  login_count: number;
+  distinct_ips: number;
+  distinct_regions: number;
+  distinct_devices: number;
+  last_login_at: number;
+}
+
 // ===== 股票高亮类型 =====
 export type StockHighlight = '' | 'red' | 'orange';
 

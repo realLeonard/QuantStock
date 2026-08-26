@@ -20,6 +20,8 @@ import type {
   SectorRotationMap,
   SectorMaster,
   StockCode,
+  LoginLog,
+  LoginLogSummary,
 } from '@quantstock/types';
 
 // 资讯条目（服务端 GET /api/news 返回结构）
@@ -39,6 +41,8 @@ export interface ApiClientOptions {
   baseUrl: string;
   /** 每次请求时读取 JWT（返回 null 表示未登录，不携带 Authorization） */
   getToken: () => string | null;
+  /** 401 时先触发该回调（code 为服务端错误码，如 SESSION_KICKED），随后照旧抛错 */
+  onAuthError?: (code?: string) => void;
 }
 
 /**
@@ -48,10 +52,12 @@ export interface ApiClientOptions {
 export class QuantStockApiClient {
   private baseUrl: string;
   private getToken: () => string | null;
+  private onAuthError?: (code?: string) => void;
 
   constructor(options: ApiClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, '');
     this.getToken = options.getToken;
+    this.onAuthError = options.onAuthError;
   }
 
   private async request<T>(
@@ -85,7 +91,7 @@ export class QuantStockApiClient {
       resp = await doFetch();
     }
 
-    let parsed: { data?: T; error?: string } | null = null;
+    let parsed: { data?: T; error?: string; code?: string } | null = null;
     try {
       parsed = await resp.json();
     } catch {
@@ -93,6 +99,9 @@ export class QuantStockApiClient {
     }
 
     if (!resp.ok) {
+      if (resp.status === 401) {
+        this.onAuthError?.(parsed?.code);
+      }
       throw new Error(parsed?.error ?? `请求失败（HTTP ${resp.status}）`);
     }
     return parsed?.data as T;
@@ -175,6 +184,22 @@ export class QuantStockApiClient {
 
   async deleteUser(userId: string): Promise<void> {
     await this.request('DELETE', `/admin-users/${encodeURIComponent(userId)}`);
+  }
+
+  // ===== 登录日志（仅 admin） =====
+
+  async listLoginLogs(
+    page: number,
+    pageSize: number,
+    username?: string
+  ): Promise<{ items: LoginLog[]; total: number }> {
+    const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (username) params.set('username', username);
+    return this.request('GET', `/login-logs?${params.toString()}`);
+  }
+
+  async getLoginLogSummary(days = 30): Promise<LoginLogSummary[]> {
+    return this.request('GET', `/login-logs/summary?days=${days}`);
   }
 
   // ===== 每日早报 =====
@@ -318,4 +343,6 @@ export type {
   SectorRotationMap,
   SectorMaster,
   StockCode,
+  LoginLog,
+  LoginLogSummary,
 };

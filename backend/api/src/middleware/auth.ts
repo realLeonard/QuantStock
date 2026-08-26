@@ -59,6 +59,20 @@ function makeAdminAuth(allowExpired: boolean): MiddlewareHandler<Env> {
       return c.json({ error: '登录状态已失效，请重新登录' }, 401);
     }
 
+    // 单会话互踢：admin 豁免；旧 token 无 jti（上线前签发）宽限放行，24h 内自然过期。
+    // 用 data.role（库里实时角色）而非 payload.role，角色被降级后立即生效
+    if (
+      data.role !== 'admin' &&
+      typeof payload.jti === 'string' &&
+      data.current_session_id &&
+      payload.jti !== data.current_session_id
+    ) {
+      return c.json(
+        { error: '账号已在其他设备登录，您已被迫下线', code: 'SESSION_KICKED' },
+        401
+      );
+    }
+
     if (!allowExpired && payload.role === 'member') {
       const expiresAt = data.subscription_expires_at as number | null;
       if (typeof expiresAt === 'number' && expiresAt < Date.now()) {

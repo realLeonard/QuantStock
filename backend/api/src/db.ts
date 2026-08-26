@@ -22,6 +22,7 @@ import type {
   SectorRotationMap,
   SectorMaster,
   StockCode,
+  LoginLog,
 } from '@quantstock/types';
 
 // ===== 共享 Supabase 客户端（service key，绕过 RLS，服务端专用） =====
@@ -182,6 +183,61 @@ export const db = {
   async deleteUser(userId: string): Promise<void> {
     const { error } = await supabase.from('adminUsers').delete().eq('id', userId);
     if (error) throw new Error(error.message);
+  },
+
+  // ---- 登录日志 / 单会话 ----
+
+  async createLoginLog(log: LoginLog): Promise<void> {
+    const { error } = await supabase.from('loginLogs').insert(log);
+    if (error) throw new Error(error.message);
+  },
+
+  async updateUserSession(userId: string, sessionId: string): Promise<void> {
+    const { error } = await supabase
+      .from('adminUsers')
+      .update({ current_session_id: sessionId })
+      .eq('id', userId);
+    if (error) throw new Error(error.message);
+  },
+
+  async listLoginLogs(
+    page: number,
+    pageSize: number,
+    username?: string
+  ): Promise<{ items: LoginLog[]; total: number }> {
+    const from = (page - 1) * pageSize;
+    let query = supabase
+      .from('loginLogs')
+      .select('*', { count: 'exact' })
+      .order('login_at', { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (username) {
+      query = query.eq('username', username);
+    }
+    const { data, error, count } = await query;
+    if (error) throw new Error(error.message);
+    return { items: (data || []) as LoginLog[], total: count ?? 0 };
+  },
+
+  async listLoginLogsSince(sinceMs: number): Promise<LoginLog[]> {
+    const PAGE_SIZE = 1000;
+    const all: LoginLog[] = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from('loginLogs')
+        .select('*')
+        .gte('login_at', sinceMs)
+        .eq('success', true)
+        .order('login_at', { ascending: false })
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) break;
+      all.push(...(data as LoginLog[]));
+      if (data.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
+    }
+    return all;
   },
 
   // ---- 每日早报 ----
