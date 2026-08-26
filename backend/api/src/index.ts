@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { QuantStockApiClient } from '@quantstock/api-client';
 import { themeInputSchema, stockInputSchema } from '@quantstock/validators';
 import { adminAuth, mobileAuth, signJwt } from './middleware/auth';
+import subscribe from './routes/subscribe';
 import bcrypt from 'bcryptjs';
 
 // ===== 环境变量 =====
@@ -77,16 +78,25 @@ app.post('/auth/login', zValidator('json', loginSchema), async (c) => {
       JWT_SECRET
     );
 
+    // subscription_expires_at 仅供前端展示（剩余天数/黄条提醒），
+    // 权威校验在 adminAuth 每次查库，不放入 JWT payload
     return c.json({
       data: {
         token,
-        user: { username: user.username, role: user.role },
+        user: {
+          username: user.username,
+          role: user.role,
+          subscription_expires_at: user.subscription_expires_at ?? null,
+        },
       },
     });
   } catch (e) {
     return c.json({ error: (e as Error).message }, 500);
   }
 });
+
+// ===== 订阅路由（下单公开，其余带鉴权，详见 routes/subscribe.ts） =====
+app.route('/subscribe', subscribe);
 
 // ===== 主题路由（受管理员 JWT 保护） =====
 

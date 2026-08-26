@@ -19,10 +19,12 @@ import DailyReviewView from '@/components/daily-review/DailyReviewView';
 import GoldView from '@/components/gold/GoldView';
 import SectorPredictionView from '@/components/sector-prediction/SectorPredictionView';
 import StockDictView from '@/components/stock-dict/StockDictView';
+import SubscriptionView from '@/components/subscription/SubscriptionView';
+import ExpiredPage from '@/components/subscription/ExpiredPage';
 import type { SessionUser } from '@quantstock/types';
 
 export default function Home() {
-  const { isLoggedIn, currentNav } = useAppStore();
+  const { isLoggedIn, currentNav, currentUser } = useAppStore();
 
   // 页面刷新时从 sessionStorage 恢复登录状态
   useEffect(() => {
@@ -47,6 +49,12 @@ export default function Home() {
     return <LoginPage />;
   }
 
+  // member 订阅到期：拦截全部功能页，仅显示续费引导（API 层另有权威校验）
+  const expiresAt = currentUser?.subscription_expires_at;
+  if (currentUser?.role === 'member' && expiresAt != null && expiresAt < Date.now()) {
+    return <ExpiredPage />;
+  }
+
   return (
     <AdminLayout>
       {currentNav === 'dashboard' && <Dashboard />}
@@ -64,6 +72,7 @@ export default function Home() {
       {currentNav === 'gold' && <GoldView />}
       {currentNav === 'sector-prediction' && <SectorPredictionView />}
       {(currentNav === 'stock-dict-sector' || currentNav === 'stock-dict-codes') && <StockDictView />}
+      {currentNav === 'subscription' && <SubscriptionView />}
     </AdminLayout>
   );
 }

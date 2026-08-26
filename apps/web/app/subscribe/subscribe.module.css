@@ -1,0 +1,243 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 16px;
+  background: linear-gradient(160deg, #eef3fb 0%, #f7f8fa 60%);
+}
+
+.card {
+  width: 100%;
+  max-width: 560px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 6px 24px rgba(30, 60, 120, 0.08);
+  padding: 32px 28px;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a2b4c;
+  margin: 0 0 6px;
+  text-align: center;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: #7a869a;
+  text-align: center;
+  margin: 0 0 20px;
+}
+
+.memberBanner {
+  background: #fff8e6;
+  border: 1px solid #ffd97a;
+  color: #8a6100;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 18px;
+}
+
+.sectionLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: #33405c;
+  margin: 18px 0 10px;
+}
+
+.plans {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.planCard {
+  border: 2px solid #e3e8f0;
+  border-radius: 10px;
+  background: #fff;
+  padding: 14px 8px;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.planCard:hover {
+  border-color: #a9bff0;
+}
+
+.planActive {
+  border-color: #3b6fe0;
+  box-shadow: 0 0 0 3px rgba(59, 111, 224, 0.12);
+}
+
+.planLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: #33405c;
+}
+
+.planPrice {
+  font-size: 14px;
+  color: #d43a3a;
+  margin: 6px 0 2px;
+}
+
+.planPrice span {
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.planDays {
+  font-size: 12px;
+  color: #98a3b5;
+}
+
+.phoneInput {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d6dde8;
+  border-radius: 8px;
+  padding: 11px 14px;
+  font-size: 16px;
+  letter-spacing: 1px;
+  outline: none;
+}
+
+.phoneInput:focus {
+  border-color: #3b6fe0;
+}
+
+.phoneInput:disabled {
+  background: #f3f5f8;
+  color: #57617a;
+}
+
+.payRow {
+  display: flex;
+  gap: 16px;
+  align-items: stretch;
+  justify-content: center;
+}
+
+.qrBox {
+  flex: 0 0 160px;
+  text-align: center;
+}
+
+.qrImg {
+  width: 160px;
+  height: 160px;
+  border-radius: 8px;
+  border: 1px solid #e3e8f0;
+  background: #f3f5f8;
+  object-fit: cover;
+}
+
+.qrCaption {
+  font-size: 12px;
+  color: #43a047;
+  margin-top: 6px;
+  font-weight: 600;
+}
+
+.alipayCaption {
+  color: #1677ff;
+}
+
+.payAmount {
+  font-size: 13px;
+  color: #7a869a;
+  text-align: center;
+  margin-top: 12px;
+}
+
+.payAmount b {
+  color: #d43a3a;
+  font-size: 18px;
+}
+
+.error {
+  margin-top: 14px;
+  background: #fdecec;
+  border: 1px solid #f5b8b8;
+  color: #c0392b;
+  border-radius: 8px;
+  padding: 9px 13px;
+  font-size: 13px;
+}
+
+.submitBtn {
+  width: 100%;
+  margin-top: 18px;
+  background: #3b6fe0;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 11px 13px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.submitMain {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.submitSub {
+  font-size: 12px;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+.submitBtn:hover {
+  background: #2f5cc4;
+}
+
+.submitBtn:disabled {
+  background: #a9bff0;
+  cursor: not-allowed;
+}
+
+/* ===== 提交成功态 ===== */
+.successIcon {
+  font-size: 44px;
+  text-align: center;
+}
+
+.successTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a2b4c;
+  text-align: center;
+  margin: 10px 0 6px;
+}
+
+.successText {
+  font-size: 14px;
+  color: #57617a;
+  text-align: center;
+  margin: 0 0 16px;
+}
+
+.successHint {
+  font-size: 13px;
+  color: #7a869a;
+  text-align: center;
+  margin-top: 16px;
+}
+
+@media (max-width: 480px) {
+  .card {
+    padding: 24px 18px;
+  }
+  .payRow {
+    flex-direction: column;
+    align-items: center;
+  }
+}

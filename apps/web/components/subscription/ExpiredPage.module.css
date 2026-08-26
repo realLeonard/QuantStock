@@ -1,0 +1,65 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, #eef3fb 0%, #f7f8fa 60%);
+  padding: 16px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 6px 24px rgba(30, 60, 120, 0.08);
+  padding: 40px 36px;
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+}
+
+.icon {
+  font-size: 48px;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a2b4c;
+  margin: 12px 0 8px;
+}
+
+.text {
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.7;
+  margin: 0 0 24px;
+}
+
+.renewBtn {
+  display: block;
+  background: #3b6fe0;
+  color: #fff;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.renewBtn:hover {
+  background: #2f5cc4;
+}
+
+.logoutBtn {
+  margin-top: 12px;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.logoutBtn:hover {
+  color: #64748b;
+  text-decoration: underline;
+}

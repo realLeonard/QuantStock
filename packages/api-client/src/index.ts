@@ -129,7 +129,7 @@ export class QuantStockApiClient {
   async listUsers(): Promise<AdminUser[]> {
     const { data, error } = await this.sb
       .from('adminUsers')
-      .select('id, username, role, created_at')
+      .select('id, username, role, created_at, subscription_expires_at')
       .order('created_at', { ascending: true });
     if (error) throw new Error(error.message);
     return (data || []) as AdminUser[];

@@ -23,7 +23,7 @@ const API_BASE = '/backend-api';
 
 type NavItem = 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao' | 'breadth' | 'news'
              | 'app-users' | 'app-feedback' | 'app-events' | 'app-version' | 'daily-review' | 'gold'
-             | 'sector-prediction' | 'stock-dict-sector' | 'stock-dict-codes';
+             | 'sector-prediction' | 'stock-dict-sector' | 'stock-dict-codes' | 'subscription';
 
 interface AppState {
   // 数据

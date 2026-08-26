@@ -85,6 +85,11 @@ export default function LoginPage() {
         </form>
 
         <p className="login-error">{error}</p>
+
+        <div className="login-subscribe-hint">
+          如果还没有账号，请前往订阅获得账号权限
+          <a className="login-subscribe-link" href="/subscribe">&gt;&gt;&gt;去订阅&gt;&gt;&gt;</a>
+        </div>
       </div>
     </div>
   );

@@ -1,0 +1,95 @@
+/* ===== 状态徽标 ===== */
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badgeClaimed {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.badgeConfirmed {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.badgeRejected {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+/* 待确认订单行高亮 */
+.pendingRow {
+  background: #fffbf0;
+}
+
+.timeCell {
+  color: #64748b;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.noteCell {
+  color: #64748b;
+  font-size: 13px;
+  max-width: 200px;
+  word-break: break-all;
+}
+
+.actionRow {
+  display: flex;
+  gap: 8px;
+}
+
+/* 确认开通结果弹窗正文（保留换行） */
+.resultBody {
+  padding: 20px 24px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #334155;
+  white-space: pre-line;
+}
+
+/* ===== member 订阅信息卡片 ===== */
+.subCard {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.subCardMain {
+  display: flex;
+  gap: 48px;
+}
+
+.subCardLabel {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-bottom: 6px;
+}
+
+.subCardDate {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.subCardDays {
+  font-size: 18px;
+  font-weight: 700;
+  color: #047857;
+}
+
+.daysWarn {
+  color: #d97706;
+}

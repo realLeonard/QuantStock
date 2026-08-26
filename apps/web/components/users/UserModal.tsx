@@ -15,6 +15,7 @@ const ROLES: { value: UserRole; label: string }[] = [
   { value: 'viewer', label: '观察者' },
   { value: 'editor', label: '编辑者' },
   { value: 'admin', label: '管理员' },
+  { value: 'member', label: '订阅会员' },
 ];
 
 export default function UserModal({ user, mode, onClose }: Props) {

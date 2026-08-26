@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '@/store';
 import { fmtDate } from '@/lib/utils';
+import { remainingDays, formatExpireDate } from '@/lib/subscription';
 import type { AdminUser, UserRole } from '@quantstock/types';
 import UserModal from './UserModal';
 import PageHeader from '@/components/ui/PageHeader';
@@ -13,6 +14,7 @@ const ROLE_LABEL: Record<UserRole, string> = {
   admin: '管理员',
   editor: '编辑者',
   viewer: '观察者',
+  member: '订阅会员',
 };
 
 export default function UsersView() {
@@ -77,6 +79,7 @@ export default function UsersView() {
               <tr>
                 <th>用户名</th>
                 <th style={{ width: 130 }}>角色</th>
+                <th style={{ width: 180 }}>订阅到期</th>
                 <th style={{ width: 140 }}>创建时间</th>
                 <th style={{ width: 160 }}>操作</th>
               </tr>
@@ -105,7 +108,11 @@ export default function UsersView() {
                         <option value="viewer">观察者</option>
                         <option value="editor">编辑者</option>
                         <option value="admin">管理员</option>
+                        <option value="member">订阅会员</option>
                       </select>
+                    </td>
+                    <td style={{ fontSize: 13 }}>
+                      <SubscriptionCell user={user} />
                     </td>
                     <td style={{ color: '#64748b', fontSize: 13 }}>
                       {fmtDate(user.created_at)}
@@ -149,5 +156,24 @@ export default function UsersView() {
         />
       )}
     </>
+  );
+}
+
+// member 显示到期日 + 剩余天数（过期红色），其他角色不受限
+function SubscriptionCell({ user }: { user: UserRow }) {
+  if (user.role !== 'member') {
+    return <span style={{ color: '#94a3b8' }}>—</span>;
+  }
+  if (user.subscription_expires_at == null) {
+    return <span style={{ color: '#94a3b8' }}>不受限</span>;
+  }
+  const days = remainingDays(user.subscription_expires_at) ?? 0;
+  return (
+    <span>
+      {formatExpireDate(user.subscription_expires_at)}
+      <span style={{ marginLeft: 6, fontWeight: 600, color: days <= 0 ? '#dc2626' : days <= 7 ? '#d97706' : '#047857' }}>
+        {days > 0 ? `剩 ${days} 天` : '已过期'}
+      </span>
+    </span>
   );
 }

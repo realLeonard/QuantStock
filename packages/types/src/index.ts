@@ -1,5 +1,5 @@
 // ===== 用户角色 =====
-export type UserRole = 'viewer' | 'editor' | 'admin';
+export type UserRole = 'viewer' | 'editor' | 'admin' | 'member';
 
 // ===== 后台用户 =====
 export interface AdminUser {
@@ -8,13 +8,40 @@ export interface AdminUser {
   password_hash: string;
   role: UserRole;
   created_at: number; // Unix 时间戳（毫秒）
+  subscription_expires_at: number | null; // 订阅到期时间（UTC 毫秒），仅 member 使用，NULL 不受限
 }
 
 // ===== 登录会话（存 sessionStorage）=====
 export interface SessionUser {
   username: string;
   role: UserRole;
+  subscription_expires_at?: number | null; // 可选：兼容旧 sessionStorage 数据
 }
+
+// ===== 会员订阅 =====
+export type SubscriptionPlan = 'month' | 'quarter' | 'year';
+export type SubscriptionOrderStatus = 'claimed' | 'confirmed' | 'rejected';
+
+export interface SubscriptionOrder {
+  id: string;
+  phone: string;
+  user_id: string | null; // 新用户下单时为空，管理员确认建号后回填
+  plan: SubscriptionPlan;
+  price: number;
+  status: SubscriptionOrderStatus;
+  note: string | null;
+  created_at: number;          // UTC 毫秒
+  confirmed_at: number | null; // UTC 毫秒
+}
+
+export const SUBSCRIPTION_PLANS: Record<SubscriptionPlan, { label: string; price: number; days: number }> = {
+  month: { label: '月卡', price: 99, days: 31 },
+  quarter: { label: '季卡', price: 269, days: 92 },
+  year: { label: '年卡', price: 999, days: 366 },
+};
+
+// 订阅到期时 Hono API 返回的错误码，前端据此跳转续费页
+export const ERR_SUBSCRIPTION_EXPIRED = 'SUBSCRIPTION_EXPIRED';
 
 // ===== 股票高亮类型 =====
 export type StockHighlight = '' | 'red' | 'orange';

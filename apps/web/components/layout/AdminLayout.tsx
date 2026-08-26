@@ -3,6 +3,7 @@
 import { useAppStore } from '@/store';
 import Toast from '@/components/ui/Toast';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
+import { formatExpireDate } from '@/lib/subscription';
 
 interface Props {
   children: React.ReactNode;
@@ -13,6 +14,7 @@ const ROLE_LABEL: Record<string, string> = {
   admin: '管理员',
   editor: '编辑者',
   viewer: '观察者',
+  member: '订阅会员',
 };
 
 export default function AdminLayout({ children }: Props) {
@@ -191,19 +193,6 @@ export default function AdminLayout({ children }: Props) {
             {latestReviewDate && <span className="nav-badge">{latestReviewDate}</span>}
           </div>
           <div
-            className={`nav-item${currentNav === 'sector-prediction' ? ' active' : ''}`}
-            onClick={() => handleNav('sector-prediction')}
-          >
-            <span className="nav-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
-                <line x1="12" y1="22.08" x2="12" y2="12"/>
-              </svg>
-            </span>
-            板块预测
-          </div>
-          <div
             className={`nav-item${currentNav === 'news' ? ' active' : ''}`}
             onClick={() => handleNav('news')}
           >
@@ -226,8 +215,41 @@ export default function AdminLayout({ children }: Props) {
             </span>
             涨跌家数
           </div>
+          <div
+            className={`nav-item${currentNav === 'sector-prediction' ? ' active' : ''}`}
+            onClick={() => handleNav('sector-prediction')}
+          >
+            <span className="nav-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                <line x1="12" y1="22.08" x2="12" y2="12"/>
+              </svg>
+            </span>
+            板块预测
+            <span className="nav-badge">开发中</span>
+          </div>
 
-          {/* 股票字典（可折叠） */}
+          {/* 订阅订单（admin 管理全部订单，member 查看自己的订阅） */}
+          {(isAdmin || currentUser?.role === 'member') && (
+            <div
+              className={`nav-item${currentNav === 'subscription' ? ' active' : ''}`}
+              onClick={() => handleNav('subscription')}
+            >
+              <span className="nav-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                  <line x1="1" y1="10" x2="23" y2="10"/>
+                </svg>
+              </span>
+              订阅订单
+              {currentUser?.role === 'member' && <span className="nav-badge">续费&gt;</span>}
+            </div>
+          )}
+
+          {/* 股票字典（可折叠，member 不可见） */}
+          {currentUser?.role !== 'member' && (
+          <>
           <div className="nav-item nav-group-toggle" onClick={toggleStockDictMenu}>
             <span className="nav-icon">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -271,6 +293,8 @@ export default function AdminLayout({ children }: Props) {
                 股票代码
               </div>
             </>
+          )}
+          </>
           )}
         </nav>
 
@@ -431,6 +455,7 @@ export default function AdminLayout({ children }: Props) {
       {/* 主区域 */}
       <div className="main-wrap">
         <Topbar />
+        <SubscriptionWarningBar />
         <main className="main-content">
           {children}
         </main>
@@ -439,6 +464,21 @@ export default function AdminLayout({ children }: Props) {
       <Toast />
       <LoadingOverlay />
       <FloatingActions />
+    </div>
+  );
+}
+
+// member 剩余 ≤7 天时的续费提醒黄条
+function SubscriptionWarningBar() {
+  const currentUser = useAppStore((s) => s.currentUser);
+  const expiresAt = currentUser?.subscription_expires_at;
+  if (currentUser?.role !== 'member' || expiresAt == null) return null;
+  const days = Math.ceil((expiresAt - Date.now()) / (24 * 3600 * 1000));
+  if (days > 7 || days <= 0) return null;
+  return (
+    <div className="subscription-warning-bar">
+      ⚠️ 订阅将于 {days} 天后到期，
+      <a href="/subscribe">点此续费</a>
     </div>
   );
 }
@@ -504,6 +544,7 @@ const NAV_LABEL: Record<string, string> = {
   'sector-prediction': '板块预测',
   'stock-dict-sector': '概念板块',
   'stock-dict-codes': '股票代码',
+  subscription: '订阅订单',
 };
 
 function Topbar() {
@@ -532,9 +573,23 @@ function Topbar() {
         <span className="sep">/</span>
         <span className="current">{breadcrumb}</span>
       </div>
+      <div className="topbar-disclaimer">所有内容仅供个人学习研究，不构成任何投资建议和决策，投资请不要相信任何系统和任何人</div>
       <div className="topbar-right">
         <div className="topbar-avatar">{avatarLetter}</div>
-        <span className="topbar-username">{currentUser?.username ?? '用户'}</span>
+        <div className="topbar-user-info">
+          <span className="topbar-username">{currentUser?.username ?? '用户'}</span>
+          {currentUser?.role === 'member' && (
+            <span className="topbar-member-badge">
+              <span className="topbar-member-crown">👑</span>
+              订阅会员
+              {currentUser.subscription_expires_at != null && (
+                <span className="topbar-member-expire">
+                  {formatExpireDate(currentUser.subscription_expires_at)} 到期
+                </span>
+              )}
+            </span>
+          )}
+        </div>
       </div>
     </header>
   );
