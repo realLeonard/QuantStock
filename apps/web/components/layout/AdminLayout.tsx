@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useAppStore } from '@/store';
 import Toast from '@/components/ui/Toast';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
@@ -26,7 +27,16 @@ export default function AdminLayout({ children }: Props) {
     systemMenuOpen, toggleSystemMenu,
     appMenuOpen, toggleAppMenu,
     stockDictMenuOpen, toggleStockDictMenu,
+    loginLogSummary,
   } = useAppStore();
+
+  const isAdmin = currentUser?.role === 'admin';
+  const highRiskCount = loginLogSummary.filter((s) => s.risk_level === 'high').length;
+
+  // admin 登录后后台拉取风险概览，用于侧边栏「用户与角色」红色提醒徽标
+  useEffect(() => {
+    if (isAdmin) useAppStore.getState().loadLoginLogSummary();
+  }, [isAdmin]);
 
   // 把 'YYYY-MM-DD' 格式化为 'M/D'，无值返回空串
   function fmtMMDD(dateStr: string | null | undefined): string {
@@ -106,7 +116,6 @@ export default function AdminLayout({ children }: Props) {
     logout();
   }
 
-  const isAdmin = currentUser?.role === 'admin';
   const avatarLetter = currentUser?.username?.charAt(0).toUpperCase() ?? 'U';
   const roleLabel = ROLE_LABEL[currentUser?.role ?? ''] ?? currentUser?.role ?? '';
 
@@ -400,6 +409,15 @@ export default function AdminLayout({ children }: Props) {
                   </svg>
                 </span>
                 用户与角色
+                {highRiskCount > 0 && (
+                  <span
+                    className="nav-badge"
+                    style={{ background: '#dc2626', color: '#fff' }}
+                    title={`风险概览发现 ${highRiskCount} 个疑似共用账号`}
+                  >
+                    {highRiskCount}
+                  </span>
+                )}
                 <span className="nav-arrow" style={{ marginLeft: 'auto', transition: 'transform .2s', transform: systemMenuOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="9 18 15 12 9 6"/>
