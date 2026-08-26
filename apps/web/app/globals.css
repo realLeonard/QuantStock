@@ -112,6 +112,18 @@ body {
   text-transform: uppercase; letter-spacing: 0.8px;
 }
 .sidebar-nav { flex: 1; padding: 4px 10px; overflow-y: auto; }
+.sidebar-scroll {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+.sidebar-scroll::-webkit-scrollbar { width: 5px; }
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35); border-radius: 3px;
+}
+.sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
 .nav-item {
   display: flex; align-items: center; gap: 10px;
   padding: 10px 12px; border-radius: 8px; cursor: pointer;

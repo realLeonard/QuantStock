@@ -121,6 +121,7 @@ export default function AdminLayout({ children }: Props) {
           </div>
         </div>
 
+        <div className="sidebar-scroll">
         <div className="sidebar-section-title">导航</div>
         <nav className="sidebar-nav" style={{ flex: 'none' }}>
           <div
@@ -430,6 +431,7 @@ export default function AdminLayout({ children }: Props) {
             </nav>
           </>
         )}
+        </div>
 
         <div className="sidebar-footer">
           <div className="sidebar-avatar">{avatarLetter}</div>
