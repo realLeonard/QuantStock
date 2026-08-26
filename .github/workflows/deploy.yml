@@ -13,24 +13,32 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: 判断变更范围
         id: changes
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
         run: |
-          CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "all")
+          # 一次推送可能含多个 commit，必须 diff 整个推送区间；
+          # 之前用 HEAD~1 只看最后一个 commit，多 commit 推送会漏检导致服务不重启
+          if [ -n "$BEFORE_SHA" ] && git cat-file -e "$BEFORE_SHA" 2>/dev/null; then
+            CHANGED=$(git diff --name-only "$BEFORE_SHA" HEAD)
+          else
+            CHANGED="all"
+          fi
           echo "changed=$CHANGED"
 
-          if echo "$CHANGED" | grep -q "^backend/api/"; then
-            echo "api_changed=true" >> $GITHUB_OUTPUT
+          if [ "$CHANGED" = "all" ] || echo "$CHANGED" | grep -q "^backend/api/"; then
+            echo "api_changed=true" >> "$GITHUB_OUTPUT"
           else
-            echo "api_changed=false" >> $GITHUB_OUTPUT
+            echo "api_changed=false" >> "$GITHUB_OUTPUT"
           fi
 
-          if echo "$CHANGED" | grep -qE "^apps/web/|^packages/"; then
-            echo "web_changed=true" >> $GITHUB_OUTPUT
+          if [ "$CHANGED" = "all" ] || echo "$CHANGED" | grep -qE "^apps/web/|^packages/"; then
+            echo "web_changed=true" >> "$GITHUB_OUTPUT"
           else
-            echo "web_changed=false" >> $GITHUB_OUTPUT
+            echo "web_changed=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: 配置 SSH
