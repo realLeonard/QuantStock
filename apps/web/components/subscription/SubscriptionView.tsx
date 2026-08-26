@@ -66,6 +66,10 @@ function AdminOrdersView() {
       const json = (await res.json()) as { data?: SubscriptionOrder[]; error?: string };
       if (!res.ok || !json.data) throw new Error(json.error ?? '加载失败');
       setOrders(json.data);
+      // 同步侧边栏「订阅订单」待确认徽标数
+      useAppStore.setState({
+        pendingOrderCount: json.data.filter((o) => o.status === 'claimed').length,
+      });
     } catch (e) {
       showToast('❌ 加载订单失败：' + (e as Error).message);
     } finally {

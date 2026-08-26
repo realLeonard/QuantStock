@@ -27,15 +27,19 @@ export default function AdminLayout({ children }: Props) {
     systemMenuOpen, toggleSystemMenu,
     appMenuOpen, toggleAppMenu,
     stockDictMenuOpen, toggleStockDictMenu,
-    loginLogSummary,
+    loginLogSummary, pendingOrderCount,
   } = useAppStore();
 
   const isAdmin = currentUser?.role === 'admin';
   const highRiskCount = loginLogSummary.filter((s) => s.risk_level === 'high').length;
 
-  // admin 登录后后台拉取风险概览，用于侧边栏「用户与角色」红色提醒徽标
+  // admin 登录后后台拉取风险概览与待确认订单数，用于侧边栏红色提醒徽标
   useEffect(() => {
-    if (isAdmin) useAppStore.getState().loadLoginLogSummary();
+    if (isAdmin) {
+      const s = useAppStore.getState();
+      s.loadLoginLogSummary();
+      s.loadPendingOrderCount();
+    }
   }, [isAdmin]);
 
   // 把 'YYYY-MM-DD' 格式化为 'M/D'，无值返回空串
@@ -259,6 +263,15 @@ export default function AdminLayout({ children }: Props) {
                 </svg>
               </span>
               订阅订单
+              {isAdmin && pendingOrderCount > 0 && (
+                <span
+                  className="nav-badge"
+                  style={{ background: '#dc2626', color: '#fff' }}
+                  title={`${pendingOrderCount} 笔待确认订阅订单`}
+                >
+                  {pendingOrderCount}
+                </span>
+              )}
               {currentUser?.role === 'member' && <span className="nav-badge">续费&gt;</span>}
             </div>
           )}

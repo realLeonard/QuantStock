@@ -141,6 +141,10 @@ interface AppState {
   loadLoginLogs: (page: number, username?: string) => Promise<void>;
   loadLoginLogSummary: () => Promise<void>;
 
+  // 待确认订阅订单数（仅 admin，侧边栏徽标）
+  pendingOrderCount: number;
+  loadPendingOrderCount: () => Promise<void>;
+
   // 用户管理 Actions（仅 admin）
   loadUsers: () => Promise<void>;
   createUser: (username: string, password: string, role: UserRole) => Promise<void>;
@@ -187,6 +191,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   loginLogPage: 1,
   loginLogUsername: '',
   loginLogSummary: [],
+  pendingOrderCount: 0,
 
   setLoading: (v) => set({ isLoading: v }),
 
@@ -688,6 +693,21 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ loginLogSummary });
     } catch (e) {
       get().showToast('❌ 加载风险概览失败：' + (e as Error).message);
+    }
+  },
+
+  // ===== 加载待确认订阅订单数（侧边栏徽标，加载失败静默忽略） =====
+  loadPendingOrderCount: async () => {
+    try {
+      const token = sessionStorage.getItem('admin_token') ?? '';
+      const res = await fetch(`${API_BASE}/subscribe/orders`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = (await res.json()) as { data?: { status: string }[] };
+      if (!res.ok || !json.data) return;
+      set({ pendingOrderCount: json.data.filter((o) => o.status === 'claimed').length });
+    } catch {
+      // 徽标属被动提示，不打扰用户
     }
   },
 
