@@ -151,6 +151,30 @@ export default function LoginLogsView() {
       )}
 
       {tab === 'summary' && (
+        <div
+          style={{
+            fontSize: 13, color: '#475569', background: '#f8fafc',
+            border: '1px solid #e2e8f0', borderRadius: 8,
+            padding: '10px 14px', marginBottom: 12, lineHeight: 1.9,
+          }}
+        >
+          <div style={{ fontWeight: 600, color: '#334155' }}>风险判定规则（近 30 天成功登录）</div>
+          <div>
+            <span style={{ fontWeight: 600, color: '#dc2626' }}>疑似共用</span>
+            ：① 24 小时内出现 ≥2 个不同地区的登录（不可能旅行）；或 ② 单日登录 ≥5 次且来自 ≥2 个不同
+            IP（互踢导致的反复重登，覆盖同城共用）
+          </div>
+          <div>
+            <span style={{ fontWeight: 600, color: '#b45309' }}>关注</span>
+            ：③ 30 天内出现 ≥2 个不同省份（出差可能误报，请结合登录流水人工研判）
+          </div>
+          <div style={{ color: '#94a3b8' }}>
+            IP 数 / 设备数 / 登录次数仅作参考，不参与判定；标记仅供研判，非实锤（本人多设备使用也会产生相似特征）
+          </div>
+        </div>
+      )}
+
+      {tab === 'summary' && (
         <div className="table-wrap">
           {loginLogSummary.length === 0 ? (
             <div className="empty-state">
@@ -172,33 +196,52 @@ export default function LoginLogsView() {
                 </tr>
               </thead>
               <tbody>
-                {loginLogSummary.map((s) => {
-                  const risky = s.distinct_ips >= 3 || s.distinct_regions >= 2;
-                  return (
-                    <tr key={s.username} style={risky ? { background: '#fef2f2' } : undefined}>
-                      <td style={{ fontWeight: 600 }}>{s.username}</td>
-                      <td style={{ fontSize: 13 }}>{s.role ? ROLE_LABEL[s.role] : '—'}</td>
-                      <td>{s.login_count}</td>
-                      <td style={{ fontWeight: s.distinct_ips >= 3 ? 700 : 400, color: s.distinct_ips >= 3 ? '#dc2626' : undefined }}>
-                        {s.distinct_ips}
-                      </td>
-                      <td style={{ fontWeight: s.distinct_regions >= 2 ? 700 : 400, color: s.distinct_regions >= 2 ? '#dc2626' : undefined }}>
-                        {s.distinct_regions}
-                      </td>
-                      <td>{s.distinct_devices}</td>
-                      <td style={{ fontSize: 13, color: '#334155' }}>{fmtTime(s.last_login_at)}</td>
-                      <td>
-                        {risky ? (
-                          <span style={{ fontSize: 12, fontWeight: 600, color: '#dc2626', background: '#fee2e2', borderRadius: 4, padding: '2px 8px' }}>
-                            疑似共用
-                          </span>
-                        ) : (
-                          <span style={{ fontSize: 12, color: '#047857' }}>正常</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {loginLogSummary.map((s) => (
+                  <tr
+                    key={s.username}
+                    style={
+                      s.risk_level === 'high'
+                        ? { background: '#fef2f2' }
+                        : s.risk_level === 'watch'
+                          ? { background: '#fffbeb' }
+                          : undefined
+                    }
+                  >
+                    <td style={{ fontWeight: 600 }}>{s.username}</td>
+                    <td style={{ fontSize: 13 }}>{s.role ? ROLE_LABEL[s.role] : '—'}</td>
+                    <td>{s.login_count}</td>
+                    <td>{s.distinct_ips}</td>
+                    <td>{s.distinct_regions}</td>
+                    <td>{s.distinct_devices}</td>
+                    <td style={{ fontSize: 13, color: '#334155' }}>{fmtTime(s.last_login_at)}</td>
+                    <td>
+                      {s.risk_level === 'high' && (
+                        <span
+                          title={s.risk_reasons.join('；')}
+                          style={{ fontSize: 12, fontWeight: 600, color: '#dc2626', background: '#fee2e2', borderRadius: 4, padding: '2px 8px' }}
+                        >
+                          疑似共用
+                        </span>
+                      )}
+                      {s.risk_level === 'watch' && (
+                        <span
+                          title={s.risk_reasons.join('；')}
+                          style={{ fontSize: 12, fontWeight: 600, color: '#b45309', background: '#fef3c7', borderRadius: 4, padding: '2px 8px' }}
+                        >
+                          关注
+                        </span>
+                      )}
+                      {s.risk_level === 'normal' && (
+                        <span style={{ fontSize: 12, color: '#047857' }}>正常</span>
+                      )}
+                      {s.risk_reasons.length > 0 && (
+                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                          {s.risk_reasons.join('；')}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           )}

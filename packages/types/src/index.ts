@@ -63,6 +63,9 @@ export interface LoginLog {
   fail_reason: string | null;
 }
 
+// 登录日志风险等级：high=疑似共用（24h 跨地区 / 单日高频多 IP），watch=关注（跨省），normal=正常
+export type LoginRiskLevel = 'high' | 'watch' | 'normal';
+
 // 登录日志 30 天风险聚合（按账号）
 export interface LoginLogSummary {
   username: string;
@@ -72,6 +75,8 @@ export interface LoginLogSummary {
   distinct_regions: number;
   distinct_devices: number;
   last_login_at: number;
+  risk_level: LoginRiskLevel;
+  risk_reasons: string[]; // 命中的风险规则描述，normal 时为空
 }
 
 // ===== 股票高亮类型 =====
