@@ -56,7 +56,7 @@ jobs:
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
         run: |
           # heredoc 未加引号：$VAR 在 runner 侧从 env 块展开后传入远程，
-          # 禁止在脚本体内直接写 ${{ }} 表达式（防注入 + 依赖 GitHub 对 env 的日志掩码）
+          # 禁止在脚本体内直接内插 GitHub secrets 表达式（防注入 + 依赖 GitHub 对 env 的日志掩码）
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
             "$DEPLOY_USER@$DEPLOY_HOST" << ENDSSH
