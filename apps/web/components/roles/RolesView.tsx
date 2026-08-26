@@ -10,14 +10,15 @@ const ROLES = [
     bg: '#f8fafc',
     border: '#e2e8f0',
     permissions: [
-      '查看投资主题列表',
-      '查看主题概述与股票池',
-      '查看股票详细信息',
+      '查看仪表盘、主题管理、近期掘金',
+      '查看每日早报、每日复盘、今日资讯',
+      '查看涨跌家数、板块预测',
     ],
     restricted: [
-      '新增/编辑/删除主题',
-      '新增/编辑/删除股票',
-      '访问用户管理',
+      '查看股票字典',
+      '新增/编辑/删除主题、股票、掘金内容',
+      '访问订阅订单',
+      '访问 APP 管理、系统管理',
     ],
   },
   {
@@ -27,14 +28,32 @@ const ROLES = [
     bg: '#eff6ff',
     border: '#bfdbfe',
     permissions: [
-      '查看投资主题列表',
-      '查看主题概述与股票池',
-      '新增/编辑/删除主题',
-      '新增/编辑/删除股票',
+      '观察者的全部查看权限',
+      '查看股票字典（概念板块、股票代码）',
+      '新增/编辑/删除主题与股票',
+      '编辑近期掘金内容',
     ],
     restricted: [
-      '访问用户管理',
-      '访问角色管理',
+      '访问订阅订单',
+      '访问 APP 管理、系统管理',
+    ],
+  },
+  {
+    label: '订阅会员',
+    id: 'member',
+    color: '#d97706',
+    bg: '#fffbeb',
+    border: '#fde68a',
+    permissions: [
+      '查看仪表盘、主题管理、近期掘金',
+      '查看每日早报、每日复盘、今日资讯',
+      '查看涨跌家数、板块预测',
+      '查看自己的订阅订单并续费',
+    ],
+    restricted: [
+      '查看股票字典',
+      '新增/编辑/删除任何内容',
+      '访问 APP 管理、系统管理',
     ],
   },
   {
@@ -44,12 +63,10 @@ const ROLES = [
     bg: '#faf5ff',
     border: '#ddd6fe',
     permissions: [
-      '查看投资主题列表',
-      '查看主题概述与股票池',
-      '新增/编辑/删除主题',
-      '新增/编辑/删除股票',
-      '管理系统用户账号',
-      '查看角色权限说明',
+      '全部内容页面的查看与编辑权限',
+      '管理全部订阅订单',
+      'APP 管理（APP用户、反馈、行为、管理控制）',
+      '系统管理（用户管理、角色管理）',
     ],
     restricted: [],
   },
@@ -60,10 +77,10 @@ export default function RolesView() {
     <>
       <PageHeader
         title="角色管理"
-        desc="系统内置三个固定角色，权限范围不可自定义。如需调整权限，请联系开发者修改代码。"
+        desc="系统内置四个固定角色，权限范围不可自定义。订阅会员由用户购买订阅后自动开通，也可在用户管理中手动创建。"
       />
 
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, marginTop: 8 }}>
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 20, marginTop: 8 }}>
         {ROLES.map(role => (
           <div
             key={role.id}

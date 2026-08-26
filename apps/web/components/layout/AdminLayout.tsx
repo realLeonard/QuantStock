@@ -248,8 +248,8 @@ export default function AdminLayout({ children }: Props) {
             </div>
           )}
 
-          {/* 股票字典（可折叠，member 不可见） */}
-          {currentUser?.role !== 'member' && (
+          {/* 股票字典（可折叠，仅 admin/editor 可见） */}
+          {(isAdmin || currentUser?.role === 'editor') && (
           <>
           <div className="nav-item nav-group-toggle" onClick={toggleStockDictMenu}>
             <span className="nav-icon">
