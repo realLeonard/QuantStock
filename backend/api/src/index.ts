@@ -2,8 +2,8 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { themeInputSchema, stockInputSchema } from '@quantstock/validators';
-import { adminAuth, mobileAuth, signJwt } from './middleware/auth';
+import { themeInputSchema, stockInputSchema, changePasswordSchema } from '@quantstock/validators';
+import { adminAuth, adminAuthAllowExpired, mobileAuth, signJwt } from './middleware/auth';
 import { hitAndCheck, clientIp } from './middleware/rate-limit';
 import { db, supabase } from './db';
 import subscribe from './routes/subscribe';
@@ -65,6 +65,8 @@ const loginSchema = z.object({
 // 登录防爆破限流：同 IP 每分钟 5 次，同用户名每小时 10 次
 const loginIpHits = new Map<string, number[]>();
 const loginUserHits = new Map<string, number[]>();
+// 改密防爆破限流：同用户每小时 5 次（防止已登录会话暴力猜原密码）
+const changePwdHits = new Map<string, number[]>();
 
 // ===== 登录日志辅助（ip2region 离线库 + UA 解析，任何失败都不阻塞登录） =====
 let ipRegionSearcher: IP2Region | null | undefined;
@@ -187,6 +189,39 @@ app.post('/auth/login', zValidator('json', loginSchema), async (c) => {
     return c.json({ error: (e as Error).message }, 500);
   }
 });
+
+// ===== 本人修改登录密码（任意已登录角色，到期会员豁免订阅校验） =====
+// 复用 resetUserPassword：改密同时写 token_invalid_before 吊销所有旧 token，需重新登录
+app.post(
+  '/auth/change-password',
+  adminAuthAllowExpired,
+  zValidator('json', changePasswordSchema),
+  async (c) => {
+    const payload = c.get('adminUser');
+    const userId = payload.sub as string;
+    const { oldPassword, newPassword } = c.req.valid('json');
+
+    if (!hitAndCheck(changePwdHits, userId, 3600_000, 5)) {
+      return c.json({ error: '尝试次数过多，请稍后再试' }, 429);
+    }
+
+    try {
+      const user = await db.findUserById(userId);
+      if (!user) {
+        return c.json({ error: '用户不存在' }, 401);
+      }
+      const ok = await bcrypt.compare(oldPassword, user.password_hash);
+      if (!ok) {
+        return c.json({ error: '原密码错误' }, 400);
+      }
+      const passwordHash = await bcrypt.hash(newPassword, 10);
+      await db.resetUserPassword(userId, passwordHash);
+      return c.json({ data: null });
+    } catch (e) {
+      return c.json({ error: (e as Error).message }, 500);
+    }
+  }
+);
 
 // ===== 订阅路由（下单公开，其余带鉴权，详见 routes/subscribe.ts） =====
 app.route('/subscribe', subscribe);

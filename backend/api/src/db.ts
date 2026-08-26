@@ -146,6 +146,16 @@ export const db = {
     return data as AdminUser;
   },
 
+  async findUserById(id: string): Promise<AdminUser | null> {
+    const { data, error } = await supabase
+      .from('adminUsers')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error) return null;
+    return data as AdminUser;
+  },
+
   async listUsers(): Promise<AdminUser[]> {
     const { data, error } = await supabase
       .from('adminUsers')

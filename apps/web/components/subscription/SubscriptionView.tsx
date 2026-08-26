@@ -288,6 +288,7 @@ function MemberSubscriptionView() {
   const [expiresAt, setExpiresAt] = useState<number | null>(currentUser?.subscription_expires_at ?? null);
   const [orders, setOrders] = useState<SubscriptionOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showPwdModal, setShowPwdModal] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -339,7 +340,12 @@ function MemberSubscriptionView() {
                 </div>
               </div>
             </div>
-            <a className="btn-primary" href="/subscribe">立即续费</a>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn-secondary" onClick={() => setShowPwdModal(true)}>
+                修改登录密码
+              </button>
+              <a className="btn-primary" href="/subscribe">立即续费</a>
+            </div>
           </>
         ) : (
           <div className={styles.subCardMain}>
@@ -388,6 +394,101 @@ function MemberSubscriptionView() {
           </table>
         )}
       </div>
+
+      {showPwdModal && <ChangePasswordModal onClose={() => setShowPwdModal(false)} />}
     </>
+  );
+}
+
+// ===== 本人修改登录密码弹窗（默认密码为手机号后 6 位，提供自助修改入口） =====
+
+function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+  const logout = useAppStore((s) => s.logout);
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!oldPassword) { setError('请输入原密码'); return; }
+    if (newPassword.length < 6) { setError('新密码至少 6 位'); return; }
+    if (newPassword !== confirmPassword) { setError('两次输入的新密码不一致'); return; }
+    if (newPassword === oldPassword) { setError('新密码不能与原密码相同'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE}/auth/change-password`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ oldPassword, newPassword }),
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(json.error ?? '修改失败');
+      alert('密码修改成功，请使用新密码重新登录');
+      logout();
+    } catch (err) {
+      setError((err as Error).message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-mask" onClick={(e) => { if (e.target === e.currentTarget && !saving) onClose(); }}>
+      <div className="modal-box" style={{ maxWidth: 420 }}>
+        <div className="modal-header">
+          <div className="modal-title">修改登录密码</div>
+          <button className="modal-close-btn" onClick={onClose} disabled={saving}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} style={{ padding: '20px 24px 24px' }}>
+          <div className="form-group">
+            <label className="form-label">原密码</label>
+            <input
+              type="password"
+              className="form-input"
+              placeholder="开通时的初始密码为手机号后 6 位"
+              value={oldPassword}
+              onChange={(e) => setOldPassword(e.target.value)}
+              disabled={saving}
+              autoFocus
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">新密码</label>
+            <input
+              type="password"
+              className="form-input"
+              placeholder="至少 6 位"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              disabled={saving}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">确认新密码</label>
+            <input
+              type="password"
+              className="form-input"
+              placeholder="再次输入新密码"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              disabled={saving}
+            />
+          </div>
+          {error && <p className="form-error">{error}</p>}
+          <div className="modal-footer" style={{ paddingInline: 0 }}>
+            <button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>取消</button>
+            <button type="submit" className="btn-primary" disabled={saving}>
+              {saving ? '提交中…' : '确认修改'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }

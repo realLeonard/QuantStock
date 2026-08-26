@@ -45,6 +45,13 @@ export const resetPasswordSchema = z.object({
 
 export type ResetPasswordSchema = z.infer<typeof resetPasswordSchema>;
 
+export const changePasswordSchema = z.object({
+  oldPassword: z.string().min(1, '请输入原密码'),
+  newPassword: z.string().min(6, '密码至少6位').max(72, '密码最多72位'),
+});
+
+export type ChangePasswordSchema = z.infer<typeof changePasswordSchema>;
+
 export const updateRoleSchema = z.object({
   role: z.enum(['viewer', 'editor', 'admin', 'member']),
 });
