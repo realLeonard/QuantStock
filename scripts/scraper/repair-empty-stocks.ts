@@ -13,7 +13,7 @@ import { fetchList, type ThemeItem } from './fetcher.js';
 import { parseTableImage, type StockRow } from './vision.js';
 import { updateThemeStocks, importTheme } from './importer.js';
 
-const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
+const db = createClient(process.env.SUPABASE_URL!, (process.env.SUPABASE_SERVICE_KEY ?? process.env.SUPABASE_ANON_KEY)!);
 
 const isTest  = process.argv.includes('--test');
 const batchArg = process.argv.indexOf('--batch');

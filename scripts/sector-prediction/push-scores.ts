@@ -6,7 +6,7 @@
  *
  * 环境变量：
  *   SUPABASE_URL / NEXT_PUBLIC_SUPABASE_URL
- *   SUPABASE_ANON_KEY / NEXT_PUBLIC_SUPABASE_ANON_KEY
+ *   SUPABASE_SERVICE_KEY（优先）/ SUPABASE_ANON_KEY
  *   WXPUSHER_TOKEN
  *   WXPUSHER_UID（逗号分隔）
  */
@@ -26,7 +26,7 @@ config({ path: envPath });
 const supabaseUrl =
   process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey =
-  process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 if (!supabaseUrl || !supabaseKey) {
   console.error('[error] 缺少 Supabase 环境变量');

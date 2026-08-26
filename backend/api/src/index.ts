@@ -1,26 +1,29 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { zValidator } from '@hono/zod-validator';
-import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
-import { QuantStockApiClient } from '@quantstock/api-client';
 import { themeInputSchema, stockInputSchema } from '@quantstock/validators';
 import { adminAuth, mobileAuth, signJwt } from './middleware/auth';
+import { hitAndCheck, clientIp } from './middleware/rate-limit';
+import { db, supabase } from './db';
 import subscribe from './routes/subscribe';
+import adminData from './routes/admin-data';
+import sectors from './routes/sectors';
+import adminUsers from './routes/admin-users';
+import appUsers from './routes/app-users';
+import versions from './routes/versions';
+import insights from './routes/insights';
+import mobileReports from './routes/mobile-reports';
 import bcrypt from 'bcryptjs';
+import { randomUUID } from 'crypto';
 
 // ===== 环境变量 =====
 const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY ?? '';
 const JWT_SECRET = process.env.JWT_SECRET ?? '';
 
-// ===== 初始化 Supabase 客户端（使用 service key，服务端专用） =====
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-const db = new QuantStockApiClient(supabase);
-
-// ===== 简单 ID 生成 =====
+// ===== ID 生成（密码学安全随机，防枚举） =====
 function uid(): string {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+  return randomUUID();
 }
 
 // ===== Hono context 变量类型 =====
@@ -55,8 +58,19 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+// 登录防爆破限流：同 IP 每分钟 5 次，同用户名每小时 10 次
+const loginIpHits = new Map<string, number[]>();
+const loginUserHits = new Map<string, number[]>();
+
 app.post('/auth/login', zValidator('json', loginSchema), async (c) => {
   const { username, password } = c.req.valid('json');
+
+  const ip = clientIp(c.req.header('x-forwarded-for'));
+  const ipOk = hitAndCheck(loginIpHits, ip, 60_000, 5);
+  const userOk = hitAndCheck(loginUserHits, username, 3600_000, 10);
+  if (!ipOk || !userOk) {
+    return c.json({ error: '尝试次数过多，请稍后再试' }, 429);
+  }
 
   if (!JWT_SECRET) {
     return c.json({ error: '服务端配置错误：缺少 JWT_SECRET' }, 500);
@@ -97,6 +111,17 @@ app.post('/auth/login', zValidator('json', loginSchema), async (c) => {
 
 // ===== 订阅路由（下单公开，其余带鉴权，详见 routes/subscribe.ts） =====
 app.route('/subscribe', subscribe);
+
+// ===== 后台数据读取路由（adminAuth，详见各 routes/*.ts） =====
+app.route('/', adminData);
+app.route('/', sectors);
+app.route('/', appUsers);
+app.route('/', insights);
+app.route('/admin-users', adminUsers);
+app.route('/versions', versions);
+
+// ===== 移动端日报/配置路由（mobileAuth + 服务端会员校验） =====
+app.route('/mobile', mobileReports);
 
 // ===== 主题路由（受管理员 JWT 保护） =====
 
@@ -209,7 +234,7 @@ app.post('/mobile/user/sync', mobileAuth, async (c) => {
   try {
     // 先查是否已存在
     const { data: existingList } = await supabase
-      .from('appUser')
+      .from('appUsers')
       .select('*')
       .eq('auth_id', authUid)
       .limit(1);
@@ -217,7 +242,7 @@ app.post('/mobile/user/sync', mobileAuth, async (c) => {
     if (existingList && existingList.length > 0) {
       // 已存在，更新最后登录时间
       await supabase
-        .from('appUser')
+        .from('appUsers')
         .update({ last_login_at: Date.now() })
         .eq('auth_id', authUid);
       return c.json({ data: { ...existingList[0], last_login_at: Date.now() } });
@@ -237,7 +262,7 @@ app.post('/mobile/user/sync', mobileAuth, async (c) => {
     };
 
     const { data: created, error } = await supabase
-      .from('appUser')
+      .from('appUsers')
       .insert(newUser)
       .select()
       .single();
@@ -255,7 +280,7 @@ app.get('/mobile/user/me', mobileAuth, async (c) => {
 
   try {
     const { data, error } = await supabase
-      .from('appUser')
+      .from('appUsers')
       .select('*')
       .eq('auth_id', authUid)
       .single();
@@ -272,7 +297,16 @@ app.get('/mobile/user/me', mobileAuth, async (c) => {
 // PATCH /api/mobile/user/profile - 更新昵称/头像
 const profileSchema = z.object({
   nickname: z.string().max(50).optional(),
-  avatar_url: z.string().url().optional(),
+  // 头像仅允许本站 Supabase Storage 公开桶地址，防外链/未来 SSRF
+  avatar_url: z
+    .string()
+    .url()
+    .max(500)
+    .refine(
+      (u) => u.startsWith(`${SUPABASE_URL}/storage/v1/object/public/`),
+      '头像地址必须为本站存储'
+    )
+    .optional(),
 });
 
 app.patch('/mobile/user/profile', mobileAuth, zValidator('json', profileSchema), async (c) => {
@@ -281,7 +315,7 @@ app.patch('/mobile/user/profile', mobileAuth, zValidator('json', profileSchema),
 
   try {
     const { error } = await supabase
-      .from('appUser')
+      .from('appUsers')
       .update(patch)
       .eq('auth_id', authUid);
 
@@ -306,7 +340,7 @@ app.post('/mobile/events', mobileAuth, zValidator('json', eventSchema), async (c
 
   // 静默处理，事件上报失败不返回错误
   try {
-    await supabase.from('userEvent').insert({
+    await supabase.from('userEvents').insert({
       id: uid(),
       user_id: authUid,
       event_type: body.event_type,
@@ -378,9 +412,16 @@ app.get('/proxy/eastmoney', async (c) => {
     return c.json({ error: 'unauthorized' }, 401);
   }
 
+  // 只透传东财 clist 接口的已知参数，其余丢弃
+  const ALLOWED_PARAMS = new Set([
+    'cb', 'secid', 'ut', 'fields', 'pn', 'pz', 'po', 'np',
+    'fltt', 'invt', 'fid', 'fid0', 'fs', 'stat',
+  ]);
   const url = new URL('https://push2.eastmoney.com/api/qt/clist/get');
   for (const [k, v] of Object.entries(c.req.query())) {
-    url.searchParams.set(k, v);
+    if (ALLOWED_PARAMS.has(k)) {
+      url.searchParams.set(k, v);
+    }
   }
 
   try {

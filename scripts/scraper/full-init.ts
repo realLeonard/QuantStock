@@ -17,7 +17,7 @@ import { parseTableImage, type StockRow } from './vision.js';
 import { importTheme } from './importer.js';
 import { randomUUID } from 'crypto';
 
-const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
+const db = createClient(process.env.SUPABASE_URL!, (process.env.SUPABASE_SERVICE_KEY ?? process.env.SUPABASE_ANON_KEY)!);
 const PLAN_FILE = new URL('./sync-plan.json', import.meta.url).pathname;
 const DEFAULT_BATCH_SIZE = 50;
 

@@ -38,7 +38,7 @@ RETENTION_DAYS = 7       # 只保留最近7天的新闻
 
 def get_supabase_client() -> Client:
     url = os.environ.get('SUPABASE_URL') or os.environ.get('NEXT_PUBLIC_SUPABASE_URL')
-    key = os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or \
+    key = os.environ.get('SUPABASE_SERVICE_KEY') or os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or \
           os.environ.get('SUPABASE_ANON_KEY') or \
           os.environ.get('NEXT_PUBLIC_SUPABASE_ANON_KEY')
     if not url or not key:

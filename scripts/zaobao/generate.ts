@@ -17,9 +17,9 @@ import { callClaude } from './utils/claude-cli';
 // ===== 环境变量 =====
 function getEnv() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '';
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '';
+  const key = process.env.SUPABASE_SERVICE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '';
   if (!url) throw new Error('缺少环境变量：NEXT_PUBLIC_SUPABASE_URL');
-  if (!key) throw new Error('缺少环境变量：NEXT_PUBLIC_SUPABASE_ANON_KEY');
+  if (!key) throw new Error('缺少环境变量：SUPABASE_SERVICE_KEY');
   return { url, key };
 }
 

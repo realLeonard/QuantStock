@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 
-const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
+const db = createClient(process.env.SUPABASE_URL!, (process.env.SUPABASE_SERVICE_KEY ?? process.env.SUPABASE_ANON_KEY)!);
 
 async function main() {
   // 拉取所有主题

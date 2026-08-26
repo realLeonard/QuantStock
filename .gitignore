@@ -46,3 +46,5 @@ scripts/coze-report/.coze-cookies.json
 docs/
 *.sql
 
+.vercel
+.env*

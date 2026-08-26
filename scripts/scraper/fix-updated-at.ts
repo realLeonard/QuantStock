@@ -15,7 +15,7 @@ import { fetchList, type ThemeItem } from './fetcher.js';
 const isDryRun = !process.argv.includes('--apply');
 
 function getDb() {
-  return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
+  return createClient(process.env.SUPABASE_URL!, (process.env.SUPABASE_SERVICE_KEY ?? process.env.SUPABASE_ANON_KEY)!);
 }
 
 async function fetchAllItems(): Promise<ThemeItem[]> {

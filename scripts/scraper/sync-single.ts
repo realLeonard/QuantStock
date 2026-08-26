@@ -60,7 +60,7 @@ async function main() {
 
   console.log('环境检查:');
   console.log(`  SUPABASE_URL      : ${process.env.SUPABASE_URL ? '✅' : '❌ 未设置'}`);
-  console.log(`  SUPABASE_ANON_KEY : ${process.env.SUPABASE_ANON_KEY ? '✅' : '❌ 未设置'}`);
+  console.log(`  SUPABASE_KEY      : ${process.env.SUPABASE_SERVICE_KEY ? '✅ service' : process.env.SUPABASE_ANON_KEY ? '⚠️ anon' : '❌ 未设置'}`);
   console.log(`  DASHSCOPE_API_KEY : ${process.env.DASHSCOPE_API_KEY ? '✅' : '❌ 未设置'}`);
   console.log(`  JY_TOKEN          : ${process.env.JY_TOKEN ? '✅' : '❌ 未设置'}`);
   console.log('---');

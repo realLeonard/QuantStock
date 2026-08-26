@@ -33,6 +33,7 @@ jobs:
       - name: 执行热门+A股深度采集
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           BARK_KEY: ${{ secrets.BARK_KEY }}
         run: python cls_news_collector.py --mode depth

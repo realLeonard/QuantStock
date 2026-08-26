@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { fetchList } from './fetcher.js';
 import { parseTableImage } from './vision.js';
 
-const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
+const db = createClient(process.env.SUPABASE_URL!, (process.env.SUPABASE_SERVICE_KEY ?? process.env.SUPABASE_ANON_KEY)!);
 const THEME_ID = process.argv[2];
 if (!THEME_ID) {
   console.error('用法: npx tsx check-theme.ts <theme_id>');

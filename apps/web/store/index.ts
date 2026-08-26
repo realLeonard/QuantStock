@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import type { Theme, AdminUser, SessionUser, UserRole, DailyReport, MarketBreadth, AppUser, PlanType, UserFeedback, UserEvent, AppVersionControl, DailyReview, RecentInsights, DailyGoldPick, SectorScore, SectorDaily, SectorRotationMap, SectorPredictionSummary, SectorMaster, StockCode } from '@quantstock/types';
-import { apiClient, supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/supabase';
 
 export interface NewsItem {
   id: string;
@@ -14,7 +14,6 @@ export interface NewsItem {
   url: string;
   published_at: number;
 }
-import { hashPassword } from '@/lib/crypto';
 import { uid } from '@/lib/utils';
 
 // Hono API 走 Next.js rewrites 同源代理（避免 Vercel HTTPS → 阿里云 HTTP 的 Mixed Content 拦截）
@@ -537,16 +536,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ isLoading: true });
     try {
       const targetDate = date ?? new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
-      const startMs = new Date(`${targetDate}T00:00:00+08:00`).getTime();
-      const endMs   = new Date(`${targetDate}T23:59:59+08:00`).getTime();
-      const { data, error } = await supabase
-        .from('newsItems_cls')
-        .select('id, cls_id, title, summary, categories, level, url, published_at')
-        .gte('published_at', startMs)
-        .lte('published_at', endMs)
-        .order('published_at', { ascending: false });
-      if (error) throw new Error(error.message);
-      set({ newsItems: (data ?? []) as NewsItem[], newsDate: targetDate });
+      const data = await apiClient.listNewsItems(targetDate);
+      set({ newsItems: (data ?? []) as unknown as NewsItem[], newsDate: targetDate });
     } catch (e) {
       get().showToast('❌ 加载资讯失败：' + (e as Error).message);
     } finally {
@@ -678,8 +669,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   createUser: async (username, password, role) => {
     set({ isLoading: true });
     try {
-      const passwordHash = await hashPassword(password);
-      await apiClient.createUser(uid(), username, passwordHash, role);
+      // 密码明文经 HTTPS 提交，bcrypt 哈希在服务端计算
+      await apiClient.createUser(username, password, role);
       await get().loadUsers();
       get().showToast('✅ 用户已创建');
     } catch (e) {
@@ -712,8 +703,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   resetUserPassword: async (userId, newPassword) => {
     set({ isLoading: true });
     try {
-      const passwordHash = await hashPassword(newPassword);
-      await apiClient.resetUserPassword(userId, passwordHash);
+      await apiClient.resetUserPassword(userId, newPassword);
       get().showToast('✅ 密码已重置');
     } catch (e) {
       get().showToast('❌ 重置失败：' + (e as Error).message);

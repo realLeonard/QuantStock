@@ -28,26 +28,46 @@ jobs:
 
     steps:
       - name: 配置 SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_SSH_KEY }}" | base64 -d > ~/.ssh/deploy_key
+          echo "$DEPLOY_SSH_KEY" | base64 -d > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
 
       - name: 执行测试（阿里云）
         shell: bash
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          JIUYAN_SESSION: ${{ secrets.JIUYAN_SESSION }}
+          JIUYAN_SIGN_SECRET: ${{ secrets.JIUYAN_SIGN_SECRET }}
+          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          JY_TOKEN: ${{ secrets.JY_TOKEN }}
+          TASK: ${{ github.event.inputs.task }}
+          DATE_ARG: ${{ github.event.inputs.date }}
+          THEME_ID: ${{ github.event.inputs.theme_id }}
         run: |
-          TASK="${{ github.event.inputs.task }}"
-          DATE_ARG="${{ github.event.inputs.date }}"
-          THEME_ID="${{ github.event.inputs.theme_id }}"
+          # 输入校验：date/theme_id 会拼入远程命令，必须先过白名单格式
           if [ -z "$DATE_ARG" ]; then
             DATE_ARG=$(TZ=Asia/Shanghai date +%Y-%m-%d)
           fi
+          if ! [[ "$DATE_ARG" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            echo "❌ 日期格式必须为 YYYY-MM-DD"; exit 1
+          fi
+          if [ -n "$THEME_ID" ] && ! [[ "$THEME_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo "❌ 主题 ID 只允许字母数字下划线中划线"; exit 1
+          fi
           echo "=== 任务: $TASK | 日期: $DATE_ARG ==="
 
+          # heredoc 未加引号：$VAR 在 runner 侧从 env 块展开后传入远程，
+          # 禁止在脚本体内直接写 ${{ }} 表达式（防注入 + 依赖 GitHub 对 env 的日志掩码）
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
-            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << ENDSSH
+            "$DEPLOY_USER@$DEPLOY_HOST" << ENDSSH
           set -e
           cd /www/wwwroot/quantstock
 
@@ -55,11 +75,11 @@ jobs:
           set -a && source .env.server && set +a
           unset WXPUSHER_TOKEN WXPUSHER_UID BARK_KEY
           unset ANTHROPIC_AUTH_TOKEN ANTHROPIC_BASE_URL
-          export JIUYAN_SESSION="${{ secrets.JIUYAN_SESSION }}"
-          export JIUYAN_SIGN_SECRET="${{ secrets.JIUYAN_SIGN_SECRET }}"
-          export DASHSCOPE_API_KEY="${{ secrets.DASHSCOPE_API_KEY }}"
-          export ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}"
-          export JY_TOKEN="${{ secrets.JY_TOKEN }}"
+          export JIUYAN_SESSION="$JIUYAN_SESSION"
+          export JIUYAN_SIGN_SECRET="$JIUYAN_SIGN_SECRET"
+          export DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY"
+          export ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
+          export JY_TOKEN="$JY_TOKEN"
           export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
           export CLAUDE_CODE_ATTRIBUTION_HEADER=0
 

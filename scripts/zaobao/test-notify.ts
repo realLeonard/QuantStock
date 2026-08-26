@@ -9,7 +9,7 @@ dotenv.config({ path: resolve(__dirname, '../../apps/web/.env.local') });
 
 async function main() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const key = (process.env.SUPABASE_SERVICE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!;
   const sb = createClient(url, key);
 
   const { data } = await sb.from('dailyReport').select('content, summary').eq('report_date', '2026-03-27').single();

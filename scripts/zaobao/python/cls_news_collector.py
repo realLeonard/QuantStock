@@ -132,7 +132,7 @@ def check_env() -> None:
         missing.append('SUPABASE_URL')
 
     has_key = any(os.environ.get(k) for k in [
-        'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_ANON_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY'
+        'SUPABASE_SERVICE_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_ANON_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY'
     ])
     if not has_key:
         missing.append('SUPABASE_ANON_KEY')
@@ -147,7 +147,7 @@ def check_env() -> None:
 def get_supabase_client() -> Client:
     url = os.environ.get('SUPABASE_URL') or os.environ.get('NEXT_PUBLIC_SUPABASE_URL')
     key = (
-        os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or
+        os.environ.get('SUPABASE_SERVICE_KEY') or os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or
         os.environ.get('SUPABASE_ANON_KEY') or
         os.environ.get('NEXT_PUBLIC_SUPABASE_ANON_KEY')
     )

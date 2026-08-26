@@ -8,7 +8,7 @@ import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync, writeFileSync } from 'fs';
 
-const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
+const db = createClient(process.env.SUPABASE_URL!, (process.env.SUPABASE_SERVICE_KEY ?? process.env.SUPABASE_ANON_KEY)!);
 const PLAN_FILE = new URL('./sync-plan.json', import.meta.url).pathname;
 
 async function main() {

@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto';
 // 懒初始化：首次调用时才创建客户端，确保 dotenv 已加载完毕
 let _sb: ReturnType<typeof createClient> | null = null;
 function getDb() {
-  if (!_sb) _sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
+  if (!_sb) _sb = createClient(process.env.SUPABASE_URL!, (process.env.SUPABASE_SERVICE_KEY ?? process.env.SUPABASE_ANON_KEY)!);
   return _sb;
 }
 

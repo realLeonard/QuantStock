@@ -1,5 +1,6 @@
 import type { MiddlewareHandler } from 'hono';
 import { createClient } from '@supabase/supabase-js';
+import { timingSafeEqual } from 'crypto';
 
 // ===== context 变量类型（与 index.ts 保持一致） =====
 type Env = {
@@ -12,8 +13,9 @@ type Env = {
 
 // ===== 管理后台 JWT 鉴权中间件 =====
 // token 由 POST /api/auth/login 签发，secret 存在环境变量 JWT_SECRET
-// member 角色每次请求查库校验订阅有效期（JWT 有效期 7 天，不能信 payload 快照，
-// 否则到期后凭旧 token 仍可访问 7 天）；allowExpired 供 /subscribe/me 等续费相关接口豁免
+// 所有角色每次请求查库：用户被删立即失效；iat 早于 token_invalid_before 的旧 token
+// 拒绝（改密码/手动踢人时写该字段实现吊销）；member 额外校验订阅有效期，
+// allowExpired 供 /subscribe/me 等续费相关接口豁免
 function makeAdminAuth(allowExpired: boolean): MiddlewareHandler<Env> {
   return async (c, next) => {
     const authHeader = c.req.header('Authorization');
@@ -35,21 +37,29 @@ function makeAdminAuth(allowExpired: boolean): MiddlewareHandler<Env> {
       return c.json({ error: '无效或过期的 token' }, 401);
     }
 
+    const supabaseUrl = process.env.SUPABASE_URL ?? '';
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY ?? '';
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return c.json({ error: '服务端配置错误：缺少 Supabase 环境变量' }, 500);
+    }
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    // select('*') 而非指定列：token_invalid_before 列尚未建时不报错，部署顺序无依赖
+    const { data, error } = await supabase
+      .from('adminUsers')
+      .select('*')
+      .eq('id', payload.sub as string)
+      .single();
+    if (error || !data) {
+      return c.json({ error: '用户不存在或已被禁用' }, 401);
+    }
+
+    const iatMs = typeof payload.iat === 'number' ? payload.iat * 1000 : 0;
+    const invalidBefore = data.token_invalid_before as number | null | undefined;
+    if (typeof invalidBefore === 'number' && iatMs < invalidBefore) {
+      return c.json({ error: '登录状态已失效，请重新登录' }, 401);
+    }
+
     if (!allowExpired && payload.role === 'member') {
-      const supabaseUrl = process.env.SUPABASE_URL ?? '';
-      const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY ?? '';
-      if (!supabaseUrl || !supabaseServiceKey) {
-        return c.json({ error: '服务端配置错误：缺少 Supabase 环境变量' }, 500);
-      }
-      const supabase = createClient(supabaseUrl, supabaseServiceKey);
-      const { data, error } = await supabase
-        .from('adminUsers')
-        .select('subscription_expires_at')
-        .eq('id', payload.sub as string)
-        .single();
-      if (error || !data) {
-        return c.json({ error: '用户不存在' }, 401);
-      }
       const expiresAt = data.subscription_expires_at as number | null;
       if (typeof expiresAt === 'number' && expiresAt < Date.now()) {
         return c.json({ error: '订阅已到期', code: 'SUBSCRIPTION_EXPIRED' }, 403);
@@ -107,11 +117,11 @@ export const mobileAuth: MiddlewareHandler<Env> = async (c, next) => {
 
 // ===== HS256 JWT 工具函数 =====
 
-/** 签发 JWT（HS256，默认 7 天有效期） */
+/** 签发 JWT（HS256，默认 24 小时有效期） */
 export async function signJwt(
   payload: Record<string, unknown>,
   secret: string,
-  expiresInSeconds = 7 * 24 * 3600
+  expiresInSeconds = 24 * 3600
 ): Promise<string> {
   const header = base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
   const now = Math.floor(Date.now() / 1000);
@@ -132,7 +142,12 @@ export async function verifyJwt(
 
   const [header, body, sig] = parts;
   const expectedSig = await hmacSign(`${header}.${body}`, secret);
-  if (sig !== expectedSig) throw new Error('签名校验失败');
+  // 恒定时间比对，防时序侧信道
+  const sigBuf = Buffer.from(sig);
+  const expectedBuf = Buffer.from(expectedSig);
+  if (sigBuf.length !== expectedBuf.length || !timingSafeEqual(sigBuf, expectedBuf)) {
+    throw new Error('签名校验失败');
+  }
 
   const payload = JSON.parse(base64urlDecode(body)) as Record<string, unknown>;
   const now = Math.floor(Date.now() / 1000);

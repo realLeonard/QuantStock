@@ -23,7 +23,7 @@ import { fetchList, type ThemeItem } from './fetcher.js';
 import { parseTableImage, type StockRow } from './vision.js';
 import { importTheme } from './importer.js';
 
-const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
+const db = createClient(process.env.SUPABASE_URL!, (process.env.SUPABASE_SERVICE_KEY ?? process.env.SUPABASE_ANON_KEY)!);
 const STATE_FILE = new URL('./sync-state.json', import.meta.url).pathname;
 const BATCH_SIZE = 50;
 

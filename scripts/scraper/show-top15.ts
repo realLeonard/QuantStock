@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { fetchList, type ThemeItem } from './fetcher.js';
 import { createClient } from '@supabase/supabase-js';
 
-const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
+const db = createClient(process.env.SUPABASE_URL!, (process.env.SUPABASE_SERVICE_KEY ?? process.env.SUPABASE_ANON_KEY)!);
 
 // 拉 API 前15条
 const data = await fetchList(1, 50);

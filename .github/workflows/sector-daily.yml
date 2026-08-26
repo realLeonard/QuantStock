@@ -103,6 +103,7 @@ jobs:
         env:
           PYTHONUNBUFFERED: '1'
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SKIP_MASTER: ${{ inputs.skip_master }}
           INIT_DAYS: ${{ inputs.init_days }}
@@ -126,6 +127,7 @@ jobs:
         env:
           PYTHONUNBUFFERED: '1'
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
@@ -141,6 +143,7 @@ jobs:
           npx tsx push-scores.ts
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           WXPUSHER_TOKEN: ${{ secrets.WXPUSHER_TOKEN }}
           WXPUSHER_UID: ${{ secrets.WXPUSHER_UID }}

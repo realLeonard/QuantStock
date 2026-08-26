@@ -30,6 +30,8 @@ onLoad((options) => {
 const report = computed(() => reportStore.currentDetail);
 
 const isLocked = computed(() => {
+  // 服务端 403 UPGRADE_REQUIRED 为准，前端 checkTodayAccess 做 UI 预判
+  if (reportStore.upgradeRequired) return true;
   if (!reportDate.value || !isToday(reportDate.value)) return false;
   const result = checkTodayAccess(userStore.user);
   return !result.allowed;

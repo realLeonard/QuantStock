@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import type { DailyReport } from '../types';
-import { fetchReportList, fetchReportDetail } from '../api/report';
+import { fetchReportList, fetchReportDetail, isUpgradeRequired } from '../api/report';
 import { cacheReportDetail, getCachedReportDetail } from '../utils/cache';
 
 export const useReportStore = defineStore('report', () => {
@@ -11,6 +11,8 @@ export const useReportStore = defineStore('report', () => {
   const detailLoading = ref(false);
   const hasMore = ref(true);
   const currentPage = ref(1);
+  /** 服务端返回 403 UPGRADE_REQUIRED（当日内容需要会员） */
+  const upgradeRequired = ref(false);
   const PAGE_SIZE = 20;
 
   /** 加载第一页（下拉刷新） */
@@ -43,6 +45,7 @@ export const useReportStore = defineStore('report', () => {
 
   /** 加载日报详情（优先读缓存） */
   async function loadDetail(reportDate: string): Promise<void> {
+    upgradeRequired.value = false;
     // 先检查缓存（非当日内容）
     const cached = getCachedReportDetail<DailyReport>(reportDate);
     if (cached) {
@@ -57,6 +60,15 @@ export const useReportStore = defineStore('report', () => {
         currentDetail.value = data;
         cacheReportDetail(reportDate, data); // 非当日自动缓存
       }
+    } catch (e) {
+      if (isUpgradeRequired(e)) {
+        // 服务端拦截当日内容：用列表轻量数据兜底渲染头部+摘要+付费墙
+        upgradeRequired.value = true;
+        currentDetail.value =
+          list.value.find((r) => r.report_date === reportDate) ?? null;
+      } else {
+        throw e;
+      }
     } finally {
       detailLoading.value = false;
     }
@@ -64,6 +76,7 @@ export const useReportStore = defineStore('report', () => {
 
   function clearDetail(): void {
     currentDetail.value = null;
+    upgradeRequired.value = false;
   }
 
   return {
@@ -72,6 +85,7 @@ export const useReportStore = defineStore('report', () => {
     loading,
     detailLoading,
     hasMore,
+    upgradeRequired,
     loadFirstPage,
     loadNextPage,
     loadDetail,

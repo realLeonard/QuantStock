@@ -6,6 +6,8 @@ import bcrypt from 'bcryptjs';
 import { SUBSCRIPTION_PLANS } from '@quantstock/types';
 import type { SubscriptionOrder, SubscriptionPlan } from '@quantstock/types';
 import { adminAuth, adminAuthAllowExpired, requireAdmin } from '../middleware/auth';
+import { hitAndCheck, clientIp } from '../middleware/rate-limit';
+import { randomUUID } from 'crypto';
 
 // ===== Supabase 客户端（service key，绕过 RLS——subscriptionOrders 表零 policy，只能走这里读写） =====
 const supabase = createClient(
@@ -13,8 +15,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY ?? ''
 );
 
+// ID 生成（密码学安全随机，防枚举）
 function uid(): string {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+  return randomUUID();
 }
 
 type Variables = {
@@ -25,22 +28,9 @@ type Variables = {
 
 const subscribe = new Hono<{ Variables: Variables }>();
 
-// ===== 内存频率限制（单实例 PM2 可接受，进程重启即清零） =====
+// ===== 内存频率限制（实现见 middleware/rate-limit.ts） =====
 const ipHits = new Map<string, number[]>();
 const phoneHits = new Map<string, number[]>();
-
-/** 记录一次命中并判断窗口内是否超限 */
-function hitAndCheck(map: Map<string, number[]>, key: string, windowMs: number, max: number): boolean {
-  const now = Date.now();
-  const list = (map.get(key) ?? []).filter((t) => now - t < windowMs);
-  if (list.length >= max) {
-    map.set(key, list);
-    return false;
-  }
-  list.push(now);
-  map.set(key, list);
-  return true;
-}
 
 // ===== 1. 公开下单（无需登录） =====
 const orderSchema = z.object({
@@ -51,8 +41,7 @@ const orderSchema = z.object({
 subscribe.post('/order', zValidator('json', orderSchema), async (c) => {
   const { phone, plan } = c.req.valid('json');
 
-  // Nginx 反代场景取 x-forwarded-for 首个 IP
-  const ip = (c.req.header('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  const ip = clientIp(c.req.header('x-forwarded-for'));
   if (!hitAndCheck(ipHits, ip, 60_000, 3)) {
     return c.json({ error: '操作过于频繁，请稍后再试' }, 429);
   }
