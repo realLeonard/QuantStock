@@ -12,8 +12,13 @@ type Variables = {
 
 const appUsers = new Hono<{ Variables: Variables }>();
 
-// App 用户/反馈/事件均为后台管理数据，仅 admin 可用
-appUsers.use('*', adminAuth, requireAdmin);
+// App 用户/反馈/事件均为后台管理数据，仅 admin 可用。
+// 注意：本子应用挂载在根路径（app.route('/', appUsers)），use('*') 会泄漏到
+// 之后注册的所有路由（/themes 等对非 admin 误 403），因此逐路由挂中间件
+appUsers.use('/app-users', adminAuth, requireAdmin);
+appUsers.use('/app-users/*', adminAuth, requireAdmin);
+appUsers.use('/feedbacks', adminAuth, requireAdmin);
+appUsers.use('/events', adminAuth, requireAdmin);
 
 // GET /api/app-users - App 用户列表
 appUsers.get('/app-users', async (c) => {
