@@ -452,6 +452,13 @@ body {
 }
 .modal-overlay.show .modal-box { transform: translateY(0); }
 .modal-box.wide { width: 600px; }
+/* modal-mask：无过渡动画的常显遮罩（订阅订单、用户编辑等弹窗使用） */
+.modal-mask {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(15,23,42,0.5); backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-mask .modal-box { transform: translateY(0); }
 .modal-header {
   padding: 20px 24px 0;
   display: flex; align-items: center; justify-content: space-between;
@@ -464,6 +471,14 @@ body {
   transition: color 0.15s, background 0.15s;
 }
 .modal-close:hover { color: #374151; background: #f1f5f9; }
+.modal-close-btn {
+  background: none; border: none; cursor: pointer;
+  color: #94a3b8; padding: 4px; border-radius: 6px;
+  font-size: 18px; line-height: 1;
+  display: flex; align-items: center;
+  transition: color 0.15s, background 0.15s;
+}
+.modal-close-btn:hover { color: #374151; background: #f1f5f9; }
 .modal-body { padding: 20px 24px; }
 .modal-footer {
   padding: 0 24px 20px;
