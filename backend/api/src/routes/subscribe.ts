@@ -7,6 +7,7 @@ import { SUBSCRIPTION_PLANS } from '@quantstock/types';
 import type { SubscriptionOrder, SubscriptionPlan } from '@quantstock/types';
 import { adminAuth, adminAuthAllowExpired, requireAdmin } from '../middleware/auth';
 import { hitAndCheck, clientIp } from '../middleware/rate-limit';
+import { sendBark } from '../utils/bark';
 import { randomUUID } from 'crypto';
 
 // ===== Supabase 客户端（service key，绕过 RLS——subscriptionOrders 表零 policy，只能走这里读写） =====
@@ -84,6 +85,12 @@ subscribe.post('/order', zValidator('json', orderSchema), async (c) => {
     };
     const { error } = await supabase.from('subscriptionOrders').insert(order);
     if (error) throw new Error(error.message);
+
+    // fire-and-forget：推送失败/超时不阻塞下单响应
+    void sendBark(
+      '💰 叮咚，新订阅订单',
+      `${phone} · ${SUBSCRIPTION_PLANS[plan].label} ¥${order.price}，请及时确认订单开通服务`
+    );
 
     return c.json({ data: { id: order.id } }, 201);
   } catch (e) {
