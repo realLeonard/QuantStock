@@ -77,7 +77,7 @@ export default function SubscribePage() {
             管理员核对收款后将为您开通订阅
           </p>
           <p className={styles.successHint}>
-            开通后使用手机号 <b>{phone}</b> 登录后台即可查看内容
+            开通后使用手机号 <b>{phone}</b> 登录后台即可查看内容，密码将与开通成功短信通知一同发送给您
           </p>
         </div>
       </div>
