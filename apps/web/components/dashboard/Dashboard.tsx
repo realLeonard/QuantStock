@@ -1,7 +1,7 @@
 'use client';
 
 import { useAppStore } from '@/store';
-import { fmtDate } from '@/lib/utils';
+import { fmtDate, maskUsername } from '@/lib/utils';
 import ThemeModal from '@/components/themes/ThemeModal';
 import PageHeader from '@/components/ui/PageHeader';
 import { RecentInsightsCard } from '@/components/gold/GoldPanels';
@@ -26,7 +26,10 @@ export default function Dashboard() {
 
   return (
     <>
-      <PageHeader title="仪表盘" desc={`欢迎回来，${currentUser?.username}！`} />
+      <PageHeader
+        title="仪表盘"
+        desc={`欢迎回来，${currentUser?.username ? maskUsername(currentUser.username) : '用户'}！`}
+      />
 
       {/* 近期思路和方向（复用自近期掘金，标题附「更多」跳转） */}
       <div className={goldStyles.wrap} style={{ marginBottom: 20 }}>

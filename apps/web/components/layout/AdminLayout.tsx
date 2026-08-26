@@ -4,6 +4,7 @@ import { useAppStore } from '@/store';
 import Toast from '@/components/ui/Toast';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import { formatExpireDate } from '@/lib/subscription';
+import { maskUsername } from '@/lib/utils';
 
 interface Props {
   children: React.ReactNode;
@@ -455,7 +456,9 @@ export default function AdminLayout({ children }: Props) {
         <div className="sidebar-footer">
           <div className="sidebar-avatar">{avatarLetter}</div>
           <div>
-            <div className="sidebar-user-name">{currentUser?.username ?? '用户'}</div>
+            <div className="sidebar-user-name">
+              {currentUser?.username ? maskUsername(currentUser.username) : '用户'}
+            </div>
             <div className="sidebar-user-role">
               <span className={`role-badge role-badge-${currentUser?.role ?? 'viewer'}`}>
                 {roleLabel}
@@ -599,7 +602,9 @@ function Topbar() {
       <div className="topbar-right">
         <div className="topbar-avatar">{avatarLetter}</div>
         <div className="topbar-user-info">
-          <span className="topbar-username">{currentUser?.username ?? '用户'}</span>
+          <span className="topbar-username">
+            {currentUser?.username ? maskUsername(currentUser.username) : '用户'}
+          </span>
           {currentUser?.role === 'member' && (
             <span className="topbar-member-badge">
               <span className="topbar-member-crown">👑</span>
