@@ -57,6 +57,7 @@ function AdminOrdersView() {
   const [loading, setLoading] = useState(true);
   const [rejectOrder, setRejectOrder] = useState<SubscriptionOrder | null>(null);
   const [resultMsg, setResultMsg] = useState('');
+  const [smsText, setSmsText] = useState('');
   const [busyId, setBusyId] = useState('');
 
   const load = useCallback(async () => {
@@ -99,6 +100,11 @@ function AdminOrdersView() {
         user_created
           ? `已开通并自动创建账号。\n用户名：${order.phone}\n初始密码：${order.phone.slice(-6)}（手机号后 6 位）\n到期日：${formatExpireDate(expires_at)}\n请将账号信息告知用户。`
           : `已为 ${order.phone} 延期，新到期日：${formatExpireDate(expires_at)}`
+      );
+      setSmsText(
+        user_created
+          ? `【股海远洋】您的订阅已开通，登录账号为本手机号，初始密码 ${order.phone.slice(-6)}，请访问 stock.bytetradepro.com 登录查看内容，建议登录后在「订阅订单」页修改密码。到期日：${formatExpireDate(expires_at)}`
+          : `【股海远洋】您的订阅续费成功，新到期日 ${formatExpireDate(expires_at)}，感谢支持！`
       );
       await load();
     } catch (e) {
@@ -202,7 +208,34 @@ function AdminOrdersView() {
               </button>
             </div>
             <div className={styles.resultBody}>{resultMsg}</div>
+            <div
+              style={{
+                margin: '0 20px 12px',
+                padding: '10px 12px',
+                background: '#f8fafc',
+                border: '1px dashed #cbd5e1',
+                borderRadius: 8,
+                fontSize: 12,
+                color: '#64748b',
+                lineHeight: 1.6,
+              }}
+            >
+              {smsText}
+            </div>
             <div className="modal-footer">
+              <button
+                className="btn-secondary"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(smsText);
+                    showToast('✅ 短信文案已复制');
+                  } catch {
+                    showToast('❌ 复制失败，请手动选中上方文案复制');
+                  }
+                }}
+              >
+                复制短信文案
+              </button>
               <button className="btn-primary" onClick={() => setResultMsg('')}>知道了</button>
             </div>
           </div>
