@@ -106,8 +106,8 @@ export default function NewsView() {
           <p>暂无资讯数据</p>
         </div>
       ) : (
-        <div className={styles.tableWrap}>
-          <table className={styles.table}>
+        <div className={`${styles.tableWrap} m-cardify-wrap`}>
+          <table className={`${styles.table} m-cardify`}>
             <thead>
               <tr>
                 <th className={styles.colTime}>发布时间</th>
@@ -119,7 +119,7 @@ export default function NewsView() {
             <tbody>
               {sorted.map(item => (
                 <tr key={item.id} className={styles.row}>
-                  <td className={styles.colTime}>
+                  <td className={styles.colTime} data-label="发布时间">
                     <span className={styles.time}>{formatTime(item.published_at)}</span>
                   </td>
                   <td className={styles.colContent}>
@@ -140,7 +140,7 @@ export default function NewsView() {
                       <div className={styles.summary}>{item.summary}</div>
                     )}
                   </td>
-                  <td className={styles.colCats}>
+                  <td className={styles.colCats} data-label="分类">
                     <div className={styles.cats}>
                       {item.categories.map(c => (
                         <span
@@ -152,7 +152,7 @@ export default function NewsView() {
                       ))}
                     </div>
                   </td>
-                  <td className={styles.colLevel}>
+                  <td className={styles.colLevel} data-label="重要程度">
                     <span className={`${styles.level} ${LEVEL_CLASS[item.level] ?? styles.levelC}`}>
                       {LEVEL_LABEL[item.level] ?? item.level}
                     </span>

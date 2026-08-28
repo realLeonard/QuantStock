@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppStore } from '@/store';
 import LoginPage from '@/components/layout/LoginPage';
 import AdminLayout from '@/components/layout/AdminLayout';
+import MobileLayout from '@/components/layout/MobileLayout';
 import Dashboard from '@/components/dashboard/Dashboard';
 import ThemesView from '@/components/themes/ThemesView';
 import UsersView from '@/components/users/UsersView';
@@ -24,8 +25,30 @@ import LoginLogsView from '@/components/login-logs/LoginLogsView';
 import ExpiredPage from '@/components/subscription/ExpiredPage';
 import type { SessionUser } from '@quantstock/types';
 
+type Shell = 'desktop' | 'mobile';
+
 export default function Home() {
   const { isLoggedIn, currentNav, currentUser } = useAppStore();
+
+  // 壳选择：挂载时判定一次（shell_pref 手动偏好优先，否则按设备宽度），不监听 resize
+  const [shell, setShell] = useState<Shell>('desktop');
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
+
+  useEffect(() => {
+    const mobile = window.matchMedia('(max-width: 768px)').matches;
+    setIsMobileDevice(mobile);
+    const pref = sessionStorage.getItem('shell_pref');
+    if (pref === 'desktop' || pref === 'mobile') {
+      setShell(pref);
+    } else if (mobile) {
+      setShell('mobile');
+    }
+  }, []);
+
+  function switchShell(next: Shell) {
+    sessionStorage.setItem('shell_pref', next);
+    setShell(next);
+  }
 
   // 页面刷新时从 sessionStorage 恢复登录状态
   useEffect(() => {
@@ -56,8 +79,8 @@ export default function Home() {
     return <ExpiredPage />;
   }
 
-  return (
-    <AdminLayout>
+  const view = (
+    <>
       {currentNav === 'dashboard' && <Dashboard />}
       {currentNav === 'themes' && <ThemesView />}
       {currentNav === 'users' && <UsersView />}
@@ -75,6 +98,37 @@ export default function Home() {
       {(currentNav === 'stock-dict-sector' || currentNav === 'stock-dict-codes') && <StockDictView />}
       {currentNav === 'subscription' && <SubscriptionView />}
       {currentNav === 'login-logs' && <LoginLogsView />}
-    </AdminLayout>
+    </>
+  );
+
+  if (shell === 'mobile') {
+    return <MobileLayout onSwitchDesktop={() => switchShell('desktop')}>{view}</MobileLayout>;
+  }
+
+  return (
+    <>
+      <AdminLayout>{view}</AdminLayout>
+      {/* 手机设备上手动切到桌面壳时的返回入口；PC 上 matchMedia 不命中，永不渲染 */}
+      {isMobileDevice && (
+        <button
+          onClick={() => switchShell('mobile')}
+          style={{
+            position: 'fixed',
+            right: 12,
+            bottom: 76,
+            zIndex: 999,
+            padding: '8px 14px',
+            borderRadius: 20,
+            border: 'none',
+            background: 'rgba(15, 23, 42, 0.78)',
+            color: '#fff',
+            fontSize: 13,
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
+          }}
+        >
+          回到移动版
+        </button>
+      )}
+    </>
   );
 }

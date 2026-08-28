@@ -253,8 +253,8 @@ export function DailyGuidanceCard() {
       </div>
 
       {guidanceTable ? (
-        <div className={styles.guidanceTableWrap}>
-          <table className={styles.guidanceTable}>
+        <div className={`${styles.guidanceTableWrap} m-cardify-wrap`}>
+          <table className={`${styles.guidanceTable} m-cardify`}>
             <thead>
               <tr>
                 {guidanceTable.headers.map((h, i) => (
@@ -273,7 +273,7 @@ export function DailyGuidanceCard() {
                 return (
                   <tr key={ri} className={rowClass}>
                     {row.map((cell, ci) => (
-                      <td key={ci}>{cell || '—'}</td>
+                      <td key={ci} data-label={guidanceTable.headers[ci]}>{cell || '—'}</td>
                     ))}
                   </tr>
                 );
@@ -361,24 +361,24 @@ function renderSectorRow(
   if (sec.unmapped) {
     return (
       <tr key={keyPrefix} className={rowClass}>
-        <td>{dirLabel}</td>
-        <td>{sectorCell}</td>
-        <td className={styles.pctZero}>—</td>
-        <td className={styles.pctZero}>—</td>
-        <td className={styles.pctZero}>—</td>
-        <td>{renderStockCell(sec.stocks)}</td>
+        <td data-label="方向">{dirLabel}</td>
+        <td data-label="板块">{sectorCell}</td>
+        <td data-label="板块涨跌" className={styles.pctZero}>—</td>
+        <td data-label="超额" className={styles.pctZero}>—</td>
+        <td data-label="命中" className={styles.pctZero}>—</td>
+        <td data-label="重点个股">{renderStockCell(sec.stocks)}</td>
       </tr>
     );
   }
 
   return (
     <tr key={keyPrefix} className={rowClass}>
-      <td>{dirLabel}</td>
-      <td>{sectorCell}</td>
-      <td className={pctClass(sec.change_pct)}>{fmtPct(sec.change_pct)}</td>
-      <td className={pctClass(sec.excess_pct)}>{fmtPct(sec.excess_pct)}</td>
-      <td>{sec.hit === undefined ? '—' : sec.hit ? '✅' : '❌'}</td>
-      <td>{renderStockCell(sec.stocks)}</td>
+      <td data-label="方向">{dirLabel}</td>
+      <td data-label="板块">{sectorCell}</td>
+      <td data-label="板块涨跌" className={pctClass(sec.change_pct)}>{fmtPct(sec.change_pct)}</td>
+      <td data-label="超额" className={pctClass(sec.excess_pct)}>{fmtPct(sec.excess_pct)}</td>
+      <td data-label="命中">{sec.hit === undefined ? '—' : sec.hit ? '✅' : '❌'}</td>
+      <td data-label="重点个股">{renderStockCell(sec.stocks)}</td>
     </tr>
   );
 }
@@ -452,8 +452,8 @@ export function ReviewResultCard() {
             </span>
           </div>
 
-          <div className={styles.reviewTableWrap}>
-            <table className={styles.reviewTable}>
+          <div className={`${styles.reviewTableWrap} m-cardify-wrap`}>
+            <table className={`${styles.reviewTable} m-cardify`}>
               <thead>
                 <tr>
                   <th>方向</th>

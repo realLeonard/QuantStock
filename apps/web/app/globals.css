@@ -65,10 +65,12 @@ body {
   text-align-last: justify;
 }
 @media (max-width: 520px) {
-  .login-hero { flex-direction: column; gap: 14px; text-align: center; }
-  .login-hero-row { justify-content: center; }
-  .login-hero-title { font-size: 34px; }
-  .login-slogan { text-align: center; text-align-last: center; }
+  /* 与 PC 相同的横排布局，仅整体缩小尺寸 */
+  .login-hero { gap: 14px; }
+  .login-hero-logo { width: 62px; height: 62px; border-radius: 15px; }
+  .login-hero-title { font-size: 30px; letter-spacing: 5px; }
+  .login-hero-sub { font-size: 13px; letter-spacing: 2px; }
+  .login-slogan { font-size: 13px; }
 }
 .login-card {
   /* iOS 毛玻璃：低透白 + 模糊提饱和提亮，玻璃感靠透出的背景 */

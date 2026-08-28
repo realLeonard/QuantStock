@@ -130,7 +130,7 @@ function AdminOrdersView() {
             <p>暂无订单</p>
           </div>
         ) : (
-          <table className="stock-table">
+          <table className="stock-table m-cardify">
             <thead>
               <tr>
                 <th>手机号</th>
@@ -147,17 +147,17 @@ function AdminOrdersView() {
               {orders.map((order) => (
                 <tr key={order.id} className={order.status === 'claimed' ? styles.pendingRow : ''}>
                   <td style={{ fontWeight: 600 }}>{order.phone}</td>
-                  <td>{planLabel(order.plan)}</td>
-                  <td>¥{order.price}</td>
-                  <td>
+                  <td data-label="套餐">{planLabel(order.plan)}</td>
+                  <td data-label="金额">¥{order.price}</td>
+                  <td data-label="状态">
                     <span className={`${styles.badge} ${statusClass(order.status)}`}>
                       {STATUS_LABEL[order.status] ?? order.status}
                     </span>
                   </td>
-                  <td className={styles.timeCell}>{fmtDateTime(order.created_at)}</td>
-                  <td className={styles.timeCell}>{fmtDateTime(order.confirmed_at)}</td>
-                  <td className={styles.noteCell}>{order.note ?? '—'}</td>
-                  <td>
+                  <td data-label="下单时间" className={styles.timeCell}>{fmtDateTime(order.created_at)}</td>
+                  <td data-label="处理时间" className={styles.timeCell}>{fmtDateTime(order.confirmed_at)}</td>
+                  <td data-label="备注" className={styles.noteCell}>{order.note ?? '—'}</td>
+                  <td data-label="操作">
                     {order.status === 'claimed' ? (
                       <div className={styles.actionRow}>
                         <button
@@ -358,10 +358,10 @@ function MemberSubscriptionView() {
     <>
       <PageHeader title="订阅订单" desc="我的订阅信息与历史订单" />
 
-      <div className={styles.subCard}>
+      <div className={`${styles.subCard} m-subcard`}>
         {isMember && expiresAt != null && days != null ? (
           <>
-            <div className={styles.subCardMain}>
+            <div className={`${styles.subCardMain} m-subcard-main`}>
               <div>
                 <div className={styles.subCardLabel}>订阅到期日</div>
                 <div className={styles.subCardDate}>{formatExpireDate(expiresAt)}</div>
@@ -373,7 +373,7 @@ function MemberSubscriptionView() {
                 </div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div className="m-subcard-actions" style={{ display: 'flex', gap: 10 }}>
               <button className="btn-secondary" onClick={() => setShowPwdModal(true)}>
                 修改登录密码
               </button>
@@ -381,7 +381,7 @@ function MemberSubscriptionView() {
             </div>
           </>
         ) : (
-          <div className={styles.subCardMain}>
+          <div className={`${styles.subCardMain} m-subcard-main`}>
             <div>
               <div className={styles.subCardLabel}>当前账号</div>
               <div className={styles.subCardDate}>{currentUser?.username}（不受订阅限制）</div>
@@ -397,7 +397,7 @@ function MemberSubscriptionView() {
             <p>暂无历史订单</p>
           </div>
         ) : (
-          <table className="stock-table">
+          <table className="stock-table m-cardify">
             <thead>
               <tr>
                 <th style={{ width: 100 }}>套餐</th>
@@ -411,16 +411,16 @@ function MemberSubscriptionView() {
             <tbody>
               {orders.map((order) => (
                 <tr key={order.id}>
-                  <td>{planLabel(order.plan)}</td>
-                  <td>¥{order.price}</td>
-                  <td>
+                  <td data-label="套餐">{planLabel(order.plan)}</td>
+                  <td data-label="金额">¥{order.price}</td>
+                  <td data-label="状态">
                     <span className={`${styles.badge} ${statusClass(order.status)}`}>
                       {STATUS_LABEL[order.status] ?? order.status}
                     </span>
                   </td>
-                  <td className={styles.timeCell}>{fmtDateTime(order.created_at)}</td>
-                  <td className={styles.timeCell}>{fmtDateTime(order.confirmed_at)}</td>
-                  <td className={styles.noteCell}>{order.note ?? '—'}</td>
+                  <td data-label="下单时间" className={styles.timeCell}>{fmtDateTime(order.created_at)}</td>
+                  <td data-label="处理时间" className={styles.timeCell}>{fmtDateTime(order.confirmed_at)}</td>
+                  <td data-label="备注" className={styles.noteCell}>{order.note ?? '—'}</td>
                 </tr>
               ))}
             </tbody>

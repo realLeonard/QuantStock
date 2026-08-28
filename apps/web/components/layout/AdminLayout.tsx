@@ -6,6 +6,7 @@ import Toast from '@/components/ui/Toast';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import { formatExpireDate } from '@/lib/subscription';
 import { maskUsername } from '@/lib/utils';
+import { navigateTo, goBackFromDetail } from '@/lib/nav-loader';
 
 interface Props {
   children: React.ReactNode;
@@ -23,7 +24,7 @@ export default function AdminLayout({ children }: Props) {
   const {
     themes, reports, dailyReviews,
     currentNav, setCurrentNav, logout,
-    setCurrentThemeId, setCurrentReportId, currentUser,
+    currentUser,
     systemMenuOpen, toggleSystemMenu,
     appMenuOpen, toggleAppMenu,
     stockDictMenuOpen, toggleStockDictMenu,
@@ -53,66 +54,7 @@ export default function AdminLayout({ children }: Props) {
   const latestReviewDate = fmtMMDD(dailyReviews[0]?.report_date);
 
   function handleNav(nav: Parameters<typeof setCurrentNav>[0]) {
-    setCurrentThemeId(null);
-    setCurrentReportId(null);
-    setCurrentNav(nav);
-    if (nav === 'dashboard') {
-      const s = useAppStore.getState();
-      s.loadThemes();
-      s.loadRecentInsights();
-      s.loadDailyGoldPicks();
-      s.loadReports();
-    }
-    if (nav === 'users') {
-      useAppStore.getState().loadUsers();
-    }
-    if (nav === 'zaobao') {
-      useAppStore.getState().loadReports();
-    }
-    if (nav === 'breadth') {
-      useAppStore.getState().loadBreadth('recent30');
-    }
-    if (nav === 'news') {
-      useAppStore.getState().loadNewsItems();
-    }
-    if (nav === 'app-users') {
-      useAppStore.getState().loadAppUsers();
-    }
-    if (nav === 'app-feedback') {
-      useAppStore.getState().loadUserFeedbacks();
-    }
-    if (nav === 'app-events') {
-      useAppStore.getState().loadUserEvents();
-    }
-    if (nav === 'app-version') {
-      useAppStore.getState().loadAppVersions();
-    }
-    if (nav === 'daily-review') {
-      useAppStore.getState().loadDailyReviews();
-    }
-    if (nav === 'sector-prediction') {
-      const s = useAppStore.getState();
-      s.setCurrentSectorDate(null);
-      s.loadSectorPredictionDays();
-    }
-    if (nav === 'gold') {
-      const s = useAppStore.getState();
-      s.loadRecentInsights();
-      s.loadDailyGoldPicks();
-      s.loadThemes();
-      s.loadReports();
-    }
-    if (nav === 'stock-dict-sector') {
-      useAppStore.getState().loadSectorMasters();
-    }
-    if (nav === 'stock-dict-codes') {
-      useAppStore.getState().loadStockCodes();
-    }
-    if (nav === 'login-logs') {
-      const s = useAppStore.getState();
-      s.loadLoginLogs(1);
-      s.loadLoginLogSummary();
-    }
+    navigateTo(nav);
   }
 
   function handleLogout() {
@@ -537,25 +479,14 @@ function SubscriptionWarningBar() {
 }
 
 function FloatingActions() {
-  const {
-    currentNav, currentThemeId, currentReportId, currentSectorDate,
-    setCurrentNav, setCurrentThemeId, setCurrentReportId, setCurrentSectorDate,
-  } = useAppStore();
+  const { currentThemeId, currentReportId, currentSectorDate } = useAppStore();
 
   function scrollToTop() {
     document.querySelector('.main-content')?.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function goBack() {
-    if (currentThemeId) {
-      setCurrentThemeId(null);
-    } else if (currentReportId) {
-      setCurrentReportId(null);
-    } else if (currentSectorDate) {
-      setCurrentSectorDate(null);
-    } else if (currentNav === 'themes') {
-      setCurrentNav('dashboard');
-    }
+    goBackFromDetail();
   }
 
   const canGoBack = !!currentThemeId || !!currentReportId || !!currentSectorDate;

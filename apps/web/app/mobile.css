@@ -1,0 +1,167 @@
+/*
+ * 移动壳覆写层（仅在 MobileLayout 根节点 .m-shell 下生效）
+ * 铁律：本文件每条选择器必须以 .m-shell 开头——PC 端不渲染该 class，保证 PC 零影响
+ */
+
+/* ===== 表格横滚兜底 ===== */
+.m-shell .table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.m-shell .stock-table {
+  min-width: 640px;
+}
+
+/* 订单/用户表操作列吸附右侧，横滚时操作按钮始终可见 */
+.m-shell .stock-table th:last-child,
+.m-shell .stock-table td:last-child {
+  position: sticky;
+  right: 0;
+  background: #fff;
+  box-shadow: -6px 0 8px -6px rgba(15, 23, 42, 0.12);
+}
+
+/* ===== 模态全宽适配 ===== */
+.m-shell .modal-box,
+.m-shell .modal-box.wide {
+  width: calc(100vw - 24px);
+  max-width: none;
+  max-height: 85dvh;
+  overflow-y: auto;
+}
+
+/* ===== 表格卡片化（方案 B）=====
+ * 表格加 .m-cardify + 单元格加 data-label 即变竖排卡片；
+ * 无 data-label 的单元格整行铺满（主内容位）；忘加类则自动回落横滚兜底
+ */
+.m-shell .m-cardify-wrap {
+  overflow: visible;
+  border: none;
+  border-radius: 0;
+}
+
+.m-shell table.m-cardify,
+.m-shell table.m-cardify tbody,
+.m-shell table.m-cardify tr,
+.m-shell table.m-cardify td {
+  display: block;
+  width: 100%;
+}
+
+.m-shell table.m-cardify {
+  min-width: 0;
+}
+
+.m-shell table.m-cardify thead {
+  display: none;
+}
+
+.m-shell table.m-cardify tr {
+  margin-bottom: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+.m-shell table.m-cardify tr:last-child {
+  margin-bottom: 0;
+}
+
+.m-shell table.m-cardify td {
+  border: none;
+  border-bottom: 1px solid #f1f5f9;
+  padding: 8px 12px;
+  text-align: left;
+  white-space: normal;
+}
+
+.m-shell table.m-cardify td:last-child {
+  border-bottom: none;
+}
+
+.m-shell table.m-cardify td[data-label] {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+/* 卡片化的 stock-table 取消横滚吸附列（与上方 sticky 规则冲突） */
+.m-shell table.m-cardify th:last-child,
+.m-shell table.m-cardify td:last-child {
+  position: static;
+  box-shadow: none;
+  background: none;
+}
+
+/* 单元格内含多个子元素时全部落在值列，不串到左侧标签列 */
+.m-shell table.m-cardify td[data-label] > * {
+  grid-column: 2;
+}
+
+/* 徽标类子元素不随网格拉伸（如资讯重要程度标签） */
+.m-shell table.m-cardify td[data-label] > span {
+  justify-self: start;
+}
+
+.m-shell table.m-cardify td[data-label]::before {
+  content: attr(data-label);
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.6;
+  font-weight: 500;
+}
+
+/* 深色主题内的表格（如早报明细）卡片用深色底，保持原浅色文字可读 */
+.m-shell table.m-cardify-dark tr {
+  background: #232838;
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+}
+
+.m-shell table.m-cardify-dark td {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+/* ===== member 订阅信息卡竖排（到期日/剩余天数 + 按钮区） ===== */
+.m-shell .m-subcard {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+}
+
+.m-shell .m-subcard-main {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.m-shell .m-subcard-actions {
+  flex-direction: column;
+}
+
+.m-shell .m-subcard-actions > * {
+  width: 100%;
+  text-align: center;
+}
+
+/* ===== 通用布局收窄 ===== */
+/* 页头（标题+副标题/搜索/右侧控件）竖排堆叠，搜索框全宽 */
+.m-shell .section-header {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.m-shell .section-header > * {
+  justify-self: stretch;
+}
+
+.m-shell .search-bar-input {
+  width: 100%;
+}
+
+.m-shell .page-header h2 {
+  font-size: 18px;
+}

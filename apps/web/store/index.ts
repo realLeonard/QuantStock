@@ -20,7 +20,7 @@ import { uid } from '@/lib/utils';
 // 实际转发目标在 apps/web/next.config.ts 里用 NEXT_PUBLIC_API_BASE_URL 配置
 const API_BASE = '/backend-api';
 
-type NavItem = 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao' | 'breadth' | 'news'
+export type NavItem = 'dashboard' | 'themes' | 'users' | 'roles' | 'zaobao' | 'breadth' | 'news'
              | 'app-users' | 'app-feedback' | 'app-events' | 'app-version' | 'daily-review' | 'gold'
              | 'sector-prediction' | 'stock-dict-sector' | 'stock-dict-codes' | 'subscription'
              | 'login-logs';
