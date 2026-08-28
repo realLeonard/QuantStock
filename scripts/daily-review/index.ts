@@ -14,9 +14,9 @@ import * as dotenv from 'dotenv';
 import { resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { spawnSync } from 'node:child_process';
 import axios from 'axios';
 import { isTradingDay } from '../shared/trading-calendar';
+import { callClaude } from '../zaobao/utils/claude-cli';
 import { extractAndRepairJson } from './json-repair';
 
 // 加载环境变量
@@ -483,43 +483,11 @@ async function generateAiAnalysisV2(
   console.log('  [ai] 调用 Claude CLI 生成 v2 结构化复盘...');
   const fullPrompt = `${SYSTEM_PROMPT_V2}\n\n---\n\n以下是 ${data.report_date} 的 A 股收盘数据，请严格按 JSON schema 返回 v2 结构化分析：\n\n${userContent}`;
   console.log(`  [ai] prompt 长度: ${fullPrompt.length} 字符`);
-  const fs = await import('fs');
-  const promptPath = `/tmp/daily-review-prompt-${Date.now()}.txt`;
-  fs.writeFileSync(promptPath, fullPrompt);
-  console.log(`  [ai] prompt 已写入 ${promptPath}`);
-
-  const cliInput = `请用 Read 工具读取文件 ${promptPath}，然后严格按照文件中的指令要求输出 JSON。不要输出任何 markdown 代码块或前后缀文字，只输出纯 JSON。`;
-  var cliResult = spawnSync(
-    'claude',
-    [
-      '-p', '--no-session-persistence',
-      '--allowedTools', 'Read',
-      '--model', 'claude-opus-4-6',
-    ],
-    {
-      timeout: 900_000,
-      encoding: 'utf8',
-      maxBuffer: 10 * 1024 * 1024,
-      input: cliInput,
-      env: {
-        ...process.env,
-        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
-      },
-    },
+  const rawText = callClaude(
+    fullPrompt,
+    'daily-review-v2',
+    '不要输出任何 markdown 代码块或前后缀文字，只输出纯 JSON。',
   );
-
-  console.log(`  [ai] CLI 退出码: ${cliResult.status}, signal: ${cliResult.signal || 'none'}`);
-  console.log(`  [ai] stdout 长度: ${(cliResult.stdout || '').length}, stderr 长度: ${(cliResult.stderr || '').length}`);
-  if (cliResult.stderr) {
-    console.log(`  [ai] stderr: ${cliResult.stderr.slice(-1000)}`);
-  }
-  if (cliResult.status !== 0) {
-    if (cliResult.stdout) {
-      console.log(`  [ai] stdout (前500字): ${cliResult.stdout.slice(0, 500)}`);
-    }
-    throw new Error(`CLI 退出码 ${cliResult.status}: ${(cliResult.stderr || cliResult.stdout || '').slice(-500)}`);
-  }
-  const rawText = cliResult.stdout;
 
   // 提取 + 修复 AI 返回的 JSON（处理代码块包裹、未转义引号、截断等）
   const jsonStr = extractAndRepairJson(rawText);

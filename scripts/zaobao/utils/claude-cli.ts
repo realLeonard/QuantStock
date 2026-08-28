@@ -5,13 +5,18 @@ import * as fs from 'node:fs';
  * 通过 Claude CLI 调用模型，返回生成内容
  * @param prompt 完整 prompt（system + user 拼接）
  * @param label 标签，用于临时文件命名和错误信息
+ * @param outputHint 输出格式要求，默认纯文本；需要 JSON 时可传入自定义指令
  */
-export function callClaude(prompt: string, label: string): string {
+export function callClaude(
+  prompt: string,
+  label: string,
+  outputHint = '直接输出内容，不要输出 markdown 代码块包裹。',
+): string {
   const promptPath = `/tmp/${label}-${Date.now()}.txt`;
   fs.writeFileSync(promptPath, prompt);
 
   const cliInput =
-    `请用 Read 工具读取文件 ${promptPath}，然后严格按照文件中的指令要求输出内容。直接输出内容，不要输出 markdown 代码块包裹。`;
+    `请用 Read 工具读取文件 ${promptPath}，然后严格按照文件中的指令要求输出内容。${outputHint}`;
 
   const maxAttempts = 2;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {

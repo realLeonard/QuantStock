@@ -93,3 +93,16 @@ jobs:
           BARK_KEY: ${{ secrets.BARK_KEY }}
         run: npx tsx index.ts
         working-directory: scripts/zaobao
+
+      - name: 失败 Bark 告警
+        if: failure()
+        env:
+          BARK_KEY: ${{ secrets.BARK_KEY }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -n "$BARK_KEY" ]; then
+            curl -s --max-time 10 -X POST "https://api.day.app/$BARK_KEY" \
+              --data-urlencode "title=早报生成失败" \
+              --data-urlencode "body=每日早报 workflow 失败（含生成异常/空内容），详见 $RUN_URL" \
+              --data-urlencode "group=观弈" > /dev/null || true
+          fi
