@@ -14,6 +14,12 @@ import styles from './subscribe.module.css';
 
 const PLAN_KEYS: SubscriptionPlan[] = ['month', 'quarter', 'year'];
 
+const PLAN_RIBBON: Record<SubscriptionPlan, string> = {
+  month: '尝鲜',
+  quarter: '推荐',
+  year: '明智',
+};
+
 export default function SubscribePage() {
   const [plan, setPlan] = useState<SubscriptionPlan>('quarter');
   const [phone, setPhone] = useState('');
@@ -111,7 +117,7 @@ export default function SubscribePage() {
           </div>
         )}
 
-        <div className={styles.sectionLabel}>1. 选择套餐（功能会不断升级加量不加价，套餐涨价不会要求补差）</div>
+        <div className={styles.sectionLabel}>1. 选择套餐（当前为限时低价，功能持续升级，只涨不降）</div>
         <div className={styles.plans}>
           {PLAN_KEYS.map((key) => {
             const p = SUBSCRIPTION_PLANS[key];
@@ -122,6 +128,7 @@ export default function SubscribePage() {
                 className={`${styles.planCard} ${plan === key ? styles.planActive : ''}`}
                 onClick={() => setPlan(key)}
               >
+                <span className={styles.planRibbon}>{PLAN_RIBBON[key]}</span>
                 <div className={styles.planLabel}>{p.label}</div>
                 <div className={styles.planPrice}>
                   ¥<span>{p.price}</span>

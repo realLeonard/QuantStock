@@ -79,6 +79,8 @@
 }
 
 .planCard {
+  position: relative;
+  overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.08);
@@ -86,6 +88,24 @@
   cursor: pointer;
   text-align: center;
   transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+/* 右上角斜向角标（尝鲜/推荐/明智） */
+.planRibbon {
+  position: absolute;
+  top: 8px;
+  right: -22px;
+  width: 80px;
+  transform: rotate(45deg);
+  background: linear-gradient(135deg, #f5cd62, #e0a232);
+  color: #1a2440;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  letter-spacing: 1px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
 }
 
 .planCard:hover {
