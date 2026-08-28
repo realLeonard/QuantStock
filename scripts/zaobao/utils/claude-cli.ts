@@ -35,8 +35,20 @@ export function callClaude(prompt: string, label: string): string {
     console.log(`  [claude-cli] ${label} 完成，耗时 ${elapsedSec}s，退出码 ${result.status}`);
 
     if (result.status === 0) {
+      const output = result.stdout.trim();
+      if (output) {
+        try { fs.unlinkSync(promptPath); } catch {}
+        return output;
+      }
+      // 代理偶发返回空内容但退出码仍为 0，若不拦截会把 0 字报告落库
+      console.log(`  [claude-cli] ${label} 退出码 0 但输出为空，视为失败`);
+      if (attempt < maxAttempts) {
+        console.log(`  [claude-cli] ${label} 30s 后第 ${attempt + 1} 次尝试...`);
+        spawnSync('sleep', ['30']);
+        continue;
+      }
       try { fs.unlinkSync(promptPath); } catch {}
-      return result.stdout.trim();
+      throw new Error(`Claude CLI 失败 (${label}): 输出为空`);
     }
 
     const errMsg = (result.stderr || result.stdout || '').slice(-500);
