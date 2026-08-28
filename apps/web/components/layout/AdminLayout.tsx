@@ -129,20 +129,18 @@ export default function AdminLayout({ children }: Props) {
       <aside className="sidebar">
         <div className="sidebar-brand">
           <div className="sidebar-brand-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
-              <polyline points="16 7 22 7 22 13"/>
-            </svg>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="观弈" />
           </div>
           <div>
-            <div className="sidebar-brand-text">股海远洋</div>
-            <div className="sidebar-brand-sub">股票投资智能小助理</div>
+            <div className="sidebar-brand-text">观弈</div>
+            <div className="sidebar-brand-sub">股票智能小助理</div>
           </div>
         </div>
 
         <div className="sidebar-scroll">
         <div className="sidebar-section-title">导航</div>
-        <nav className="sidebar-nav" style={{ flex: 'none' }}>
+        <nav className="sidebar-nav">
           <div
             className={`nav-item${currentNav === 'dashboard' ? ' active' : ''}`}
             onClick={() => handleNav('dashboard')}
@@ -334,7 +332,7 @@ export default function AdminLayout({ children }: Props) {
         {isAdmin && (
           <>
             <div className="sidebar-section-title">APP 管理</div>
-            <nav className="sidebar-nav" style={{ flex: 'none' }}>
+            <nav className="sidebar-nav">
               <div className="nav-item nav-group-toggle" onClick={toggleAppMenu}>
                 <span className="nav-icon">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -410,7 +408,7 @@ export default function AdminLayout({ children }: Props) {
         {isAdmin && (
           <>
             <div className="sidebar-section-title">系统管理</div>
-            <nav className="sidebar-nav" style={{ flex: 'none' }}>
+            <nav className="sidebar-nav">
               {/* 可折叠父菜单 */}
               <div className="nav-item nav-group-toggle" onClick={toggleSystemMenu}>
                 <span className="nav-icon">
@@ -625,7 +623,7 @@ function Topbar() {
   return (
     <header className="topbar">
       <div className="topbar-breadcrumb">
-        <span>股海远洋</span>
+        <span>观弈</span>
         <span className="sep">/</span>
         <span className="current">{breadcrumb}</span>
       </div>

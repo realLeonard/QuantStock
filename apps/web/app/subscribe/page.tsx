@@ -77,7 +77,9 @@ export default function SubscribePage() {
             管理员核对收款后将为您开通订阅
           </p>
           <p className={styles.successHint}>
-            开通后使用手机号 <b>{phone}</b> 登录后台即可查看内容，密码将与开通成功短信通知一同发送给您
+            开通后使用手机号 <b>{phone}</b> 登录后台即可查看内容
+            <br />
+            密码将与开通成功短信通知一同发送给您
           </p>
         </div>
       </div>
@@ -87,7 +89,7 @@ export default function SubscribePage() {
   return (
     <div className={styles.page}>
       <div className={styles.card}>
-        <h1 className={styles.title}>股海远洋 · 会员订阅</h1>
+        <h1 className={styles.title}>观弈 · 会员订阅</h1>
         <p className={styles.subtitle}>
           订阅后可查看掘金、每日早报、复盘、板块预测、投资主题等全部内容
         </p>
@@ -172,6 +174,10 @@ export default function SubscribePage() {
           </span>
         </button>
       </div>
+
+      <footer className={styles.riskFooter}>
+        ⚠️本产品仅为信息辅助工具，不构成任何投资建议，所有交易决策请用户自行负责，投资有风险，入市需谨慎
+      </footer>
     </div>
   );
 }

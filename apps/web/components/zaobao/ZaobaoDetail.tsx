@@ -46,7 +46,7 @@ function downloadHtml(report: DailyReport) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${report.report_date} 投资早报 · 股海远洋</title>
+  <title>${report.report_date} 投资早报 · 观弈</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f7f8fa; color: #1a1d23; margin: 0; padding: 20px; }
     .container { max-width: 720px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 32px; box-shadow: 0 2px 16px rgba(0,0,0,0.08); }
@@ -63,9 +63,9 @@ function downloadHtml(report: DailyReport) {
 </head>
 <body>
   <div class="container">
-    <div class="meta">股海远洋 · 投资早报 · ${report.report_date}</div>
+    <div class="meta">观弈 · 投资早报 · ${report.report_date}</div>
     ${lines}
-    <div class="footer">由股海远洋 AI 自动生成 · ${new Date(report.created_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</div>
+    <div class="footer">由观弈 AI 自动生成 · ${new Date(report.created_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</div>
   </div>
 </body>
 </html>`;

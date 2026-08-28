@@ -1,41 +1,65 @@
 .page {
   min-height: 100vh;
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 40px 16px;
-  background: linear-gradient(160deg, #eef3fb 0%, #f7f8fa 60%);
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 16px 24px;
+  background:
+    radial-gradient(ellipse at 28% 12%, rgba(120, 140, 255, 0.3) 0%, transparent 55%),
+    radial-gradient(ellipse at 78% 82%, rgba(242, 193, 78, 0.2) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 20%, rgba(230, 80, 200, 0.16) 0%, transparent 45%),
+    linear-gradient(160deg, #0a0f4d 0%, #2b1fa8 42%, #5535e0 68%, #0a0f4d 100%);
+}
+
+.riskFooter {
+  margin-top: 24px;
+  max-width: 560px;
+  font-size: 11.5px;
+  color: #8fa0d0;
+  text-align: center;
+  line-height: 1.6;
 }
 
 .card {
   width: 100%;
   max-width: 560px;
-  background: #fff;
-  border-radius: 14px;
-  box-shadow: 0 6px 24px rgba(30, 60, 120, 0.08);
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(36px) saturate(190%) brightness(1.15);
+  -webkit-backdrop-filter: blur(36px) saturate(190%) brightness(1.15);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 24px;
+  box-shadow: 0 30px 70px rgba(8, 8, 40, 0.55),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.5),
+    inset 1px 0 0 rgba(255, 255, 255, 0.16),
+    inset -1px 0 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.1);
   padding: 32px 28px;
 }
 
 .title {
-  font-size: 22px;
-  font-weight: 700;
-  color: #1a2b4c;
+  font-size: 24px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #ffe9a8 0%, #f2c14e 55%, #e0a232 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 14px rgba(242, 193, 78, 0.3));
   margin: 0 0 6px;
   text-align: center;
 }
 
 .subtitle {
   font-size: 13px;
-  color: #7a869a;
+  color: #a5b8e4;
   text-align: center;
   margin: 0 0 20px;
 }
 
 .memberBanner {
-  background: #fff8e6;
-  border: 1px solid #ffd97a;
-  color: #8a6100;
-  border-radius: 8px;
+  background: rgba(242, 193, 78, 0.12);
+  border: 1px solid rgba(242, 193, 78, 0.4);
+  color: #ffd97a;
+  border-radius: 10px;
   padding: 10px 14px;
   font-size: 13px;
   margin-bottom: 18px;
@@ -44,7 +68,7 @@
 .sectionLabel {
   font-size: 14px;
   font-weight: 600;
-  color: #33405c;
+  color: #dbe4ff;
   margin: 18px 0 10px;
 }
 
@@ -55,33 +79,35 @@
 }
 
 .planCard {
-  border: 2px solid #e3e8f0;
-  border-radius: 10px;
-  background: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
   padding: 14px 8px;
   cursor: pointer;
   text-align: center;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
 }
 
 .planCard:hover {
-  border-color: #a9bff0;
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
 .planActive {
-  border-color: #3b6fe0;
-  box-shadow: 0 0 0 3px rgba(59, 111, 224, 0.12);
+  border-color: #f2c14e;
+  background: rgba(242, 193, 78, 0.12);
+  box-shadow: 0 0 0 3px rgba(242, 193, 78, 0.18);
 }
 
 .planLabel {
   font-size: 14px;
   font-weight: 600;
-  color: #33405c;
+  color: #f1f5f9;
 }
 
 .planPrice {
   font-size: 14px;
-  color: #d43a3a;
+  color: #f5cd62;
   margin: 6px 0 2px;
 }
 
@@ -92,27 +118,39 @@
 
 .planDays {
   font-size: 12px;
-  color: #98a3b5;
+  color: #a5b8e4;
 }
 
 .phoneInput {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid #d6dde8;
-  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 12px;
   padding: 11px 14px;
   font-size: 16px;
+  color: #fff;
   letter-spacing: 1px;
   outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.phoneInput::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.phoneInput:hover {
+  background: rgba(255, 255, 255, 0.14);
 }
 
 .phoneInput:focus {
-  border-color: #3b6fe0;
+  border-color: #f2c14e;
+  box-shadow: 0 0 0 3px rgba(242, 193, 78, 0.18);
 }
 
 .phoneInput:disabled {
-  background: #f3f5f8;
-  color: #57617a;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .payRow {
@@ -130,41 +168,41 @@
 .qrImg {
   width: 160px;
   height: 160px;
-  border-radius: 8px;
-  border: 1px solid #e3e8f0;
-  background: #f3f5f8;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: #fff;
   object-fit: cover;
 }
 
 .qrCaption {
   font-size: 12px;
-  color: #43a047;
+  color: #4ade80;
   margin-top: 6px;
   font-weight: 600;
 }
 
 .alipayCaption {
-  color: #1677ff;
+  color: #7ab8ff;
 }
 
 .payAmount {
   font-size: 13px;
-  color: #7a869a;
+  color: #a5b8e4;
   text-align: center;
   margin-top: 12px;
 }
 
 .payAmount b {
-  color: #d43a3a;
+  color: #f5cd62;
   font-size: 18px;
 }
 
 .error {
   margin-top: 14px;
-  background: #fdecec;
-  border: 1px solid #f5b8b8;
-  color: #c0392b;
-  border-radius: 8px;
+  background: rgba(220, 60, 60, 0.18);
+  border: 1px solid rgba(255, 120, 120, 0.4);
+  color: #ffb4b4;
+  border-radius: 10px;
   padding: 9px 13px;
   font-size: 13px;
 }
@@ -172,21 +210,23 @@
 .submitBtn {
   width: 100%;
   margin-top: 18px;
-  background: #3b6fe0;
-  color: #fff;
+  background: linear-gradient(135deg, #f5cd62, #e0a232);
+  color: #1a2440;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 11px 13px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
+  transition: opacity 0.2s, box-shadow 0.2s;
 }
 
 .submitMain {
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 2px;
 }
 
 .submitSub {
@@ -196,12 +236,15 @@
 }
 
 .submitBtn:hover {
-  background: #2f5cc4;
+  opacity: 0.94;
+  box-shadow: 0 6px 24px rgba(242, 193, 78, 0.4);
 }
 
 .submitBtn:disabled {
-  background: #a9bff0;
+  background: rgba(245, 205, 98, 0.4);
+  color: rgba(26, 36, 64, 0.6);
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 /* ===== 提交成功态 ===== */
@@ -213,23 +256,27 @@
 .successTitle {
   font-size: 20px;
   font-weight: 700;
-  color: #1a2b4c;
+  color: #f1f5f9;
   text-align: center;
   margin: 10px 0 6px;
 }
 
 .successText {
   font-size: 14px;
-  color: #57617a;
+  color: #c7d2f0;
   text-align: center;
   margin: 0 0 16px;
 }
 
 .successHint {
   font-size: 13px;
-  color: #7a869a;
+  color: #a5b8e4;
   text-align: center;
   margin-top: 16px;
+}
+
+.successHint b {
+  color: #f5cd62;
 }
 
 @media (max-width: 480px) {

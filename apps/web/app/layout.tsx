@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '股海远洋 · 后台管理',
-  description: '投资主题与股票池管理系统',
+  title: '观弈｜股票智能小助理',
+  description: '静观市场弈局，理性辅助决策',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

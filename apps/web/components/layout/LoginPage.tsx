@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAppStore } from '@/store';
+import NeuralBackground from './NeuralBackground';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
@@ -32,18 +33,21 @@ export default function LoginPage() {
 
   return (
     <div className="page-login">
-      <div className="login-card">
-        <div className="login-logo">
-          <div className="login-logo-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
-              <polyline points="16 7 22 7 22 13"/>
-            </svg>
-          </div>
-          <span className="login-logo-name">股海远洋</span>
-        </div>
-        <div className="login-subtitle">股票投资智能小助理</div>
+      <NeuralBackground />
 
+      <div className="login-hero">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="观弈" className="login-hero-logo" />
+        <div className="login-hero-text">
+          <div className="login-hero-row">
+            <h1 className="login-hero-title">观弈</h1>
+            <span className="login-hero-sub">股票智能小助理</span>
+          </div>
+          <div className="login-slogan">静观市场弈局&nbsp;·&nbsp;理性辅助决策</div>
+        </div>
+      </div>
+
+      <div className="login-card">
         <form onSubmit={handleLogin}>
           <label className="login-label">账号</label>
           <div className="login-input-wrap">
@@ -91,6 +95,10 @@ export default function LoginPage() {
           <a className="login-subscribe-link" href="/subscribe">&gt;&gt;&gt;去订阅&gt;&gt;&gt;</a>
         </div>
       </div>
+
+      <footer className="login-footer">
+        ⚠️本产品仅为信息辅助工具，不构成任何投资建议，所有交易决策请用户自行负责，投资有风险，入市需谨慎
+      </footer>
     </div>
   );
 }

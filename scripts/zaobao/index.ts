@@ -61,7 +61,7 @@ async function main() {
   const { date, noPush } = parseArgs();
 
   console.log('\n========================================');
-  console.log(`  股海远洋 · 每日早报系统`);
+  console.log(`  观弈 · 每日早报系统`);
   console.log(`  日期: ${date}${noPush ? '（测试模式，跳过推送）' : ''}`);
   console.log('========================================\n');
 

@@ -6,82 +6,144 @@ body {
   color: #1e293b;
 }
 
-/* ===== 登录页 ===== */
+/* ===== 登录页（观弈 · 科技蓝 × 金融金） ===== */
 .page-login {
-  height: 100vh;
+  min-height: 100vh;
   overflow-y: auto;
-  background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
-  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(160deg, #0a0f4d 0%, #2b1fa8 42%, #5535e0 68%, #0a0f4d 100%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
   position: relative;
+  padding: 40px 20px 20px;
 }
 .page-login::before {
   content: '';
   position: absolute; inset: 0;
-  background: radial-gradient(ellipse at 30% 20%, rgba(59,130,246,0.15) 0%, transparent 60%),
-              radial-gradient(ellipse at 70% 80%, rgba(139,92,246,0.1) 0%, transparent 60%);
+  background: radial-gradient(ellipse at 28% 12%, rgba(120,140,255,0.3) 0%, transparent 55%),
+              radial-gradient(ellipse at 78% 82%, rgba(242,193,78,0.2) 0%, transparent 50%),
+              radial-gradient(ellipse at 85% 20%, rgba(230,80,200,0.16) 0%, transparent 45%);
   pointer-events: none;
 }
-.login-card {
-  background: #fff;
+.neural-canvas {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+}
+.login-hero {
+  position: relative; z-index: 1;
+  display: flex; align-items: center; gap: 22px;
+  margin-top: auto;
+  margin-bottom: 30px;
+}
+.login-hero-logo {
+  width: 84px; height: 84px;
   border-radius: 20px;
-  padding: 48px 44px;
-  width: 420px;
-  box-shadow: 0 25px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.05);
+  box-shadow: 0 8px 36px rgba(242,193,78,0.35), 0 0 0 1px rgba(255,255,255,0.1);
+}
+.login-hero-row {
+  display: flex; align-items: baseline; gap: 6px;
+}
+.login-hero-title {
+  font-size: 42px; font-weight: 800; letter-spacing: 8px;
+  background: linear-gradient(135deg, #ffe9a8 0%, #f2c14e 55%, #e0a232 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 18px rgba(242,193,78,0.35));
+}
+.login-hero-sub {
+  font-size: 15px; letter-spacing: 3px;
+  color: #b3c9f2;
+  padding-left: 10px;
+  border-left: 1px solid rgba(179,201,242,0.45);
+}
+.login-slogan {
+  margin-top: 10px;
+  font-size: 15px;
+  color: #a5b8e4;
+  /* 两端对齐：左贴「观弈」起点，右贴「小助理」末端 */
+  text-align: justify;
+  text-align-last: justify;
+}
+@media (max-width: 520px) {
+  .login-hero { flex-direction: column; gap: 14px; text-align: center; }
+  .login-hero-row { justify-content: center; }
+  .login-hero-title { font-size: 34px; }
+  .login-slogan { text-align: center; text-align-last: center; }
+}
+.login-card {
+  /* iOS 毛玻璃：低透白 + 模糊提饱和提亮，玻璃感靠透出的背景 */
+  background: rgba(255,255,255,0.07);
+  backdrop-filter: blur(36px) saturate(190%) brightness(1.15);
+  -webkit-backdrop-filter: blur(36px) saturate(190%) brightness(1.15);
+  border: 1px solid rgba(255,255,255,0.35);
+  border-radius: 24px;
+  padding: 36px 40px 28px;
+  width: 400px;
+  max-width: 100%;
+  box-shadow: 0 30px 70px rgba(8,8,40,0.55),
+              inset 0 1.5px 0 rgba(255,255,255,0.5),
+              inset 1px 0 0 rgba(255,255,255,0.16),
+              inset -1px 0 0 rgba(255,255,255,0.08),
+              inset 0 -1px 0 rgba(255,255,255,0.1);
   position: relative; z-index: 1;
 }
-.login-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.login-logo-icon {
-  width: 44px; height: 44px; border-radius: 12px;
-  background: linear-gradient(135deg, #3b82f6, #6366f1);
-  display: flex; align-items: center; justify-content: center;
-  color: white; font-size: 22px;
+.login-card::before {
+  /* 斜向玻璃反光 */
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(115deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.05) 28%, transparent 45%);
+  pointer-events: none;
 }
-.login-logo-name { font-size: 20px; font-weight: 700; color: #0f172a; }
-.login-subtitle { color: #64748b; font-size: 13.5px; margin-bottom: 36px; }
-.login-label { font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; display: block; }
+.login-label { font-size: 13px; font-weight: 600; color: #cbd5e1; margin-bottom: 6px; display: block; }
 .login-input-wrap { position: relative; margin-bottom: 18px; }
 .login-input-icon {
   position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
-  color: #94a3b8; pointer-events: none;
+  color: rgba(255,255,255,0.55); pointer-events: none;
   display: flex; align-items: center;
 }
 .login-input {
   width: 100%; padding: 11px 14px 11px 42px;
-  border: 1.5px solid #e2e8f0; border-radius: 10px;
-  font-size: 14px; color: #1e293b; outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.22); border-radius: 12px;
+  font-size: 14px; color: #fff; outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
-.login-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.12); }
+.login-input:hover { background: rgba(255,255,255,0.14); }
+.login-input::placeholder { color: rgba(255,255,255,0.45); }
+.login-input:focus { border-color: #f2c14e; box-shadow: 0 0 0 3px rgba(242,193,78,0.18); }
 .login-btn {
   width: 100%; padding: 12px;
-  background: linear-gradient(135deg, #3b82f6, #6366f1);
-  color: white; border: none; border-radius: 10px;
-  font-size: 15px; font-weight: 600; cursor: pointer;
-  margin-top: 8px; transition: opacity 0.2s, transform 0.1s;
-  letter-spacing: 0.3px;
+  background: linear-gradient(135deg, #f5cd62, #e0a232);
+  color: #1a2440; border: none; border-radius: 10px;
+  font-size: 15px; font-weight: 700; cursor: pointer;
+  margin-top: 8px; transition: opacity 0.2s, transform 0.1s, box-shadow 0.2s;
+  letter-spacing: 2px;
 }
-.login-btn:hover { opacity: 0.92; }
+.login-btn:hover { opacity: 0.94; box-shadow: 0 6px 24px rgba(242,193,78,0.4); }
 .login-btn:active { transform: scale(0.99); }
-.login-hint {
-  margin-top: 20px; padding: 12px 14px;
-  background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;
-  font-size: 12.5px; color: #64748b; text-align: center;
-}
-.login-hint b { color: #3b82f6; }
 .login-error {
-  color: #ef4444; font-size: 13px; margin-top: 10px; text-align: center;
+  color: #f87171; font-size: 13px; margin-top: 10px; text-align: center;
   min-height: 20px;
 }
 .login-subscribe-hint {
-  margin-top: 4px; font-size: 13.5px; color: #ff4500; text-align: center;
+  margin-top: 4px; font-size: 13.5px; color: #ffb38a; text-align: center;
 }
 .login-subscribe-link {
   display: block; width: fit-content; margin: 10px auto 0;
   padding: 7px 22px; border-radius: 6px;
-  background: #ff4500; color: #fff; font-size: 13.5px; font-weight: 600;
+  background: #ff6a2b; color: #fff; font-size: 13.5px; font-weight: 600;
   text-decoration: none;
 }
-.login-subscribe-link:hover { background: #e63e00; }
+.login-subscribe-link:hover { background: #e85a1f; }
+.login-footer {
+  position: relative; z-index: 1;
+  margin-top: auto;
+  padding-top: 28px;
+  font-size: 11.5px; color: #64748b; text-align: center;
+  line-height: 1.6;
+  max-width: 640px;
+}
 
 /* ===== 后台布局 ===== */
 .admin-layout { display: flex; height: 100vh; overflow: hidden; }
@@ -100,18 +162,20 @@ body {
 }
 .sidebar-brand-icon {
   width: 36px; height: 36px; border-radius: 9px;
-  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  overflow: hidden;
   display: flex; align-items: center; justify-content: center;
-  color: white; font-size: 18px; flex-shrink: 0;
+  flex-shrink: 0;
 }
+.sidebar-brand-icon img { width: 100%; height: 100%; object-fit: cover; }
 .sidebar-brand-text { color: #f1f5f9; font-size: 15px; font-weight: 700; letter-spacing: 0.2px; }
 .sidebar-brand-sub { color: #64748b; font-size: 11px; margin-top: 1px; }
 .sidebar-section-title {
+  flex-shrink: 0;
   padding: 20px 20px 6px;
   font-size: 10.5px; font-weight: 600; color: #475569;
   text-transform: uppercase; letter-spacing: 0.8px;
 }
-.sidebar-nav { flex: 1; padding: 4px 10px; overflow-y: auto; }
+.sidebar-nav { flex-shrink: 0; padding: 4px 10px; }
 .sidebar-scroll {
   flex: 1; min-height: 0;
   display: flex; flex-direction: column;

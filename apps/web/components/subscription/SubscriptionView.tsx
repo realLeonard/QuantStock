@@ -103,8 +103,8 @@ function AdminOrdersView() {
       );
       setSmsText(
         user_created
-          ? `【股海远洋】您的订阅已开通，登录账号为本手机号，初始密码 ${order.phone.slice(-6)}，请访问 stock.bytetradepro.com 登录查看内容，建议登录后在「订阅订单」页修改密码。到期日：${formatExpireDate(expires_at)}`
-          : `【股海远洋】您的订阅续费成功，新到期日 ${formatExpireDate(expires_at)}，感谢支持！`
+          ? `【观弈】您的订阅已开通，登录账号为本手机号，初始密码 ${order.phone.slice(-6)}，请访问 stock.bytetradepro.com 登录查看内容，建议登录后在「订阅订单」页修改密码。到期日：${formatExpireDate(expires_at)}`
+          : `【观弈】您的订阅续费成功，新到期日 ${formatExpireDate(expires_at)}，感谢支持！`
       );
       await load();
     } catch (e) {

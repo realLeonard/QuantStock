@@ -9,7 +9,7 @@ export async function sendBark(title: string, body: string): Promise<void> {
 
   const url =
     `https://api.day.app/${key}/${encodeURIComponent(title)}/${encodeURIComponent(body)}` +
-    '?group=QuantStock';
+    `?group=${encodeURIComponent('观弈')}`;
 
   try {
     const controller = new AbortController();
