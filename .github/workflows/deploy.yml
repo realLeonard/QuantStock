@@ -75,9 +75,10 @@ jobs:
 
           if [ "$WEB_CHANGED" = "true" ]; then
             echo ">>> 构建并重启 Web"
+            # 服务器仅 2G 内存，限制 Node 堆大小避免 next build 被 OOM killer SIGKILL
             ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
               ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-              "cd /www/wwwroot/quantstock/apps/web && npm run build && pm2 restart quantstock-web"
+              "cd /www/wwwroot/quantstock/apps/web && NODE_OPTIONS='--max-old-space-size=1024' npm run build && pm2 restart quantstock-web"
           fi
 
           echo ">>> 部署完成"
