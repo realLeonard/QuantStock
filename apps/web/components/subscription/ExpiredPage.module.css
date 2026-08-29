@@ -3,14 +3,25 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(160deg, #eef3fb 0%, #f7f8fa 60%);
   padding: 16px;
+  background:
+    radial-gradient(ellipse at 28% 12%, rgba(120, 140, 255, 0.3) 0%, transparent 55%),
+    radial-gradient(ellipse at 78% 82%, rgba(242, 193, 78, 0.2) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 20%, rgba(230, 80, 200, 0.16) 0%, transparent 45%),
+    linear-gradient(160deg, #0a0f4d 0%, #2b1fa8 42%, #5535e0 68%, #0a0f4d 100%);
 }
 
 .card {
-  background: #fff;
-  border-radius: 14px;
-  box-shadow: 0 6px 24px rgba(30, 60, 120, 0.08);
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(36px) saturate(190%) brightness(1.15);
+  -webkit-backdrop-filter: blur(36px) saturate(190%) brightness(1.15);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 24px;
+  box-shadow: 0 30px 70px rgba(8, 8, 40, 0.55),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.5),
+    inset 1px 0 0 rgba(255, 255, 255, 0.16),
+    inset -1px 0 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.1);
   padding: 40px 36px;
   max-width: 420px;
   width: 100%;
@@ -23,43 +34,50 @@
 
 .title {
   font-size: 22px;
-  font-weight: 700;
-  color: #1a2b4c;
+  font-weight: 800;
+  background: linear-gradient(135deg, #ffe9a8 0%, #f2c14e 55%, #e0a232 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 14px rgba(242, 193, 78, 0.3));
   margin: 12px 0 8px;
 }
 
 .text {
   font-size: 14px;
-  color: #64748b;
+  color: #a5b8e4;
   line-height: 1.7;
   margin: 0 0 24px;
 }
 
 .renewBtn {
   display: block;
-  background: #3b6fe0;
-  color: #fff;
-  border-radius: 8px;
+  background: linear-gradient(135deg, #f5cd62, #e0a232);
+  color: #1a2440;
+  border-radius: 12px;
   padding: 12px;
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 2px;
   text-decoration: none;
+  transition: opacity 0.2s, box-shadow 0.2s;
 }
 
 .renewBtn:hover {
-  background: #2f5cc4;
+  opacity: 0.94;
+  box-shadow: 0 6px 24px rgba(242, 193, 78, 0.4);
 }
 
 .logoutBtn {
-  margin-top: 12px;
+  margin-top: 14px;
   background: none;
   border: none;
-  color: #94a3b8;
+  color: #8fa0d0;
   font-size: 13px;
   cursor: pointer;
 }
 
 .logoutBtn:hover {
-  color: #64748b;
+  color: #c7d2f0;
   text-decoration: underline;
 }

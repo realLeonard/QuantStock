@@ -114,6 +114,10 @@ body {
 .login-input:hover { background: rgba(255,255,255,0.14); }
 .login-input::placeholder { color: rgba(255,255,255,0.45); }
 .login-input:focus { border-color: #f2c14e; box-shadow: 0 0 0 3px rgba(242,193,78,0.18); }
+/* iOS Safari 对字号 <16px 的输入框聚焦时会自动放大页面且登录后不还原，手机端强制 16px 规避 */
+@media (max-width: 768px) {
+  .login-input { font-size: 16px; }
+}
 .login-btn {
   width: 100%; padding: 12px;
   background: linear-gradient(135deg, #f5cd62, #e0a232);

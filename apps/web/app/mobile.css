@@ -147,6 +147,15 @@
   text-align: center;
 }
 
+/* ===== 输入框防 iOS 自动放大 =====
+ * iOS Safari 聚焦字号 <16px 的输入框会自动缩放页面且不自动还原，壳内输入框统一 16px
+ */
+.m-shell input,
+.m-shell textarea,
+.m-shell select {
+  font-size: 16px;
+}
+
 /* ===== 通用布局收窄 ===== */
 /* 页头（标题+副标题/搜索/右侧控件）竖排堆叠，搜索框全宽 */
 .m-shell .section-header {
