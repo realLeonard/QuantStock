@@ -91,6 +91,8 @@ function fetchDiagramUrl(date: string, session: string): Promise<string> {
       },
     );
     req.on('error', reject);
+    /* 韭研接口收盘高峰期可能挂起，不设超时会卡满外层 360s 无明确报错 */
+    req.setTimeout(30_000, () => req.destroy(new Error('diagram-url 请求超时(30s)')));
     req.write(body);
     req.end();
   });
@@ -159,7 +161,8 @@ async function parseWithQwen(imageUrl: string): Promise<LimitUpThemeOut[]> {
             Authorization: `Bearer ${apiKey}`,
           },
           body,
-          signal: AbortSignal.timeout(300_000),
+          /* 外层 Python subprocess 总超时 360s，单次调用须留出重试余量（120+30+120=270s < 360s） */
+          signal: AbortSignal.timeout(120_000),
         },
       );
       if (!resp.ok) throw new Error(`Qwen API 错误 HTTP ${resp.status}: ${await resp.text()}`);
