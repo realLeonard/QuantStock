@@ -6,7 +6,7 @@
  *
  * 步骤：
  *   1. 调 /api/v1/action/diagram-url 拿到当天涨停简图 PNG 的 OSS URL
- *   2. 调通义千问 qwen3.6-plus 解析成结构化 JSON（按板块分组）
+ *   2. 调通义千问 qwen3.7-plus 解析成结构化 JSON（按板块分组）
  *
  * 依赖环境变量：
  *   - JIUYAN_SESSION       韭研 SESSION cookie（登录态）
@@ -134,7 +134,7 @@ async function parseWithQwen(imageUrl: string): Promise<LimitUpThemeOut[]> {
   if (!apiKey) throw new Error('缺少 DASHSCOPE_API_KEY 环境变量');
 
   const body = JSON.stringify({
-    model: 'qwen3.6-plus',
+    model: 'qwen3.7-plus',
     enable_thinking: false,
     messages: [
       {
@@ -148,36 +148,25 @@ async function parseWithQwen(imageUrl: string): Promise<LimitUpThemeOut[]> {
     max_tokens: 30000,
   });
 
-  console.error(`     → 调用通义千问 qwen3.6-plus...`);
-  let resp!: Response;
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      resp = await fetch(
-        'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body,
-          /* 外层 Python subprocess 总超时 360s，单次调用须留出重试余量（120+30+120=270s < 360s） */
-          signal: AbortSignal.timeout(120_000),
-        },
-      );
-      if (!resp.ok) throw new Error(`Qwen API 错误 HTTP ${resp.status}: ${await resp.text()}`);
-      break;
-    } catch (e) {
-      const isTimeout = e instanceof Error &&
-        (e.name === 'TimeoutError' || e.message.includes('aborted due to timeout'));
-      if (attempt < 2 && isTimeout) {
-        console.error(`     ⚠️ 通义千问超时，30s 后重试...`);
-        await new Promise(r => setTimeout(r, 30_000));
-        continue;
-      }
-      throw e;
-    }
-  }
+  console.error(`     → 调用通义千问 qwen3.7-plus...`);
+  /*
+   * 单次给足 320s、不做脚本内重试：涨停多的交易日 Qwen 输出上万 token，生成常超 120s，
+   * 短超时+重试对慢生成无意义（重试同样超时，2026-09-18 三轮全灭教训）。
+   * 每小时的采集窗口（17:00-20:00）本身就是重试机制；30s 取图 + 320s 解析 < 外层 360s。
+   */
+  const resp = await fetch(
+    'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body,
+      signal: AbortSignal.timeout(320_000),
+    },
+  );
+  if (!resp.ok) throw new Error(`Qwen API 错误 HTTP ${resp.status}: ${await resp.text()}`);
 
   const result = await resp.json() as {
     choices?: { message?: { content?: string; finish_reason?: string } }[];
@@ -206,12 +195,20 @@ async function parseWithQwen(imageUrl: string): Promise<LimitUpThemeOut[]> {
 
 async function main() {
   const date = process.argv[2] || new Date().toISOString().slice(0, 10);
-  const session = process.env.JIUYAN_SESSION;
-  if (!session) throw new Error('缺少 JIUYAN_SESSION 环境变量');
+  /* 可选第 3 参数：已知简图 URL 时直接解析，跳过韭研接口（本地补采无 SIGN_SECRET 时用） */
+  const urlArg = process.argv[3];
   if (!process.env.DASHSCOPE_API_KEY) throw new Error('缺少 DASHSCOPE_API_KEY 环境变量');
 
-  console.error(`[1/2] 拉取 ${date} 涨停简图 URL...`);
-  const imageUrl = await fetchDiagramUrl(date, session);
+  let imageUrl: string;
+  if (urlArg) {
+    console.error(`[1/2] 使用传入的简图 URL（跳过韭研接口）`);
+    imageUrl = urlArg;
+  } else {
+    const session = process.env.JIUYAN_SESSION;
+    if (!session) throw new Error('缺少 JIUYAN_SESSION 环境变量');
+    console.error(`[1/2] 拉取 ${date} 涨停简图 URL...`);
+    imageUrl = await fetchDiagramUrl(date, session);
+  }
   console.error(`     → ${imageUrl}`);
 
   console.error(`[2/2] 通义千问 VL 解析...`);
