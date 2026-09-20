@@ -6,7 +6,7 @@ import 'dotenv/config';
 import { fetchList, type ThemeItem } from './fetcher.js';
 
 const DASHSCOPE_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
-const QWEN_MODEL = 'qwen3.6-plus';
+const QWEN_MODEL = 'qwen3.7-plus';
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));

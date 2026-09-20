@@ -1,7 +1,9 @@
 import sharp from 'sharp';
 
 const DASHSCOPE_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
-const QWEN_MODEL = 'qwen3.6-plus';
+const QWEN_MODEL = 'qwen3.7-plus';
+// 红字 OCR 任务简单（读几个裁剪出的股票名），用便宜的 flash 即可
+const QWEN_OCR_MODEL = 'qwen3.7-flash';
 
 export interface StockRow {
   cat1: string;
@@ -187,7 +189,7 @@ function extractRowsByRegex(text: string): StockRow[] {
 
 // ─── 图片下载（带重试）───────────────────────────────────────────────────────
 
-async function downloadImage(imgUrl: string): Promise<{ buffer: Buffer; mediaType: 'image/jpeg' | 'image/png' }> {
+async function downloadImage(imgUrl: string): Promise<{ buffer: Buffer; mediaType: 'image/jpeg' | 'image/png'; rawBuffer: Buffer }> {
   const imgBuffer = await withRetry(
     async () => {
       const response = await fetch(imgUrl, { signal: AbortSignal.timeout(20_000) }).catch(e => {
@@ -212,12 +214,186 @@ async function downloadImage(imgUrl: string): Promise<{ buffer: Buffer; mediaTyp
       .jpeg({ quality: 70 })
       .toBuffer();
     console.warn(`  压缩后 ${(compressed.byteLength / 1024 / 1024).toFixed(1)}MB`);
-    return { buffer: compressed, mediaType: 'image/jpeg' };
+    // rawBuffer 保留原图：红字像素扫描要用无损色彩
+    return { buffer: compressed, mediaType: 'image/jpeg', rawBuffer: imgBuffer };
   }
 
   const bytes = new Uint8Array(imgBuffer.slice(0, 4));
   const isJpeg = bytes[0] === 0xFF && bytes[1] === 0xD8;
-  return { buffer: imgBuffer, mediaType: isJpeg ? 'image/jpeg' : 'image/png' };
+  return { buffer: imgBuffer, mediaType: isJpeg ? 'image/jpeg' : 'image/png', rawBuffer: imgBuffer };
+}
+
+// ─── 红字股票识别（本地像素扫描 + 轻量 OCR）──────────────────────────────────
+// 大模型对"哪些股票名是红色"判别很不稳定（黑色加粗常被误判），改为：
+// 1) 本地扫描像素定位红色文字行（硬阈值，确定性结果）
+// 2) 裁剪红字区域拼成一张小图，用 flash 模型只做"读出名字"这一简单 OCR
+// 3) 按名字回填 highlight='red'；任何一步失败只警告，不影响主流程
+
+interface RedBand { top: number; height: number; left: number; width: number }
+
+// 只认纯正大红（红色股票名实测为 rgb(255,0,0)）。
+// 阈值放宽到 g/b<90 会漏进暗红相关性文字(176,80,0)和深棕红加粗名(128,48,0)，
+// 后者正是大模型频繁把黑名误判为红的原因，实测数据见 2026-09-20 调参记录
+function isRedPixel(r: number, g: number, b: number): boolean {
+  return r > 200 && g < 60 && b < 60;
+}
+
+async function detectRedTextBands(imgBuffer: Buffer): Promise<RedBand[]> {
+  const { data, info } = await sharp(imgBuffer).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { width, height, channels } = info;
+  const rowCount = new Array<number>(height).fill(0);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * channels;
+      if (isRedPixel(data[i], data[i + 1], data[i + 2])) rowCount[y]++;
+    }
+  }
+
+  // 连续红像素行聚类成 y 区间
+  const yBands: Array<{ top: number; height: number }> = [];
+  let start = -1;
+  for (let y = 0; y <= height; y++) {
+    const active = y < height && rowCount[y] >= 4;
+    if (active && start === -1) start = y;
+    if (!active && start !== -1) {
+      const bandH = y - start;
+      if (bandH >= 8 && bandH <= 60) yBands.push({ top: start, height: bandH });
+      start = -1;
+    }
+  }
+
+  // 每个 y 区间内再按 x 方向聚类：股票名列和相关性列的红字同处一行，
+  // 不拆开会并成超宽区间被误滤（首版实测 17 个红名只剩 2 个的教训）
+  const bands: RedBand[] = [];
+  const X_GAP = 14; // 列间空隙阈值（同一个词内字间距远小于此）
+  for (const { top, height: bandH } of yBands) {
+    const colCount = new Array<number>(width).fill(0);
+    for (let yy = top; yy < top + bandH; yy++) {
+      for (let x = 0; x < width; x++) {
+        const i = (yy * width + x) * channels;
+        if (isRedPixel(data[i], data[i + 1], data[i + 2])) colCount[x]++;
+      }
+    }
+    let cStart = -1;
+    let lastX = -1;
+    const flush = (endX: number) => {
+      if (cStart === -1) return;
+      const w = endX - cStart + 1;
+      // 股票名是短文本；过宽的是红色相关性长句，过窄的是杂点
+      if (w >= 25 && w <= Math.max(220, width * 0.2)) {
+        bands.push({ top, height: bandH, left: cStart, width: w });
+      }
+      cStart = -1;
+    };
+    for (let x = 0; x < width; x++) {
+      if (colCount[x] > 0) {
+        if (cStart === -1) cStart = x;
+        else if (x - lastX > X_GAP) { flush(lastX); cStart = x; }
+        lastX = x;
+      }
+    }
+    flush(lastX);
+  }
+  return bands;
+}
+
+async function ocrRedNames(imgBuffer: Buffer, bands: RedBand[], apiKey: string): Promise<string[]> {
+  const PAD = 6;
+  const GAP = 12;
+  const meta = await sharp(imgBuffer).metadata();
+  const imgW = meta.width ?? 0;
+  const imgH = meta.height ?? 0;
+  const CANVAS_W = 320;
+
+  const crops: { input: Buffer; left: number; top: number }[] = [];
+  let offsetY = 0;
+  for (const b of bands) {
+    const left = Math.max(0, b.left - PAD);
+    const top = Math.max(0, b.top - PAD);
+    const w = Math.min(b.width + PAD * 2, imgW - left, CANVAS_W);
+    const h = Math.min(b.height + PAD * 2, imgH - top);
+    const crop = await sharp(imgBuffer).extract({ left, top, width: w, height: h }).png().toBuffer();
+    crops.push({ input: crop, left: 0, top: offsetY });
+    offsetY += h + GAP;
+  }
+
+  const composite = await sharp({
+    create: { width: CANVAS_W, height: offsetY - GAP, channels: 3, background: 'white' },
+  })
+    .composite(crops)
+    .png()
+    .toBuffer();
+
+  const resp = await withRetry(
+    async () => {
+      const r = await fetch(`${DASHSCOPE_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: QWEN_OCR_MODEL,
+          max_tokens: 1024,
+          enable_thinking: false,
+          messages: [{
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: '图片中从上到下有若干段红色中文文字（多为股票名）。请从上到下逐段原样输出，每段一行，只输出文字本身，不要编号、不要任何其他说明。',
+              },
+              { type: 'image_url', image_url: { url: `data:image/png;base64,${composite.toString('base64')}` } },
+            ],
+          }],
+        }),
+        signal: AbortSignal.timeout(60_000),
+      });
+      if (!r.ok) {
+        const body = await r.text();
+        throw new Error(`红字 OCR HTTP ${r.status}: ${body.slice(0, 200)}`);
+      }
+      return r.json() as Promise<{ choices?: { message?: { content?: string } }[] }>;
+    },
+    isRetryableApiError,
+    2,
+    3_000,
+    '红字 OCR',
+  );
+
+  const text = resp.choices?.[0]?.message?.content ?? '';
+  return text.split('\n').map(s => s.trim()).filter(Boolean);
+}
+
+function applyRedHighlights(rows: StockRow[], redNames: string[]): number {
+  // 同一行相邻的两个红名可能被裁进同一块、OCR 连成一行输出，先按分隔符拆开
+  const nameSet = new Set(redNames.flatMap(n => n.split(/[\s,，、/|]+/)).filter(Boolean));
+  const matched = new Set<string>();
+  let count = 0;
+  for (const row of rows) {
+    for (const s of row.stocks) {
+      if (nameSet.has(s.name)) {
+        s.highlight = 'red';
+        matched.add(s.name);
+        count++;
+      }
+    }
+  }
+  for (const n of nameSet) {
+    // 长句是被裁进来的红色相关性文字，静默跳过；短名匹配不上才值得警告（多为结构解析认错字）
+    if (!matched.has(n) && n.length <= 8) {
+      console.warn(`    红字「${n}」未匹配到解析出的股票名（可能结构解析认错了字）`);
+    }
+  }
+  return count;
+}
+
+async function annotateRedStocks(imgBuffer: Buffer, rows: StockRow[], apiKey: string): Promise<void> {
+  const bands = await detectRedTextBands(imgBuffer);
+  if (bands.length === 0) return;
+  const redNames = await ocrRedNames(imgBuffer, bands, apiKey);
+  const count = applyRedHighlights(rows, redNames);
+  console.log(`    红字识别: 像素定位 ${bands.length} 处 → OCR 读出 ${redNames.length} 个 → 匹配标红 ${count} 只`);
 }
 
 // ─── 主函数 ──────────────────────────────────────────────────────────────────
@@ -233,7 +409,8 @@ export const VISION_PROMPT = `这是一张中国股市产业链表格图片。�
 
 提取规则：
 - 保持图片中的原始顺序，不要重新排序
-- highlight 统一填 ""，不做颜色识别
+- highlight 统一填 ""，不做颜色识别（红字由本地像素扫描单独处理）
+- 【股票名逐字准确】name 字段必须与图片中的文字逐字一致，不要脑补成你熟悉的相似股票名；遇到生僻字或看不清的字，宁可按字形原样输出，也不要替换成别的公司名
 - 合并单元格（rowspan）中分类文字出现在顶部，请严格按照视觉边界确定每个合并单元格覆盖的行范围，不要提前或延后切换分类
 - 忽略水印文字、风险提示行、表头行
 - 【重要：忽略"信源"列】如果表格中有"信源"列，直接跳过该列，不要将其内容填入任何字段。在判断表格列结构时也不要把"信源"列计入
@@ -350,7 +527,7 @@ export async function parseTableImage(imgUrl: string): Promise<StockRow[]> {
   const apiKey = process.env.DASHSCOPE_API_KEY;
   if (!apiKey) throw new Error('缺少 DASHSCOPE_API_KEY 环境变量');
 
-  const { buffer, mediaType } = await downloadImage(imgUrl);
+  const { buffer, mediaType, rawBuffer } = await downloadImage(imgUrl);
   const base64 = buffer.toString('base64');
 
   const resp = await withRetry(
@@ -397,17 +574,25 @@ export async function parseTableImage(imgUrl: string): Promise<StockRow[]> {
   let jsonStr = fixUnescapedQuotes(text.slice(startIdx));
   jsonStr = trimToJsonEnd(jsonStr);
   jsonStr = repairTruncatedJson(jsonStr);
+  let rows: StockRow[];
   try {
     const parsed = JSON.parse(jsonStr) as { rows?: StockRow[] };
-    return normalizeRows(parsed.rows ?? []);
+    rows = normalizeRows(parsed.rows ?? []);
   } catch {
     console.warn('  Vision JSON 解析失败，尝试正则兜底...');
     const fallback = extractRowsByRegex(text);
-    if (fallback.length > 0) {
-      console.warn(`  正则兜底成功，提取 ${fallback.length} 行`);
-      return normalizeRows(fallback);
+    if (fallback.length === 0) {
+      console.warn('  正则兜底也失败，原始响应:', text.slice(0, 200));
+      return [];
     }
-    console.warn('  正则兜底也失败，原始响应:', text.slice(0, 200));
-    return [];
+    console.warn(`  正则兜底成功，提取 ${fallback.length} 行`);
+    rows = normalizeRows(fallback);
   }
+
+  try {
+    await annotateRedStocks(rawBuffer, rows, apiKey);
+  } catch (e) {
+    console.warn('  红字识别失败（不影响主流程）:', (e as Error).message);
+  }
+  return rows;
 }
