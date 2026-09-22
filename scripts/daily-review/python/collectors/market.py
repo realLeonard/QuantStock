@@ -23,6 +23,7 @@ def collect_market_overview(date_str: str) -> dict:
         'sh000300': '沪深300',
         'sz399001': '深证成指',
         'sz399006': '创业板指',
+        'sh000688': '科创50',
     }
     try:
         df = ak.stock_zh_index_spot_sina()
