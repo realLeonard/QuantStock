@@ -8,6 +8,7 @@ import DetailBackBar from '@/components/ui/DetailBackBar';
 import type { DailyReview, AiAnalysis, AiAnalysisV2, LimitUpReasons } from '@quantstock/types';
 import s from './DailyReviewView.module.css';
 import FullReportV2 from './FullReportV2';
+import FullReportV3 from './FullReportV3';
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   success: { label: '完整', cls: s.statusSuccess },
@@ -15,8 +16,8 @@ const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   failed: { label: '失败', cls: s.statusFailed },
 };
 
-const TABS = [
-  { key: 'full', label: '全览' },
+/** 明细 Tab：默认折叠在「明细数据」开关后面，全览页才是进入详情的默认视图 */
+const DETAIL_TABS = [
   { key: 'overview', label: '大盘总览' },
   { key: 'limitUp', label: '涨停简图' },
   { key: 'ladder', label: '连板天梯' },
@@ -184,6 +185,7 @@ function strengthChipClass(strength: string): string {
 // ===== 详情页 =====
 function DetailView({ review, onBack }: { review: DailyReview; onBack: () => void }) {
   const [activeTab, setActiveTab] = useState('full');
+  const [detailOpen, setDetailOpen] = useState(false);
   const [limitUpReasons, setLimitUpReasons] = useState<LimitUpReasons | null>(null);
   const [limitUpLoading, setLimitUpLoading] = useState(false);
 
@@ -203,24 +205,49 @@ function DetailView({ review, onBack }: { review: DailyReview; onBack: () => voi
     };
   }, [review.report_date]);
 
+  // 明细面板占屏时不再有「全览」按钮，开关文案必须指明退路
+  const detailToggleLabel = !detailOpen
+    ? `明细数据 ▾（${DETAIL_TABS.length}）`
+    : activeTab === 'full'
+      ? '收起明细 ▴'
+      : '← 返回全览';
+
   return (
     <div className={s.detail}>
-      <DetailBackBar onBack={onBack} title={`${review.report_date} 每日复盘`} />
-
-      <div className={s.tabs}>
-        {TABS.map(t => (
+      <DetailBackBar
+        onBack={onBack}
+        title={`${review.report_date} 每日复盘`}
+        actions={
           <button
-            key={t.key}
-            className={`${s.tab} ${activeTab === t.key ? s.tabActive : ''}`}
-            onClick={() => setActiveTab(t.key)}
+            className={s.detailToggle}
+            aria-expanded={detailOpen}
+            onClick={() => {
+              // 收起时一并退回全览，避免明细面板留在屏幕上却没有 Tab 可切换
+              setActiveTab('full');
+              setDetailOpen(v => !v);
+            }}
           >
-            {t.label}
+            {detailToggleLabel}
           </button>
-        ))}
-      </div>
+        }
+      />
+
+      {detailOpen && (
+        <div className={s.subTabs}>
+          {DETAIL_TABS.map(t => (
+            <button
+              key={t.key}
+              className={`${s.tab} ${activeTab === t.key ? s.tabActive : ''}`}
+              onClick={() => setActiveTab(t.key)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {activeTab === 'full' ? (
-        <FullReportPanel review={review} limitUpReasons={limitUpReasons} />
+        <FullOverviewPanel review={review} limitUpReasons={limitUpReasons} />
       ) : (
         <div className={s.panel}>
           {activeTab === 'overview' && <OverviewPanel data={review.market_overview} sentiment={review.market_sentiment} marginTradeDate={(review.margin_data as { trade_date?: string } | null)?.trade_date ?? null} />}
@@ -244,7 +271,27 @@ function DetailView({ review, onBack }: { review: DailyReview; onBack: () => voi
   );
 }
 
-// ===== 全览面板 =====
+// ===== 全览面板入口 =====
+/** v2 结构化分析走新版深色全览；历史的旧结构复盘降级到 V2 / 平铺版 */
+function FullOverviewPanel({
+  review,
+  limitUpReasons,
+}: {
+  review: DailyReview;
+  limitUpReasons?: LimitUpReasons | null;
+}) {
+  const aiRaw = review.ai_analysis as (AiAnalysis | AiAnalysisV2) | null;
+
+  if (aiRaw && (aiRaw as { version?: string }).version === 'v2') {
+    return (
+      <FullReportV3 ai={aiRaw as AiAnalysisV2} review={review} limitUpReasons={limitUpReasons} />
+    );
+  }
+
+  return <FullReportPanel review={review} limitUpReasons={limitUpReasons} />;
+}
+
+// ===== 全览面板（旧版，仅历史数据降级使用）=====
 const FULL_COLLAPSE_LIMIT = 20;
 
 function FullReportPanel({

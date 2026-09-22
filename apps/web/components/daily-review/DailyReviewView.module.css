@@ -1,21 +1,30 @@
 /* 列表页 */
+/* 配色与全览页 FullReportV3 对齐，令牌只作用于列表卡片，不影响详情页其他区块 */
 .list {
   display: flex;
   flex-direction: column;
   gap: 14px;
+
+  --d-card: #131a2b;
+  --d-card-hi: #1d2438;
+  --d-line: rgba(255, 255, 255, 0.07);
+  --d-text: #e6edf3;
+  --d-text-2: #a8b3c1;
+  --d-text-3: #8b949e;
 }
 
 .card {
-  background: var(--card-bg, #fff);
-  border: 1px solid var(--border, #e5e7eb);
+  background: var(--d-card);
+  border: 1px solid var(--d-line);
   border-radius: 10px;
   padding: 18px 22px;
   cursor: pointer;
-  transition: box-shadow .18s, border-color .18s;
+  transition: box-shadow .18s, border-color .18s, background .18s;
 }
 .card:hover {
-  border-color: var(--primary, #6366f1);
-  box-shadow: 0 2px 12px rgba(99, 102, 241, .08);
+  background: var(--d-card-hi);
+  border-color: rgba(255, 82, 82, .35);
+  box-shadow: 0 2px 14px rgba(0, 0, 0, .35);
 }
 .cardHeader {
   display: flex;
@@ -26,7 +35,7 @@
 .cardDate {
   font-size: 15px;
   font-weight: 600;
-  color: var(--text-primary, #1e293b);
+  color: var(--d-text);
 }
 .cardStatus {
   font-size: 12px;
@@ -34,9 +43,9 @@
   border-radius: 4px;
   font-weight: 500;
 }
-.statusSuccess { background: #dcfce7; color: #166534; }
-.statusPartial { background: #fef9c3; color: #854d0e; }
-.statusFailed { background: #fecaca; color: #991b1b; }
+.statusSuccess { background: rgba(38, 194, 129, .16); color: #4bd6a0; }
+.statusPartial { background: rgba(255, 209, 102, .16); color: #ffd166; }
+.statusFailed { background: rgba(255, 82, 82, .16); color: #ff8a80; }
 
 .cardHeaderLeft {
   display: flex;
@@ -49,28 +58,28 @@
   padding: 2px 8px;
   border-radius: 4px;
   font-weight: 600;
-  background: var(--bg-hover, #f1f5f9);
-  color: var(--text-secondary, #475569);
+  background: rgba(255, 255, 255, .08);
+  color: var(--d-text-2);
 }
-.stageHot { background: #fee2e2; color: #dc2626; }
-.stageDiverge { background: #fef3c7; color: #92400e; }
-.stageCold { background: #dbeafe; color: #1d4ed8; }
-.stageRecover { background: #dcfce7; color: #14532d; }
+.stageHot { background: rgba(255, 82, 82, .18); color: #ff8a80; }
+.stageDiverge { background: rgba(255, 209, 102, .18); color: #ffd166; }
+.stageCold { background: rgba(127, 212, 255, .16); color: #7fd4ff; }
+.stageRecover { background: rgba(38, 194, 129, .18); color: #4bd6a0; }
 .cardScore {
   font-size: 12px;
-  color: var(--text-secondary, #64748b);
+  color: var(--d-text-3);
   font-weight: 500;
 }
 
 .cardHeadline {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary, #1e293b);
+  color: var(--d-text);
   line-height: 1.5;
   margin-bottom: 10px;
   padding: 8px 12px;
-  background: linear-gradient(135deg, #eef2ff 0%, #fdf2f8 100%);
-  border-left: 3px solid #6366f1;
+  background: linear-gradient(135deg, rgba(255, 82, 82, .12) 0%, rgba(127, 212, 255, .08) 100%);
+  border-left: 3px solid #ff5252;
   border-radius: 6px;
 }
 
@@ -79,10 +88,10 @@
   gap: 16px;
   flex-wrap: wrap;
   font-size: 13px;
-  color: var(--text-secondary, #64748b);
+  color: var(--d-text-3);
 }
-.cardRed { color: #dc2626; font-weight: 600; }
-.cardGreen { color: #16a34a; font-weight: 600; }
+.cardRed { color: #ff5252; font-weight: 600; }
+.cardGreen { color: #26c281; font-weight: 600; }
 
 .cardThemes {
   display: flex;
@@ -93,7 +102,7 @@
 }
 .cardThemesLabel {
   font-size: 12px;
-  color: var(--text-secondary, #64748b);
+  color: var(--d-text-3);
   font-weight: 600;
   margin-right: 2px;
 }
@@ -105,19 +114,19 @@
   padding: 3px 8px;
   border-radius: 12px;
   font-weight: 600;
-  background: var(--bg-hover, #f1f5f9);
-  color: var(--text-primary, #1e293b);
+  background: rgba(255, 255, 255, .08);
+  color: var(--d-text-2);
 }
-.cardThemeChipStrong { background: #fee2e2; color: #dc2626; }
-.cardThemeChipMid    { background: #fef3c7; color: #92400e; }
-.cardThemeChipWeak   { background: #dbeafe; color: #1d4ed8; }
+.cardThemeChipStrong { background: rgba(255, 82, 82, .18); color: #ff8a80; }
+.cardThemeChipMid    { background: rgba(255, 209, 102, .18); color: #ffd166; }
+.cardThemeChipWeak   { background: rgba(127, 212, 255, .16); color: #7fd4ff; }
 .cardThemeDays {
   font-size: 10px;
   font-weight: 700;
   opacity: 0.75;
   padding: 0 4px;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(0, 0, 0, 0.3);
 }
 
 .cardBattle {
@@ -126,15 +135,15 @@
   gap: 14px;
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px dashed var(--border, #e5e7eb);
+  border-top: 1px dashed var(--d-line);
   font-size: 12px;
 }
 .cardBattleItem {
-  color: var(--text-primary, #1e293b);
+  color: var(--d-text);
   font-weight: 500;
 }
 .cardBattleLabel {
-  color: var(--text-secondary, #64748b);
+  color: var(--d-text-3);
   margin-right: 4px;
   font-weight: 400;
 }
@@ -150,19 +159,12 @@
 }
 
 /* 详情页 */
+/* 返回栏 / 明细 Tab / 正文三段无缝叠放，中间不留浅色缝隙 */
 .detail {
   display: flex;
   flex-direction: column;
-  gap: 20px;
 }
 
-.tabs {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  border-bottom: 1px solid var(--border, #e5e7eb);
-  padding-bottom: 12px;
-}
 .tab {
   padding: 6px 14px;
   font-size: 13px;
@@ -183,11 +185,36 @@
   color: #fff;
   border-color: var(--primary, #6366f1);
 }
+/* 明细数据开关：挂在返回栏右侧插槽，样式跟随深色工具栏 */
+.detailToggle {
+  font-size: 12px;
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  padding: 4px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, color .15s;
+}
+.detailToggle:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+/* 展开后的明细 Tab 列表：紧贴返回栏下沿，不在标题与正文间留空隙 */
+.subTabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  background: var(--bg-hover, #f1f5f9);
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
 
 .panel {
   background: var(--card-bg, #fff);
   border: 1px solid var(--border, #e5e7eb);
-  border-radius: 10px;
+  border-radius: 0 0 10px 10px;
   padding: 20px;
   overflow-x: auto;
 }

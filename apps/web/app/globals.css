@@ -427,8 +427,20 @@ body {
   transition: color 0.15s;
 }
 .detail-back-btn:hover { color: #e2e8f0; }
+.detail-back-btn svg { flex-shrink: 0; }
 .detail-back-sep { color: #475569; margin: 0 2px; }
-.detail-back-title { color: #e2e8f0; font-size: 14px; font-weight: 600; }
+.detail-back-title {
+  color: #e2e8f0; font-size: 14px; font-weight: 600;
+  /* 栏高固定，标题过长只能截断，换行会溢出 */
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* 窄屏放不下「返回列表」文案时只留箭头，把宽度让给标题和右侧操作 */
+@media (max-width: 720px) {
+  .detail-back-bar { padding: 0 12px; gap: 8px; }
+  .detail-back-btn { font-size: 0; gap: 0; }
+  .detail-back-sep { display: none; }
+}
 
 /* ===== 详情页元信息行（DetailNav 通用组件） ===== */
 .detail-nav {
@@ -437,7 +449,7 @@ body {
 }
 .detail-nav-tag {
   font-size: 12px; padding: 3px 10px;
-  border-radius: 5px;
+  border-radius: 5px; white-space: nowrap;
   background: rgba(99, 179, 237, 0.15);
   color: #63b3ed;
   border: 1px solid rgba(99, 179, 237, 0.25);

@@ -158,7 +158,7 @@ export default function StocksView() {
           >
             {overviewExpanded ? '收起 ▲' : `展开 ▼（共 ${overviewLines.length} 条）`}
           </button>
-        ) : <span />}
+        ) : null}
       </div>
 
       {/* 股票表格 */}

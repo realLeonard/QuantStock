@@ -1,22 +1,30 @@
+/* 配色令牌与每日复盘列表保持同一套，两个列表页不能出现两种黑 */
 .list {
   display: flex;
   flex-direction: column;
   gap: 14px;
   margin-top: 20px;
+
+  --d-card: #131a2b;
+  --d-card-hi: #1d2438;
+  --d-line: rgba(255, 255, 255, 0.07);
+  --d-text: #e6edf3;
+  --d-text-3: #8b949e;
 }
 
 .card {
-  background: var(--card-bg, #1a1d23);
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.07));
+  background: var(--d-card);
+  border: 1px solid var(--d-line);
   border-radius: 10px;
   padding: 18px 20px;
   cursor: pointer;
-  transition: border-color 0.18s, transform 0.12s;
+  transition: background 0.18s, border-color 0.18s, box-shadow 0.18s;
 }
 
 .card:hover {
+  background: var(--d-card-hi);
   border-color: rgba(99, 179, 237, 0.4);
-  transform: translateY(-1px);
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.35);
 }
 
 .cardHeader {
@@ -29,7 +37,7 @@
 .date {
   font-size: 16px;
   font-weight: 600;
-  color: var(--text-primary, #e2e8f0);
+  color: var(--d-text);
   letter-spacing: 0.5px;
 }
 
@@ -54,7 +62,7 @@
 
 .summary {
   font-size: 14px;
-  color: var(--text-primary, #e2e8f0);
+  color: var(--d-text);
   font-weight: 500;
   line-height: 1.6;
   margin-bottom: 6px;
@@ -66,7 +74,7 @@
 
 .preview {
   font-size: 13px;
-  color: var(--text-secondary, #718096);
+  color: var(--d-text-3);
   line-height: 1.6;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -79,7 +87,7 @@
   align-items: center;
   margin-top: 12px;
   padding-top: 10px;
-  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.06));
+  border-top: 1px solid var(--d-line);
 }
 
 .readMore {
@@ -90,7 +98,7 @@
 
 .time {
   font-size: 12px;
-  color: var(--text-secondary, #718096);
+  color: var(--d-text-3);
 }
 
 .empty {

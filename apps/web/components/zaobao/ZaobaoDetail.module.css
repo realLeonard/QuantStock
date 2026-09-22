@@ -1,30 +1,106 @@
 
+/* 元信息挪进返回栏右侧，取消原先独立一行造成的标题与正文割裂 */
+.metaBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.metaTime {
+  font-size: 12px;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+/* 窄屏把「生成」前缀省掉，给标题留出宽度 */
+@media (max-width: 720px) {
+  .metaBar { gap: 8px; }
+  .metaTimeLabel { display: none; }
+}
+
 .content {
-  background: var(--card-bg, #1a1d23);
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.07));
-  border-radius: 10px;
+  /* 颜色令牌与全览页 FullReportV3 对齐（globals.css 未定义任何自定义属性） */
+  --d-line: rgba(255, 255, 255, 0.07);
+  --d-text: #e6edf3;
+  --d-text-3: #8b949e;
+  --d-up: #ff5252;
+  --d-gold: #ffd166;
+
+  background: #0b0f1a;
+  border: 1px solid var(--d-line);
+  border-radius: 0 0 10px 10px;
   padding: 24px 28px;
   font-size: 14px;
   line-height: 1.8;
-  color: var(--text-primary, #e2e8f0);
+  color: var(--d-text);
 }
 
-.reportTitle {
+/* 页头满宽压住 .content 的内边距，做出与全览页一致的顶部色带 */
+.header {
+  margin: -24px -28px 4px;
+  padding: 24px 28px 20px;
+  background: linear-gradient(135deg, #131a2b 0%, #0d1322 100%);
+  border-bottom: 1px solid rgba(255, 82, 82, 0.25);
+}
+
+.headerTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.headerTitle {
+  font-size: 24px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 1px;
+}
+
+.headerTitle em {
+  font-style: normal;
+  color: var(--d-up);
+}
+
+.headerBadge {
+  font-size: 12px;
+  color: var(--d-gold);
+  border: 1px solid rgba(255, 209, 102, 0.4);
+  border-radius: 20px;
+  padding: 3px 12px;
+  white-space: nowrap;
+}
+
+.headerSub {
+  margin-top: 8px;
+  color: var(--d-text-3);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.headerSub b {
+  color: var(--d-text);
+  font-weight: 600;
+}
+
+/* 章节标题：红色竖条 + 大字，与全览页各模块标题同款 */
+.secTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 26px 0 12px;
   font-size: 17px;
   font-weight: 700;
-  color: var(--text-primary, #e2e8f0);
-  padding: 4px 0 12px;
-  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.07));
-  margin-bottom: 16px;
-  letter-spacing: 0.3px;
+  color: #fff;
 }
 
-.sectionTitle {
-  font-size: 13px;
-  font-weight: 600;
-  color: #63b3ed;
-  padding: 14px 0 6px;
-  letter-spacing: 0.5px;
+.secTitle::before {
+  content: '';
+  width: 4px;
+  height: 18px;
+  background: var(--d-up);
+  border-radius: 2px;
+  flex-shrink: 0;
 }
 
 .line {
