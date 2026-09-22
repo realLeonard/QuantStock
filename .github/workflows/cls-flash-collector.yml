@@ -45,6 +45,9 @@ jobs:
           BARK_KEY: ${{ secrets.BARK_KEY }}
           JIUYAN_SESSION: ${{ secrets.JIUYAN_SESSION }}
           JIUYAN_SIGN_SECRET: ${{ secrets.JIUYAN_SIGN_SECRET }}
+          # SESSION 失效时自动重登用；新 SESSION 缓存在 appConfig 表，不回写 secret
+          JIUYAN_PHONE: ${{ secrets.JIUYAN_PHONE }}
+          JIUYAN_PASSWORD: ${{ secrets.JIUYAN_PASSWORD }}
           DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
         shell: bash
         run: |
@@ -66,7 +69,10 @@ jobs:
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         shell: bash
         run: |
-          if echo "$FAIL_LINE" | grep -q "登录失效"; then
+          # 自动重登失败要优先判断：此时手动换 SESSION 治不了本，得查密码是否被改或触发风控
+          if echo "$FAIL_LINE" | grep -qE "韭研登录失败|无法自动重登"; then
+            TITLE="韭研自动重登失败，需人工介入"
+          elif echo "$FAIL_LINE" | grep -q "登录失效"; then
             TITLE="韭研 SESSION 过期，需重新登录"
           elif echo "$FAIL_LINE" | grep -q "超时"; then
             TITLE="韭研涨停原因采集超时（可能自动重试）"

@@ -8,18 +8,29 @@
  *   1. 调 /api/v1/action/diagram-url 拿到当天涨停简图 PNG 的 OSS URL
  *   2. 调通义千问 qwen3.7-plus 解析成结构化 JSON（按板块分组）
  *
+ * SESSION 失效时会用账号密码自动重新登录，新 SESSION 缓存到 appConfig 表，
+ * 因此正常情况下几十天才登录一次（见 resolveImageUrl）。
+ *
  * 依赖环境变量：
- *   - JIUYAN_SESSION       韭研 SESSION cookie（登录态）
+ *   - JIUYAN_SESSION       韭研 SESSION cookie（登录态，appConfig 无缓存时的兜底）
+ *   - JIUYAN_PHONE         韭研账号手机号（自动重登用）
+ *   - JIUYAN_PASSWORD      韭研账号密码（自动重登用）
+ *   - SUPABASE_URL / SUPABASE_SERVICE_KEY   SESSION 缓存读写（缺失则降级为只读环境变量）
  *   - DASHSCOPE_API_KEY    通义千问 API 密钥
  */
 
 import * as crypto from 'node:crypto';
 import * as https from 'node:https';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { fixInnerQuotes, trimToJsonEnd, repairTruncatedJson } from './json-repair';
 
 const SIGN_SECRET = process.env.JIUYAN_SIGN_SECRET || '';
 const API_HOST = 'app.jiuyangongshe.com';
 const DIAGRAM_PATH = '/jystock-app/api/v1/action/diagram-url';
+const LOGIN_PATH = '/jystock-app/api/v1/user/login';
+const SESSION_CONFIG_KEY = 'jiuyan_session';
+const USER_AGENT =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 interface LimitUpStockOut {
   board: string;
@@ -47,10 +58,25 @@ function computeToken(ts: number): string {
   return crypto.createHash('md5').update(`${SIGN_SECRET}:${ts}`).digest('hex');
 }
 
+/* 登录态失效，可通过重新登录自愈；与网络错误、解析失败区分开，避免无谓的登录请求 */
+class SessionExpiredError extends Error {}
+
+function signHeaders(ts: number): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    timestamp: String(ts),
+    token: computeToken(ts),
+    platform: '3',
+    version: '1.8.7',
+    Origin: 'https://www.jiuyangongshe.com',
+    Referer: 'https://www.jiuyangongshe.com/',
+    'User-Agent': USER_AGENT,
+  };
+}
+
 function fetchDiagramUrl(date: string, session: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const time = Date.now();
-    const token = computeToken(time);
     const body = JSON.stringify({ date, pc: 1 });
 
     const req = https.request(
@@ -59,16 +85,8 @@ function fetchDiagramUrl(date: string, session: string): Promise<string> {
         path: DIAGRAM_PATH,
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          timestamp: String(time),
-          token,
-          platform: '3',
-          version: '1.8.7',
+          ...signHeaders(time),
           Cookie: `SESSION=${session}`,
-          Origin: 'https://www.jiuyangongshe.com',
-          Referer: 'https://www.jiuyangongshe.com/',
-          'User-Agent':
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Content-Length': Buffer.byteLength(body),
         },
       },
@@ -79,7 +97,14 @@ function fetchDiagramUrl(date: string, session: string): Promise<string> {
           try {
             const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8')) as DiagramUrlResp;
             if (String(parsed.errCode) !== '0' || !parsed.data) {
-              reject(new Error(`diagram-url 异常 errCode=${parsed.errCode} msg=${parsed.msg}`));
+              const detail = `errCode=${parsed.errCode} msg=${parsed.msg}`;
+              const expired =
+                String(parsed.errCode) === '1' || (parsed.msg || '').includes('登录失效');
+              reject(
+                expired
+                  ? new SessionExpiredError(`diagram-url 登录失效 ${detail}`)
+                  : new Error(`diagram-url 异常 ${detail}`),
+              );
               return;
             }
             resolve(parsed.data);
@@ -96,6 +121,88 @@ function fetchDiagramUrl(date: string, session: string): Promise<string> {
     req.write(body);
     req.end();
   });
+}
+
+// ─── SESSION 自愈（缓存 + 密码重登） ─────────────────────────────────────────
+
+interface LoginResp {
+  errCode: string;
+  msg: string;
+  data?: { sessionToken?: string };
+}
+
+/* 缺少 Supabase 凭证时返回 null（本地补采场景），调用方降级为只用环境变量的 SESSION */
+function getSupabase(): SupabaseClient | null {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key);
+}
+
+async function readCachedSession(sb: SupabaseClient | null): Promise<string | null> {
+  if (!sb) return null;
+  const { data, error } = await sb
+    .from('appConfig')
+    .select('value')
+    .eq('key', SESSION_CONFIG_KEY)
+    .maybeSingle();
+  if (error) {
+    console.error(`     ⚠️ 读取 SESSION 缓存失败，回退环境变量: ${error.message}`);
+    return null;
+  }
+  return (data?.value as string) || null;
+}
+
+async function writeCachedSession(sb: SupabaseClient | null, session: string): Promise<void> {
+  if (!sb) return;
+  const { error } = await sb
+    .from('appConfig')
+    .upsert(
+      { key: SESSION_CONFIG_KEY, value: session, updated_at: Date.now() },
+      { onConflict: 'key' },
+    );
+  if (error) console.error(`     ⚠️ SESSION 缓存写入失败（本次仍可用）: ${error.message}`);
+}
+
+async function login(): Promise<string> {
+  const phone = process.env.JIUYAN_PHONE;
+  const password = process.env.JIUYAN_PASSWORD;
+  if (!phone || !password) {
+    throw new Error('SESSION 已失效，但未配置 JIUYAN_PHONE / JIUYAN_PASSWORD，无法自动重登');
+  }
+
+  const resp = await fetch(`https://${API_HOST}${LOGIN_PATH}`, {
+    method: 'POST',
+    headers: signHeaders(Date.now()),
+    body: JSON.stringify({ phone, password }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!resp.ok) throw new Error(`韭研登录 HTTP ${resp.status}`);
+
+  const json = (await resp.json()) as LoginResp;
+  const sessionToken = json.data?.sessionToken;
+  if (String(json.errCode) !== '0' || !sessionToken) {
+    throw new Error(`韭研登录失败 errCode=${json.errCode} msg=${json.msg}`);
+  }
+  return sessionToken;
+}
+
+/* SESSION 优先用 appConfig 缓存，失效时重登一次并回写缓存，保证登录频率 ≈ 每个有效期一次 */
+async function resolveImageUrl(date: string): Promise<string> {
+  const sb = getSupabase();
+  const session = (await readCachedSession(sb)) || process.env.JIUYAN_SESSION;
+  if (!session) throw new Error('缺少 JIUYAN_SESSION 环境变量');
+
+  try {
+    return await fetchDiagramUrl(date, session);
+  } catch (e) {
+    if (!(e instanceof SessionExpiredError)) throw e;
+    console.error(`     ⚠️ ${e.message}，尝试账号密码重新登录...`);
+    const fresh = await login();
+    await writeCachedSession(sb, fresh);
+    console.error('     → 重登成功，重试 diagram-url（仅一次）');
+    return fetchDiagramUrl(date, fresh);
+  }
 }
 
 // JSON 修复工具已提取到 json-repair.ts
@@ -204,10 +311,8 @@ async function main() {
     console.error(`[1/2] 使用传入的简图 URL（跳过韭研接口）`);
     imageUrl = urlArg;
   } else {
-    const session = process.env.JIUYAN_SESSION;
-    if (!session) throw new Error('缺少 JIUYAN_SESSION 环境变量');
     console.error(`[1/2] 拉取 ${date} 涨停简图 URL...`);
-    imageUrl = await fetchDiagramUrl(date, session);
+    imageUrl = await resolveImageUrl(date);
   }
   console.error(`     → ${imageUrl}`);
 
