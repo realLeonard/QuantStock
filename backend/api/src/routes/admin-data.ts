@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { adminAuth } from '../middleware/auth';
 import { db } from '../db';
+import { fetchClsArticle, ClsArticleError } from '../utils/cls-article';
 
 type Variables = {
   authUid: string;
@@ -84,6 +85,21 @@ adminData.get('/news', adminAuth, async (c) => {
     const items = await db.listNewsItemsByRange(startMs, endMs);
     return c.json({ data: items });
   } catch (e) {
+    return c.json({ error: (e as Error).message }, 500);
+  }
+});
+
+// GET /api/news/cls/:id/content - 财联社原文正文（实时抓取，仅内存短缓存，不落库）
+adminData.get('/news/cls/:id/content', adminAuth, async (c) => {
+  const { id } = c.req.param();
+  if (!/^\d{1,12}$/.test(id)) {
+    return c.json({ error: '文章 ID 不正确' }, 400);
+  }
+  try {
+    const blocks = await fetchClsArticle(id);
+    return c.json({ data: blocks });
+  } catch (e) {
+    if (e instanceof ClsArticleError) return c.json({ error: e.message }, e.status);
     return c.json({ error: (e as Error).message }, 500);
   }
 });

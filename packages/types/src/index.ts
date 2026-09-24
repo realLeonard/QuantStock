@@ -628,3 +628,8 @@ export interface DashboardStats {
   highlightCount: number;
   avgStars: string;
 }
+
+// 财联社文章正文（GET /api/news/cls/:id/content，实时抓取不落库）
+export type NewsArticleBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image'; src: string };

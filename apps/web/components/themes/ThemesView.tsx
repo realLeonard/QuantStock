@@ -39,7 +39,7 @@ export default function ThemesView() {
     <>
       <div className="section-header">
         <div>
-          <PageHeader title="主题管理" desc="管理您的所有投资主题及关联股票池" />
+          <PageHeader title="投资主题" desc="管理您的所有投资主题及关联股票池" />
         </div>
         <div className="search-bar">
           <svg className="search-bar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

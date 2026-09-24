@@ -27,7 +27,7 @@ export default function Dashboard() {
   return (
     <>
       <PageHeader
-        title="仪表盘"
+        title="快速预览"
         desc={`欢迎回来，${currentUser?.username ? maskUsername(currentUser.username) : '用户'}！`}
       />
 
