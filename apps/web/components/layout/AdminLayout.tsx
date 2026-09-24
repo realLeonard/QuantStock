@@ -93,7 +93,7 @@ export default function AdminLayout({ children }: Props) {
                 <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
               </svg>
             </span>
-            仪表盘
+            快速预览
           </div>
           <div
             className={`nav-item${currentNav === 'themes' ? ' active' : ''}`}
@@ -106,8 +106,20 @@ export default function AdminLayout({ children }: Props) {
                 <polyline points="2 12 12 17 22 12"/>
               </svg>
             </span>
-            主题管理
+            投资主题
             <span className="nav-badge">{themes.length}</span>
+          </div>
+          <div
+            className={`nav-item${currentNav === 'news' ? ' active' : ''}`}
+            onClick={() => handleNav('news')}
+          >
+            <span className="nav-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/>
+                <path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/>
+              </svg>
+            </span>
+            今日资讯
           </div>
           <div
             className={`nav-item${currentNav === 'gold' ? ' active' : ''}`}
@@ -151,18 +163,6 @@ export default function AdminLayout({ children }: Props) {
             </span>
             每日复盘
             {latestReviewDate && <span className="nav-badge">{latestReviewDate}</span>}
-          </div>
-          <div
-            className={`nav-item${currentNav === 'news' ? ' active' : ''}`}
-            onClick={() => handleNav('news')}
-          >
-            <span className="nav-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/>
-                <path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/>
-              </svg>
-            </span>
-            今日资讯
           </div>
           <div
             className={`nav-item${currentNav === 'breadth' ? ' active' : ''}`}
@@ -512,8 +512,8 @@ function FloatingActions() {
 }
 
 const NAV_LABEL: Record<string, string> = {
-  dashboard: '仪表盘',
-  themes: '主题管理',
+  dashboard: '快速预览',
+  themes: '投资主题',
   users: '用户管理',
   roles: '角色管理',
   zaobao: '每日早报',
