@@ -21,7 +21,6 @@
 
 import * as crypto from 'node:crypto';
 import * as https from 'node:https';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { fixInnerQuotes, trimToJsonEnd, repairTruncatedJson } from './json-repair';
 
 const SIGN_SECRET = process.env.JIUYAN_SIGN_SECRET || '';
@@ -131,37 +130,56 @@ interface LoginResp {
   data?: { sessionToken?: string };
 }
 
-/* 缺少 Supabase 凭证时返回 null（本地补采场景），调用方降级为只用环境变量的 SESSION */
-function getSupabase(): SupabaseClient | null {
+interface RestConfig {
+  url: string;
+  headers: Record<string, string>;
+}
+
+/*
+ * 直接调 PostgREST 而不用 supabase-js：快讯 workflow 不装 npm 依赖，
+ * 本脚本必须保持只依赖 Node 内置模块，否则 npx tsx 会 ERR_MODULE_NOT_FOUND。
+ * 缺少凭证时返回 null（本地补采场景），调用方降级为只用环境变量的 SESSION。
+ */
+function getRestConfig(): RestConfig | null {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_KEY;
   if (!url || !key) return null;
-  return createClient(url, key);
+  return {
+    url: `${url.replace(/\/$/, '')}/rest/v1/appConfig`,
+    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+  };
 }
 
-async function readCachedSession(sb: SupabaseClient | null): Promise<string | null> {
-  if (!sb) return null;
-  const { data, error } = await sb
-    .from('appConfig')
-    .select('value')
-    .eq('key', SESSION_CONFIG_KEY)
-    .maybeSingle();
-  if (error) {
-    console.error(`     ⚠️ 读取 SESSION 缓存失败，回退环境变量: ${error.message}`);
+async function readCachedSession(rest: RestConfig | null): Promise<string | null> {
+  if (!rest) return null;
+  try {
+    const query = `select=value&key=eq.${encodeURIComponent(SESSION_CONFIG_KEY)}`;
+    const resp = await fetch(`${rest.url}?${query}`, {
+      headers: rest.headers,
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} ${await resp.text()}`);
+    const rows = (await resp.json()) as Array<{ value: unknown }>;
+    return typeof rows[0]?.value === 'string' && rows[0].value ? rows[0].value : null;
+  } catch (e) {
+    console.error(`     ⚠️ 读取 SESSION 缓存失败，回退环境变量: ${(e as Error).message}`);
     return null;
   }
-  return (data?.value as string) || null;
 }
 
-async function writeCachedSession(sb: SupabaseClient | null, session: string): Promise<void> {
-  if (!sb) return;
-  const { error } = await sb
-    .from('appConfig')
-    .upsert(
-      { key: SESSION_CONFIG_KEY, value: session, updated_at: Date.now() },
-      { onConflict: 'key' },
-    );
-  if (error) console.error(`     ⚠️ SESSION 缓存写入失败（本次仍可用）: ${error.message}`);
+async function writeCachedSession(rest: RestConfig | null, session: string): Promise<void> {
+  if (!rest) return;
+  try {
+    const resp = await fetch(`${rest.url}?on_conflict=key`, {
+      method: 'POST',
+      headers: { ...rest.headers, Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ key: SESSION_CONFIG_KEY, value: session, updated_at: Date.now() }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} ${await resp.text()}`);
+  } catch (e) {
+    console.error(`     ⚠️ SESSION 缓存写入失败（本次仍可用）: ${(e as Error).message}`);
+  }
 }
 
 async function login(): Promise<string> {
@@ -189,8 +207,8 @@ async function login(): Promise<string> {
 
 /* SESSION 优先用 appConfig 缓存，失效时重登一次并回写缓存，保证登录频率 ≈ 每个有效期一次 */
 async function resolveImageUrl(date: string): Promise<string> {
-  const sb = getSupabase();
-  const session = (await readCachedSession(sb)) || process.env.JIUYAN_SESSION;
+  const rest = getRestConfig();
+  const session = (await readCachedSession(rest)) || process.env.JIUYAN_SESSION;
   if (!session) throw new Error('缺少 JIUYAN_SESSION 环境变量');
 
   try {
@@ -199,7 +217,7 @@ async function resolveImageUrl(date: string): Promise<string> {
     if (!(e instanceof SessionExpiredError)) throw e;
     console.error(`     ⚠️ ${e.message}，尝试账号密码重新登录...`);
     const fresh = await login();
-    await writeCachedSession(sb, fresh);
+    await writeCachedSession(rest, fresh);
     console.error('     → 重登成功，重试 diagram-url（仅一次）');
     return fetchDiagramUrl(date, fresh);
   }
