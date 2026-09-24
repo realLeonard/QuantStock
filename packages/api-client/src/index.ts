@@ -22,6 +22,7 @@ import type {
   StockCode,
   LoginLog,
   LoginLogSummary,
+  NewsArticleBlock,
 } from '@quantstock/types';
 
 // 资讯条目（服务端 GET /api/news 返回结构）
@@ -318,6 +319,10 @@ export class QuantStockApiClient {
 
   async listNewsItems(date: string): Promise<NewsItem[]> {
     return this.request('GET', `/news?date=${encodeURIComponent(date)}`);
+  }
+
+  async getClsArticle(clsId: string): Promise<NewsArticleBlock[]> {
+    return this.request('GET', `/news/cls/${encodeURIComponent(clsId)}/content`);
   }
 }
 
