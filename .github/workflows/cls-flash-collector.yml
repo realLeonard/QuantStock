@@ -1,7 +1,12 @@
 name: 财联社快讯采集
 
 on:
-  workflow_dispatch:  # 由 cron-job.org 外部触发
+  workflow_dispatch:  # 由 cron-job.org 外部触发（不带 inputs，走常规快讯采集）
+    inputs:
+      limitup_date:
+        description: '只跑第 7 步（韭研涨停简图）的日期 YYYY-MM-DD，用于随时测试/补采；留空=常规快讯采集'
+        required: false
+        default: ''
 
 concurrency:
   group: cls-flash-collector
@@ -49,12 +54,22 @@ jobs:
           JIUYAN_PHONE: ${{ secrets.JIUYAN_PHONE }}
           JIUYAN_PASSWORD: ${{ secrets.JIUYAN_PASSWORD }}
           DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+          LIMITUP_DATE: ${{ inputs.limitup_date }}
         shell: bash
         run: |
           set -o pipefail
-          python cls_news_collector.py --mode flash 2>&1 | tee /tmp/cls-log.txt
+          if [ -n "$LIMITUP_DATE" ]; then
+            if ! [[ "$LIMITUP_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+              echo "❌ 日期格式必须为 YYYY-MM-DD"; exit 1
+            fi
+            python cls_news_collector.py --limitup-date "$LIMITUP_DATE" 2>&1 | tee /tmp/cls-log.txt
+          else
+            python cls_news_collector.py --mode flash 2>&1 | tee /tmp/cls-log.txt
+          fi
           # 只检测第 7 步（韭研涨停原因）失败 —— Python try/except 吞掉异常，这里扫日志兜底
           if grep -qE "\[limitUpReasons\].*(失败|超时)" /tmp/cls-log.txt; then
+            # 手动测试/补采：直接标红作业，不走 Bark（人就在看）
+            if [ -n "$LIMITUP_DATE" ]; then exit 1; fi
             FAIL_LINE=$(grep -m1 -E "\[limitUpReasons\].*(失败|超时)" /tmp/cls-log.txt | head -c 200)
             echo "step7_fail=1" >> "$GITHUB_OUTPUT"
             echo "fail_line=${FAIL_LINE}" >> "$GITHUB_OUTPUT"

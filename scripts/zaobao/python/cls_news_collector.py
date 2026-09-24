@@ -561,24 +561,26 @@ def collect_market_breadth(sb: Client) -> None:
 
 # ===== 韭研涨停原因采集 =====
 
-def collect_limit_up_reasons(sb: Client) -> None:
+def collect_limit_up_reasons(sb: Client, manual_date: str | None = None) -> None:
     """
     收盘后采集韭研公社「涨停简图」题材聚类数据，写入 limitUpReasons 表。
-    仅在北京时间 17:00-19:00 窗口内执行（A股 15:00 收盘后数据稳定）。
+    定时触发时仅在北京时间 17:00-20:00 窗口内执行（A股 15:00 收盘后数据稳定）；
+    传入 manual_date 时跳过窗口检查，用于随时测试和补采。
     幂等：当日已有记录则跳过。
 
     数据源：韭研公社「涨停简图」PNG（每日收盘后生成）
     通过 Node.js 脚本 scripts/daily-review/jiuyan-image-fetch.ts 调通义千问 Vision 解析。
     """
     now_bj = datetime.now(ZoneInfo('Asia/Shanghai'))
-    if not is_trading_day(now_bj.strftime('%Y-%m-%d')):
-        print(f'  [limitUpReasons] 非交易日（周末/节假日），跳过')
+    pick_date = manual_date or now_bj.strftime('%Y-%m-%d')
+    if not is_trading_day(pick_date):
+        print(f'  [limitUpReasons] {pick_date} 非交易日（周末/节假日），跳过')
         return
-    if not (17 <= now_bj.hour < 20):
+    if manual_date:
+        print(f'  [limitUpReasons] 手动指定日期 {pick_date}，跳过时间窗口检查')
+    elif not (17 <= now_bj.hour < 20):
         print(f'  [limitUpReasons] 当前 {now_bj.strftime("%H:%M")} BJ，不在 17:00-20:00 窗口，跳过')
         return
-
-    pick_date = now_bj.strftime('%Y-%m-%d')
 
     try:
         # 幂等：已存在则跳过
@@ -601,7 +603,8 @@ def collect_limit_up_reasons(sb: Client) -> None:
             timeout=360,
         )
         if proc.returncode != 0:
-            print(f'  [limitUpReasons] Node 脚本失败: {proc.stderr.strip()[-500:]}')
+            # 输出完整 stderr：只截尾部会把 tsx 报错的首行（真正原因）截掉
+            print(f'  [limitUpReasons] Node 脚本失败: {proc.stderr.strip()}')
             return
 
         data = json.loads(proc.stdout)
@@ -740,5 +743,18 @@ if __name__ == '__main__':
         default='full',
         help='full=全部来源, flash=仅快讯, depth=热门+A股'
     )
+    parser.add_argument(
+        '--limitup-date',
+        help='只跑第 7 步（韭研涨停简图）并指定日期 YYYY-MM-DD，跳过时间窗口，用于测试/补采'
+    )
     args = parser.parse_args()
-    run(mode=args.mode)
+    if args.limitup_date:
+        import re
+        if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', args.limitup_date):
+            print(f'❌ --limitup-date 格式必须为 YYYY-MM-DD：{args.limitup_date}')
+            sys.exit(1)
+        check_env()
+        print(f'[7/7] 采集韭研涨停原因（手动 {args.limitup_date}）...')
+        collect_limit_up_reasons(connect_supabase_with_retry(), manual_date=args.limitup_date)
+    else:
+        run(mode=args.mode)
