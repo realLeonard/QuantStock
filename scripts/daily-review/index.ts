@@ -483,10 +483,12 @@ async function generateAiAnalysisV2(
   console.log('  [ai] 调用 Claude CLI 生成 v2 结构化复盘...');
   const fullPrompt = `${SYSTEM_PROMPT_V2}\n\n---\n\n以下是 ${data.report_date} 的 A 股收盘数据，请严格按 JSON schema 返回 v2 结构化分析：\n\n${userContent}`;
   console.log(`  [ai] prompt 长度: ${fullPrompt.length} 字符`);
+  // 近期正常耗时已涨到 ~10min，900s 上限在大行情日会被打满（2026-10-14 教训）
   const rawText = callClaude(
     fullPrompt,
     'daily-review-v2',
     '不要输出任何 markdown 代码块或前后缀文字，只输出纯 JSON。',
+    1_500_000,
   );
 
   // 提取 + 修复 AI 返回的 JSON（处理代码块包裹、未转义引号、截断等）
@@ -695,6 +697,9 @@ async function main() {
   }
   console.log(`  ✓ 状态: ${data.status}`);
 
+  // AI 失败仍推送基础数据，但最终以非零退出触发 workflow 的 Bark 告警
+  let aiFailed = false;
+
   // 生成 v2 分析（已存在则跳过）
   const existingVersion = (data.ai_analysis as Record<string, unknown> | null)?.version;
   if (!data.ai_analysis || existingVersion !== 'v2') {
@@ -734,6 +739,7 @@ async function main() {
       }
       if (!writeOk) {
         console.error('  ✗ 回写 3 次均失败，跳过');
+        aiFailed = true;
       } else {
         console.log(`  ✓ v2 分析已生成并保存`);
         console.log(`    headline: ${analysis.headline}`);
@@ -743,6 +749,7 @@ async function main() {
       }
     } catch (e) {
       console.error(`  ✗ AI 分析生成失败: ${(e as Error).message}`);
+      aiFailed = true;
     }
   } else {
     console.log('[2/3] v2 AI 分析已存在，跳过生成');
@@ -772,6 +779,11 @@ async function main() {
     console.log('  ✓ 推送完成');
   } catch (e) {
     console.error(`  ✗ 推送失败: ${(e as Error).message}`);
+  }
+
+  if (aiFailed) {
+    console.error('====== AI 分析失败，已推送基础数据，任务标记为失败 ======');
+    process.exit(1);
   }
 
   console.log();
