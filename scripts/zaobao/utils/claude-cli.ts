@@ -6,11 +6,13 @@ import * as fs from 'node:fs';
  * @param prompt 完整 prompt（system + user 拼接）
  * @param label 标签，用于临时文件命名和错误信息
  * @param outputHint 输出格式要求，默认纯文本；需要 JSON 时可传入自定义指令
+ * @param timeoutMs 单次调用超时；早报一次运行调用两次，默认值须保证两次之和不超 job 上限
  */
 export function callClaude(
   prompt: string,
   label: string,
   outputHint = '直接输出内容，不要输出 markdown 代码块包裹。',
+  timeoutMs = 900_000,
 ): string {
   const promptPath = `/tmp/${label}-${Date.now()}.txt`;
   fs.writeFileSync(promptPath, prompt);
@@ -26,7 +28,7 @@ export function callClaude(
       '--allowedTools', 'Read',
       '--model', 'claude-opus-4-6',
     ], {
-      timeout: 900_000,
+      timeout: timeoutMs,
       encoding: 'utf8',
       maxBuffer: 10 * 1024 * 1024,
       input: cliInput,
