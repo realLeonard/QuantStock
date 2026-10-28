@@ -311,6 +311,8 @@ async function parseWithQwen(imageUrl: string): Promise<LimitUpThemeOut[]> {
   let jsonStr = fixInnerQuotes(text.slice(startIdx));
   jsonStr = trimToJsonEnd(jsonStr);
   jsonStr = repairTruncatedJson(jsonStr);
+  // Qwen 偶尔在字符串值里输出裸换行/制表符，JSON.parse 会报 Bad control character
+  jsonStr = Array.from(jsonStr, (ch) => (ch.charCodeAt(0) < 32 ? ' ' : ch)).join('');
 
   const parsed = JSON.parse(jsonStr) as { themes?: LimitUpThemeOut[] };
   return parsed.themes ?? [];
