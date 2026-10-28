@@ -41,6 +41,19 @@ export function repairTruncatedJson(str: string): string {
   return str + stack.reverse().join('');
 }
 
+const UNCLOSED_VALUE_RE = /^(\s*"[^"]+"\s*:\s*"[^"]*?)(,?)\s*$/;
+
+/**
+ * 闭合行尾漏掉右引号的字符串值，如 Qwen 输出的 `"name": "振邦,` → `"name": "振邦",`。
+ * 仅适用于逐行排版的 JSON，须在 fixInnerQuotes 之前调用（否则下一行的引号会被误转义）。
+ */
+export function closeUnterminatedLines(s: string): string {
+  return s
+    .split('\n')
+    .map((line) => line.replace(UNCLOSED_VALUE_RE, '$1"$2'))
+    .join('\n');
+}
+
 /**
  * 修复 JSON 字符串值中未转义的双引号。
  * AI 常返回如 "keyword":"投资"凌空天行"" — 内嵌引号导致解析失败。

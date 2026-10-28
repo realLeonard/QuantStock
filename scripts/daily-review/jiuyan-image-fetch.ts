@@ -21,7 +21,12 @@
 
 import * as crypto from 'node:crypto';
 import * as https from 'node:https';
-import { fixInnerQuotes, trimToJsonEnd, repairTruncatedJson } from './json-repair';
+import {
+  closeUnterminatedLines,
+  fixInnerQuotes,
+  trimToJsonEnd,
+  repairTruncatedJson,
+} from './json-repair';
 
 const SIGN_SECRET = process.env.JIUYAN_SIGN_SECRET || '';
 const API_HOST = 'app.jiuyangongshe.com';
@@ -308,7 +313,7 @@ async function parseWithQwen(imageUrl: string): Promise<LimitUpThemeOut[]> {
   const text = rawText.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '');
   const startIdx = text.indexOf('{');
   if (startIdx === -1) throw new Error(`Qwen 未返回 JSON：${text.slice(0, 200)}`);
-  let jsonStr = fixInnerQuotes(text.slice(startIdx));
+  let jsonStr = fixInnerQuotes(closeUnterminatedLines(text.slice(startIdx)));
   jsonStr = trimToJsonEnd(jsonStr);
   jsonStr = repairTruncatedJson(jsonStr);
   // Qwen 偶尔在字符串值里输出裸换行/制表符，JSON.parse 会报 Bad control character
