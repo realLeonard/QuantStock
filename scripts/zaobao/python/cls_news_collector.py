@@ -197,23 +197,31 @@ def fetch_sign() -> str:
     return sign
 
 
-def validate_sign(sign: str) -> bool:
-    """用 hot/list 接口验证 sign 有效性"""
-    try:
-        r = requests.get(
-            'https://www.cls.cn/v2/article/hot/list',
-            headers=HEADERS,
-            params={'app': 'CailianpressWeb', 'os': 'web', 'sv': '8.4.6', 'sign': sign},
-            timeout=10
-        )
-        data = r.json()
+def validate_sign(sign: str, max_retries: int = 3) -> bool:
+    """
+    用 hot/list 接口验证 sign 有效性。
+    网络异常（超时/连接失败/非 JSON）属于偶发问题，退避重试；
+    接口明确返回 errno != 0 才判定 sign 失效，不重试。
+    """
+    for attempt in range(1, max_retries + 1):
+        try:
+            r = requests.get(
+                'https://www.cls.cn/v2/article/hot/list',
+                headers=HEADERS,
+                params={'app': 'CailianpressWeb', 'os': 'web', 'sv': '8.4.6', 'sign': sign},
+                timeout=20
+            )
+            data = r.json()
+        except Exception as e:
+            print(f'  [sign] 验证请求失败（第 {attempt}/{max_retries} 次）: {e}')
+            if attempt < max_retries:
+                time.sleep(5 * attempt)
+            continue
         valid = data.get('errno', -1) == 0 and bool(data.get('data'))
         if not valid:
             print(f'  [sign] 验证失败: errno={data.get("errno")}, data={bool(data.get("data"))}')
         return valid
-    except Exception as e:
-        print(f'  [sign] 验证请求失败: {e}')
-        return False
+    return False
 
 
 # ===== 分类规则 =====

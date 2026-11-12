@@ -71,6 +71,8 @@ jobs:
         working-directory: scripts/zaobao/python
 
       - name: 采集财联社热门+A股（确保新闻数据最新）
+        # 新闻已有独立定时任务采集，这里仅做补充；cls.cn 偶发超时不应阻断早报生成
+        continue-on-error: true
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
